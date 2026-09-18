@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import api from "@/lib/axios";
+import toast from "react-hot-toast";
 
 interface UserModalProps {
   open: boolean;
@@ -139,16 +140,21 @@ export default function UserModal({
           ? await api.post("/users", payload)
           : await api.patch(`/users/${user._id}`, payload);
 
-      alert(res.data.message);
+      toast.success(res.data.message);
 
       onSuccess();
       handleClose();
     } catch (err: any) {
-      console.error(err);
-      alert(
-        err?.response?.data?.message ||
-          "Something went wrong. Please try again."
-      );
+      const errorData = err?.response?.data;
+      let errorMessage = "Something went wrong. Please try again.";
+      
+      if (errorData?.message) {
+        errorMessage = Array.isArray(errorData.message)
+          ? errorData.message.join(", ")
+          : errorData.message;
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -158,8 +164,10 @@ export default function UserModal({
 
   return (
     <div
-      className="fixed inset-0 z-99999 flex items-center justify-center bg-black/40"
-      onClick={handleClose}
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) handleClose();
+      }}
     >
       <div
         className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl bg-white p-6"

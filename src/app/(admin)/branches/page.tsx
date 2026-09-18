@@ -74,13 +74,11 @@ export default function BranchesPage() {
           },
         });
 
-      setBranches(Array.isArray(data) ? data : data.data || []);
+      const branchesList = Array.isArray(data) ? data : data.data || [];
+      const totalCount = !Array.isArray(data) && data.total !== undefined ? data.total : branchesList.length;
 
-      setTotal(
-        data.total ||
-          data.data.length ||
-          0
-      );
+      setBranches(branchesList);
+      setTotal(totalCount);
     } catch (err) {
       console.error(err);
     } finally {

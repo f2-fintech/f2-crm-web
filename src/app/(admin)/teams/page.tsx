@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Users as UsersIcon, Eye } from "lucide-react";
+import { Plus, Users as UsersIcon, Eye, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import api from "@/lib/axios";
+import toast from "react-hot-toast";
 import CreateTeamModal from "@/components/teams/CreateTeamModal";
+import UpdateTeamModal from "@/components/teams/UpdateTeamModal";
 
 interface ITeam {
   _id: string;
@@ -22,15 +24,16 @@ export default function TeamsPage() {
   const [teams, setTeams] = useState<ITeam[]>([]);
   const [loading, setLoading] = useState(false);
   const [openCreateModal, setOpenCreateModal] = useState(false);
+  const [teamToEdit, setTeamToEdit] = useState<ITeam | null>(null);
 
   const fetchTeams = async () => {
     try {
       setLoading(true);
       const { data } = await api.get("/teams");
-      // Assuming response is an array or { data: [] }
       setTeams(data.data || data);
     } catch (error) {
       console.error("Failed to fetch teams", error);
+      toast.error("Failed to fetch teams");
     } finally {
       setLoading(false);
     }
@@ -39,6 +42,20 @@ export default function TeamsPage() {
   useEffect(() => {
     fetchTeams();
   }, []);
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to delete team "${name}"?`)) return;
+    try {
+      setLoading(true);
+      await api.delete(`/teams/${id}`);
+      toast.success(`Team "${name}" deleted successfully`);
+      fetchTeams();
+    } catch (err: any) {
+      console.error("Failed to delete team", err);
+      toast.error(err?.response?.data?.message || "Failed to delete team");
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -143,6 +160,20 @@ export default function TeamsPage() {
                         >
                           <Eye size={16} />
                         </Link>
+                        <button
+                          onClick={() => setTeamToEdit(team)}
+                          title="Edit Team"
+                          className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 dark:border-gray-700 dark:text-gray-400 dark:hover:border-blue-800 dark:hover:bg-blue-500/10"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(team._id, team.name)}
+                          title="Delete Team"
+                          className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:border-error-300 hover:bg-error-50 hover:text-error-600 dark:border-gray-700 dark:text-gray-400 dark:hover:border-error-800 dark:hover:bg-error-500/10"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -156,6 +187,13 @@ export default function TeamsPage() {
       <CreateTeamModal
         open={openCreateModal}
         onClose={() => setOpenCreateModal(false)}
+        onSuccess={fetchTeams}
+      />
+      
+      <UpdateTeamModal
+        open={!!teamToEdit}
+        team={teamToEdit}
+        onClose={() => setTeamToEdit(null)}
         onSuccess={fetchTeams}
       />
     </div>

@@ -5,23 +5,24 @@ import { useCallback, useEffect, useState } from "react";
 import axios from "@/lib/axios";
 
 export interface DashboardData {
-  stats: any;
-
-  leadStatus: any;
-
-  leadSource: any;
-
-  monthlyLeads: any;
-
-  performance: any;
-
-  recentLeads: any[];
-
-  recentCustomers: any[];
-
-  recentApplications: any[];
-
-  recentActivity: any[];
+  stats: {
+    totalUsers: number;
+    activeUsers: number;
+    totalTeams: number;
+    totalBranches: number;
+    totalDepartments: number;
+    totalRoles: number;
+  };
+  recentActivity: Array<{
+    _id: string;
+    title: string;
+    description: string;
+    createdAt: string;
+    type: string;
+  }>;
+  monthlyLeads: {
+    data: Array<{ name: string; value: number }>;
+  };
 }
 
 export default function useDashboard() {
