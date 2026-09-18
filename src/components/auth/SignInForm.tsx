@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import Checkbox from "@/components/form/input/Checkbox";
 import Input from "@/components/form/input/InputField";
@@ -11,8 +11,10 @@ import Button from "@/components/ui/button/Button";
 import { EyeCloseIcon, EyeIcon } from "@/icons";
 import api from "@/lib/axios";
 
-export default function SignInForm() {
+export function SignInFormInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect") || "/";
 
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
@@ -42,7 +44,7 @@ export default function SignInForm() {
       // Also set a cookie so Next.js middleware knows the user is logged in
       document.cookie = `accessToken=${token}; path=/; max-age=86400`;
 
-      router.push("/");
+      router.push(redirectTo);
     } catch (err: any) {
       console.error(err);
       setError(err.response?.data?.message || "Invalid credentials or server error");
@@ -177,5 +179,13 @@ export default function SignInForm() {
         </Button>
       </form>
     </div>
+  );
+}
+
+export default function SignInForm() {
+  return (
+    <Suspense fallback={<div />}>
+      <SignInFormInner />
+    </Suspense>
   );
 }

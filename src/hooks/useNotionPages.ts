@@ -85,6 +85,7 @@ export default function useNotionPages() {
     pageType?: string;
     section?: string;
     parentId?: string;
+    assignedMemberId?: string;
   }) => {
     try {
       setLoading(true);

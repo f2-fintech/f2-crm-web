@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Box,
   Button,
@@ -21,9 +22,13 @@ import {
   TextField,
   Tooltip,
   Fade,
-  Chip,
-  Checkbox,
   FormControlLabel,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Autocomplete,
+  Checkbox,
 } from "@mui/material";
 import {
   ChevronRight,
@@ -65,7 +70,10 @@ function hashColor(seed: string) {
   return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
 }
 
-export default function NotionPagesClientPage() {
+export function NotionPagesClientPageInner() {
+  const searchParams = useSearchParams();
+  const pageIdFromUrl = searchParams.get("pageId");
+
   const {
     treeData,
     activePage,
@@ -91,32 +99,85 @@ export default function NotionPagesClientPage() {
   const [pastedData, setPastedData] = useState("");
   const [replaceData, setReplaceData] = useState(false);
 
+  // Create Page Modal States
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createParentId, setCreateParentId] = useState<string | undefined>(undefined);
+  const [eligibleUsers, setEligibleUsers] = useState<any[]>([]);
+  const [selectedAssignee, setSelectedAssignee] = useState<string>("");
+  const [isFetchingUsers, setIsFetchingUsers] = useState(false);
+
+  // Inline Title Autocomplete States
+  const [pageEligibleUsers, setPageEligibleUsers] = useState<any[]>([]);
+  const [isFetchingPageUsers, setIsFetchingPageUsers] = useState(false);
+
   useEffect(() => {
     // Current user is provided by useAuth
   }, []);
 
   useEffect(() => {
-    if (treeData?.shared && treeData.shared.length > 0 && !selectedPageId) {
-      const firstRoot = treeData.shared[0];
-      const targetId = firstRoot._id || firstRoot.id;
-      if (targetId) {
-        setSelectedPageId(targetId);
-        setSelectedPageTitle(firstRoot.title);
-        fetchPageDetails(targetId);
+    if (!selectedPageId) {
+      if (pageIdFromUrl) {
+        setSelectedPageId(pageIdFromUrl);
+        fetchPageDetails(pageIdFromUrl);
+      } else if (treeData?.shared && treeData.shared.length > 0) {
+        const firstRoot = treeData.shared[0];
+        const targetId = firstRoot._id || firstRoot.id;
+        if (targetId) {
+          setSelectedPageId(targetId);
+          setSelectedPageTitle(firstRoot.title);
+          fetchPageDetails(targetId);
+        }
       }
     }
-  }, [treeData, selectedPageId, fetchPageDetails]);
+  }, [treeData, selectedPageId, fetchPageDetails, pageIdFromUrl]);
 
   useEffect(() => {
     if (activePage) {
       if (activePage.rows && Array.isArray(activePage.rows)) {
         setRowsData(activePage.rows);
       }
-      if (activePage.title) {
-        setSelectedPageTitle(activePage.title);
+      if (activePage._id !== selectedPageId) {
+        setSelectedPageId(activePage._id || activePage.id);
+        setSelectedPageTitle(activePage.title || "Untitled");
       }
     }
-  }, [activePage]);
+  }, [activePage, selectedPageId]);
+
+  useEffect(() => {
+    const fetchPageUsers = async () => {
+      if (!activePage) return;
+      setIsFetchingPageUsers(true);
+      try {
+        const res = await api.get('/notion-pages/eligible-users');
+        let users = res.data?.data || res.data;
+
+        const parentId = activePage.parentPageId;
+        const parentPage = parentId ? treeData.tree?.find((p: any) => p._id === parentId || p.id === parentId) : null;
+
+        if (!parentId) {
+          users = users.filter((u: any) => u.role === 'MANAGER');
+        } else if (parentPage) {
+          const parentUser = users.find((u: any) => u._id === parentPage.assignedMemberId);
+          if (parentUser) {
+            if (parentUser.role === 'MANAGER') {
+              users = users.filter((u: any) => u.teamId === parentUser.teamId && ['TEAM_LEADER', 'EMPLOYEE'].includes(u.role));
+            } else if (parentUser.role === 'TEAM_LEADER') {
+              users = users.filter((u: any) => u.reportsTo === parentUser._id);
+            } else {
+              users = [];
+            }
+          }
+        }
+        setPageEligibleUsers(users);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsFetchingPageUsers(false);
+      }
+    };
+
+    fetchPageUsers();
+  }, [activePage, treeData]);
 
   const toggleExpand = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -132,48 +193,90 @@ export default function NotionPagesClientPage() {
     }
   };
 
-  const canAddSubPage = (nodeId: string | undefined, pageObj: any = null) => {
-    if (!user) return false;
+  const isAdmin = () => {
     const userRole = role?.toUpperCase();
-    if (["SUPER_ADMIN", "ADMIN"].includes(userRole)) return true;
+    return ["SUPER_ADMIN", "ADMIN"].includes(userRole);
+  };
 
-    if (nodeId?.startsWith("user_")) {
-      const targetUserId = nodeId.replace("user_", "");
-      if (targetUserId === user.id || targetUserId === user._id) return true;
-      if (["MANAGER", "TEAM_LEADER"].includes(userRole)) return true;
-      return false;
-    }
+  const handleShare = () => {
+    if (!selectedPageId) return;
+    const url = `${window.location.origin}/notion-pages?pageId=${selectedPageId}`;
+    navigator.clipboard.writeText(url).then(() => {
+      alert("Link copied to clipboard!");
+    });
+  };
 
-    if (pageObj?.assignedMemberId) {
-      const assignedTo = pageObj.assignedMemberId;
-      if (assignedTo === user.id || assignedTo === user._id) return true;
-      if (["MANAGER", "TEAM_LEADER"].includes(userRole)) return true;
-      return false;
-    }
-
-    if (["MANAGER", "TEAM_LEADER"].includes(userRole)) return true;
-
-    return false;
+  const canAddSubPage = (nodeId: string | undefined, pageObj: any = null) => {
+    // Only Admin/Super Admin can create pages
+    return isAdmin();
   };
 
   const handleCreateNewPage = async (parentId?: string) => {
-    const pageName = prompt("Enter a name for the new page:", "Untitled");
-    if (pageName === null) return;
-    
+    setCreateParentId(parentId);
+    setSelectedAssignee("");
+    setCreateModalOpen(true);
+    setIsFetchingUsers(true);
+
+    try {
+      const res = await api.get('/notion-pages/eligible-users');
+      let users = res.data;
+      if (res.data?.data) users = res.data.data;
+
+      // Find the parent page to understand its context if parentId is provided
+      const parentPage = parentId ? treeData.tree?.find((p: any) => p._id === parentId || p.id === parentId) : null;
+
+      // Filter logic based on hierarchy
+      if (!parentId) {
+        // Top level: only Managers
+        users = users.filter((u: any) => u.role === 'MANAGER');
+      } else if (parentPage) {
+        // Find assigned user of the parent page
+        const parentUser = users.find((u: any) => u._id === parentPage.assignedMemberId);
+        if (parentUser) {
+          if (parentUser.role === 'MANAGER') {
+            // Suggest TLs and Employees in the same team
+            users = users.filter((u: any) => u.teamId === parentUser.teamId && ['TEAM_LEADER', 'EMPLOYEE'].includes(u.role));
+          } else if (parentUser.role === 'TEAM_LEADER') {
+            // Suggest Employees reporting to this TL
+            users = users.filter((u: any) => u.reportsTo === parentUser._id);
+          } else {
+            // Employees shouldn't really have nested users under them in this hierarchy, but just in case
+            users = [];
+          }
+        }
+      }
+
+      setEligibleUsers(users);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to fetch users");
+    } finally {
+      setIsFetchingUsers(false);
+    }
+  };
+
+  const submitCreatePage = async () => {
+    if (!selectedAssignee) return;
+
+    const assignedUser = eligibleUsers.find(u => u._id === selectedAssignee);
+    const pageName = assignedUser ? `${assignedUser.firstName} ${assignedUser.lastName}` : "Untitled";
+
     try {
       const created = await createPage({
-        title: pageName || "Untitled",
+        title: pageName,
         pageType: "SHEET",
         section: "SHARED",
-        parentId: parentId || undefined,
+        parentId: createParentId,
+        assignedMemberId: selectedAssignee
       });
 
       const newId = created?._id || created?.id;
       if (newId) {
         setSelectedPageId(newId);
-        setSelectedPageTitle(pageName || "Untitled");
+        setSelectedPageTitle(pageName);
         await fetchPageDetails(newId);
       }
+      setCreateModalOpen(false);
     } catch (e) {
       console.error(e);
     }
@@ -455,6 +558,29 @@ export default function NotionPagesClientPage() {
           </Typography>
           {renderTreeNodes(treeData.shared || [])}
 
+          {/* Admin-only: Add top-level page button in sidebar */}
+          {isAdmin() && (
+            <Stack
+              direction="row"
+              spacing={1}
+              alignItems="center"
+              onClick={() => handleCreateNewPage(undefined)}
+              sx={{
+                px: 2.25,
+                py: 0.75,
+                mx: 0.5,
+                mt: 0.5,
+                borderRadius: "6px",
+                cursor: "pointer",
+                color: c.textFaint,
+                "&:hover": { bgcolor: c.sidebarHover, color: c.textMuted },
+              }}
+            >
+              <Plus size={14} />
+              <Typography sx={{ fontSize: "12.5px", fontWeight: 500 }}>Add page</Typography>
+            </Stack>
+          )}
+
           <Box sx={{ mt: 2.5 }}>
             <Typography
               variant="caption"
@@ -512,16 +638,16 @@ export default function NotionPagesClientPage() {
                     (e.target as HTMLInputElement).blur();
                   }
                 }}
-                sx={{ 
-                  color: c.textMain, 
-                  fontSize: "13px", 
-                  fontWeight: 500, 
-                  minWidth: 50, 
-                  px: 0.5, 
-                  py: 0, 
-                  borderRadius: "4px", 
-                  "&:hover": { bgcolor: "rgba(55, 53, 47, 0.08)" }, 
-                  "&.Mui-focused": { bgcolor: "rgba(55, 53, 47, 0.08)" } 
+                sx={{
+                  color: c.textMain,
+                  fontSize: "13px",
+                  fontWeight: 500,
+                  minWidth: 50,
+                  px: 0.5,
+                  py: 0,
+                  borderRadius: "4px",
+                  "&:hover": { bgcolor: "rgba(55, 53, 47, 0.08)" },
+                  "&.Mui-focused": { bgcolor: "rgba(55, 53, 47, 0.08)" }
                 }}
               />
             ) : (
@@ -538,6 +664,7 @@ export default function NotionPagesClientPage() {
             <Button
               variant="text"
               startIcon={<Share2 size={14} />}
+              onClick={handleShare}
               sx={{
                 color: c.textMuted,
                 textTransform: "none",
@@ -577,26 +704,75 @@ export default function NotionPagesClientPage() {
                 Change icon
               </Button>
             </Box>
-            <InputBase
-              value={selectedPageTitle}
-              onChange={(e) => setSelectedPageTitle(e.target.value)}
-              onBlur={() => {
-                if (selectedPageId && !selectedPageId.startsWith("user_")) {
-                  updatePageTitle(selectedPageId, selectedPageTitle);
-                }
-              }}
-              placeholder="Untitled"
-              sx={{
-                fontWeight: 700,
-                color: c.textMain,
-                mb: 2.5,
-                fontSize: "38px",
-                fontFamily: "ui-serif, Georgia, serif",
-                letterSpacing: "-0.5px",
-                width: "100%",
-                "& input": { padding: 0 },
-              }}
-            />
+
+            {isAdmin() ? (
+              <Autocomplete
+                freeSolo
+                options={pageEligibleUsers}
+                loading={isFetchingPageUsers}
+                getOptionLabel={(option) => typeof option === 'string' ? option : `${option.firstName} ${option.lastName} (${option.role})`}
+                inputValue={selectedPageTitle}
+                onInputChange={(event, newInputValue) => {
+                  setSelectedPageTitle(newInputValue);
+                }}
+                onChange={async (event, newValue) => {
+                  if (typeof newValue === 'object' && newValue !== null) {
+                    const title = `${newValue.firstName} ${newValue.lastName}`;
+                    setSelectedPageTitle(title);
+                    if (selectedPageId && !selectedPageId.startsWith("user_")) {
+                      await api.patch(`/notion-pages/${selectedPageId}`, {
+                        title: title,
+                        assignedMemberId: newValue._id
+                      });
+                      await fetchTree();
+                    }
+                  } else {
+                    if (selectedPageId && !selectedPageId.startsWith("user_")) {
+                      updatePageTitle(selectedPageId, newValue || "");
+                    }
+                  }
+                }}
+                onBlur={() => {
+                  if (selectedPageId && !selectedPageId.startsWith("user_")) {
+                    updatePageTitle(selectedPageId, selectedPageTitle);
+                  }
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    placeholder="Untitled (Assign a team member...)"
+                    variant="standard"
+                    InputProps={{
+                      ...params.InputProps,
+                      disableUnderline: true,
+                      sx: {
+                        fontWeight: 700,
+                        color: c.textMain,
+                        fontSize: "38px",
+                        fontFamily: "ui-serif, Georgia, serif",
+                        letterSpacing: "-0.5px",
+                        padding: 0,
+                      }
+                    }}
+                    sx={{ mb: 2.5, width: "100%" }}
+                  />
+                )}
+              />
+            ) : (
+              <Typography
+                sx={{
+                  fontWeight: 700,
+                  color: c.textMain,
+                  mb: 2.5,
+                  fontSize: "38px",
+                  fontFamily: "ui-serif, Georgia, serif",
+                  letterSpacing: "-0.5px",
+                  width: "100%",
+                }}
+              >
+                {selectedPageTitle || "Untitled"}
+              </Typography>
+            )}
 
             <Stack
               direction="row"
@@ -884,6 +1060,75 @@ export default function NotionPagesClientPage() {
           </Button>
         </DialogActions>
       </Dialog>
+      {/* Create Page Modal */}
+      <Dialog
+        open={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        PaperProps={{ sx: { bgcolor: c.bg, minWidth: 420, borderRadius: "12px" } }}
+      >
+        <DialogTitle sx={{ fontWeight: 600, color: c.textMain, fontSize: "17px", pb: 0.5 }}>
+          Create New Page
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ color: c.textMuted, mb: 2, fontSize: "13.5px" }}>
+            Assign this page to a team member to build your workspace hierarchy.
+          </Typography>
+          <FormControl fullWidth size="small" sx={{ mt: 1 }}>
+            <InputLabel id="assignee-select-label">Assign To</InputLabel>
+            <Select
+              labelId="assignee-select-label"
+              value={selectedAssignee}
+              label="Assign To"
+              onChange={(e) => setSelectedAssignee(e.target.value)}
+              disabled={isFetchingUsers}
+              sx={{ borderRadius: "8px" }}
+            >
+              {eligibleUsers.map((u) => (
+                <MenuItem key={u._id} value={u._id}>
+                  {u.firstName} {u.lastName} ({u.role})
+                </MenuItem>
+              ))}
+              {eligibleUsers.length === 0 && (
+                <MenuItem disabled value="">
+                  No eligible users found for this level.
+                </MenuItem>
+              )}
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions sx={{ p: 2.5, pt: 1 }}>
+          <Button
+            onClick={() => setCreateModalOpen(false)}
+            sx={{ color: c.textMuted, textTransform: "none", fontWeight: 500, borderRadius: "7px" }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={submitCreatePage}
+            disableElevation
+            disabled={!selectedAssignee}
+            sx={{
+              bgcolor: c.accent,
+              textTransform: "none",
+              fontWeight: 500,
+              borderRadius: "7px",
+              px: 2.5,
+              "&:hover": { bgcolor: c.accentHover },
+            }}
+          >
+            Create Page
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
+  );
+}
+
+export default function NotionPagesClientPage() {
+  return (
+    <Suspense fallback={<div />}>
+      <NotionPagesClientPageInner />
+    </Suspense>
   );
 }
