@@ -41,6 +41,7 @@
     "react-dropzone": "^14.3.8",
     "react-hook-form": "^7.82.0",
     "react-hot-toast": "^2.6.0",
+    "react-organizational-chart": "^2.2.1",
     "swiper": "^11.2.10",
     "tailwind-merge": "^2.6.0",
     "zod": "^4.4.3"

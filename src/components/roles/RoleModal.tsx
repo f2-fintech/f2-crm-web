@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import api from "@/lib/axios";
 import PermissionMatrix from "./PermissionMatrix";
+import toast from "react-hot-toast";
 
 interface Props {
   open: boolean;
@@ -78,11 +79,11 @@ export default function RoleModal({
 
   const handleSubmit = async () => {
     if (!form.name.trim()) {
-      return alert("Role name is required");
+      return toast.error("Role name is required");
     }
 
     if (!form.displayName.trim()) {
-      return alert("Display Name is required");
+      return toast.error("Display Name is required");
     }
 
     try {
@@ -97,13 +98,16 @@ export default function RoleModal({
           ? await api.post("/roles", payload)
           : await api.patch(`/roles/${role._id}`, payload);
 
-      alert(res.data.message);
+      toast.success(
+        res.data?.message ||
+          (mode === "create" ? "Role created successfully" : "Role updated successfully")
+      );
 
       onSuccess();
 
       handleClose();
     } catch (err: any) {
-      alert(
+      toast.error(
         err?.response?.data?.message ||
           "Something went wrong."
       );

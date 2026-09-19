@@ -134,13 +134,19 @@ export default function UserModal({
       if (mode === "edit" && !payload.password) {
         delete payload.password;
       }
+      if (!payload.branchId) delete payload.branchId;
+      if (!payload.departmentId) delete payload.departmentId;
+      if (!payload.phone) delete payload.phone;
+      if (!payload.roleId) delete payload.roleId;
 
       const res =
         mode === "create"
           ? await api.post("/users", payload)
           : await api.patch(`/users/${user._id}`, payload);
 
-      toast.success(res.data.message);
+      toast.success(
+        res.data?.message || (mode === "create" ? "User created successfully" : "User updated successfully")
+      );
 
       onSuccess();
       handleClose();
