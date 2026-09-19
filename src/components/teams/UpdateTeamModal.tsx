@@ -54,7 +54,7 @@ export default function UpdateTeamModal({
   const fetchHierarchyAndPopulate = async (teamId: string) => {
     try {
       setFetchingHierarchy(true);
-      const res = await api.get(`/teams/${teamId}/hierarchy`);
+      const res = await api.get(`/teams/hierarchy/${teamId}`);
       const hierarchy = res.data.data || res.data;
       
       const manager = hierarchy.manager;
@@ -174,7 +174,7 @@ export default function UpdateTeamModal({
       });
 
       // 2. Sync members and hierarchy
-      await api.post(`/teams/${team._id}/sync-members`, {
+      await api.post(`/teams/${team._id}/members/sync`, {
         managerId: form.managerId,
         teamLeaderId: form.teamLeaderId,
         managerMemberIds: form.managerMemberIds,

@@ -1,201 +1,170 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Users as UsersIcon, Eye, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Users, User, Shield } from "lucide-react";
 import Link from "next/link";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
-import CreateTeamModal from "@/components/teams/CreateTeamModal";
-import UpdateTeamModal from "@/components/teams/UpdateTeamModal";
+import { useParams } from "next/navigation";
 
-interface ITeam {
-  _id: string;
+interface IHierarchyNode {
+  id: string;
   name: string;
-  description?: string;
-  managerId?: {
-    _id: string;
-    firstName: string;
-    lastName: string;
-  };
-  members: any[];
+  role: string;
+  directReports: IHierarchyNode[];
 }
 
-export default function TeamsPage() {
-  const [teams, setTeams] = useState<ITeam[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [openCreateModal, setOpenCreateModal] = useState(false);
-  const [teamToEdit, setTeamToEdit] = useState<ITeam | null>(null);
+interface ITeamHierarchy {
+  teamName: string;
+  teamId: string;
+  manager: IHierarchyNode | null;
+}
 
-  const fetchTeams = async () => {
-    try {
-      setLoading(true);
-      const { data } = await api.get("/teams");
-      setTeams(data.data || data);
-    } catch (error) {
-      console.error("Failed to fetch teams", error);
-      toast.error("Failed to fetch teams");
-    } finally {
-      setLoading(false);
-    }
-  };
+export default function TeamHierarchyPage() {
+  const params = useParams();
+  const id = params.id as string;
+  const [hierarchy, setHierarchy] = useState<ITeamHierarchy | null>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetchTeams();
-  }, []);
+    const fetchHierarchy = async () => {
+      try {
+        setLoading(true);
+        const { data } = await api.get(`/teams/hierarchy/${id}`);
+        setHierarchy(data.data || data);
+      } catch (error) {
+        console.error("Failed to fetch team hierarchy", error);
+        toast.error("Failed to fetch team hierarchy");
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (id) fetchHierarchy();
+  }, [id]);
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm(`Are you sure you want to delete team "${name}"?`)) return;
-    try {
-      setLoading(true);
-      await api.delete(`/teams/${id}`);
-      toast.success(`Team "${name}" deleted successfully`);
-      fetchTeams();
-    } catch (err: any) {
-      console.error("Failed to delete team", err);
-      toast.error(err?.response?.data?.message || "Failed to delete team");
-      setLoading(false);
-    }
+  const renderNode = (node: IHierarchyNode, level = 0) => {
+    return (
+      <li key={node.id}>
+        <div className={`inline-flex flex-col items-center rounded-2xl border bg-white p-4 shadow-sm transition hover:shadow-md dark:border-gray-800 dark:bg-gray-900 min-w-[160px] border-t-4 mx-2 ${level === 0 ? 'border-t-brand-500' : level === 1 ? 'border-t-purple-500' : 'border-t-blue-500'}`}>
+          <div className={`flex h-12 w-12 items-center justify-center rounded-full mb-3 ${level === 0 ? 'bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400' : level === 1 ? 'bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400' : 'bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400'}`}>
+            {level === 0 ? <Shield size={24} /> : <User size={24} />}
+          </div>
+          <h4 className="text-sm font-bold text-gray-900 dark:text-white text-center whitespace-nowrap">{node.name}</h4>
+          <span className="mt-1 inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300 whitespace-nowrap">
+            {node.role.replace('_', ' ')}
+          </span>
+        </div>
+        {node.directReports && node.directReports.length > 0 && (
+          <ul>
+            {node.directReports.map(child => renderNode(child, level + 1))}
+          </ul>
+        )}
+      </li>
+    );
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <style dangerouslySetInnerHTML={{__html: `
+        .org-tree * {margin: 0; padding: 0;}
+        .org-tree ul {
+          padding-top: 20px; position: relative;
+          transition: all 0.5s;
+          display: flex; justify-content: center;
+        }
+        .org-tree li {
+          float: left; text-align: center;
+          list-style-type: none;
+          position: relative;
+          padding: 20px 5px 0 5px;
+          transition: all 0.5s;
+        }
+        .org-tree li::before, .org-tree li::after{
+          content: '';
+          position: absolute; top: 0; right: 50%;
+          border-top: 2px solid #e5e7eb;
+          width: 50%; height: 20px;
+        }
+        .dark .org-tree li::before, .dark .org-tree li::after{
+          border-top: 2px solid #374151;
+        }
+        .org-tree li::after{
+          right: auto; left: 50%;
+          border-left: 2px solid #e5e7eb;
+        }
+        .dark .org-tree li::after{
+          border-left: 2px solid #374151;
+        }
+        .org-tree li:only-child::after, .org-tree li:only-child::before {
+          display: none;
+        }
+        .org-tree li:only-child{ padding-top: 0;}
+        .org-tree li:first-child::before, .org-tree li:last-child::after{
+          border: 0 none;
+        }
+        .org-tree li:last-child::before{
+          border-right: 2px solid #e5e7eb;
+          border-radius: 0 5px 0 0;
+        }
+        .dark .org-tree li:last-child::before{
+          border-right: 2px solid #374151;
+        }
+        .org-tree li:first-child::after{
+          border-radius: 5px 0 0 0;
+        }
+        .org-tree ul ul::before{
+          content: '';
+          position: absolute; top: 0; left: 50%;
+          border-left: 2px solid #e5e7eb;
+          width: 0; height: 20px;
+          transform: translateX(-50%);
+        }
+        .dark .org-tree ul ul::before{
+          border-left: 2px solid #374151;
+        }
+      `}} />
+
+      <div className="flex items-center gap-4">
+        <Link
+          href="/teams"
+          className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 transition hover:bg-gray-50 hover:text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+        >
+          <ArrowLeft size={20} />
+        </Link>
         <div>
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-            Teams Management
+            Team Hierarchy {hierarchy && `- ${hierarchy.teamName}`}
           </h2>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Manage your organization's teams and their hierarchy
-          </p>
-        </div>
-
-        <button
-          onClick={() => setOpenCreateModal(true)}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600"
-        >
-          <Plus size={18} />
-          Create Team
-        </button>
-      </div>
-
-      {/* Table */}
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead>
-              <tr className="border-b border-gray-100 dark:border-gray-800">
-                <th className="px-5 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  Team Name
-                </th>
-                <th className="px-5 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  Description
-                </th>
-                <th className="px-5 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  Manager
-                </th>
-                <th className="px-5 py-3.5 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  Total Members
-                </th>
-                <th className="px-5 py-3.5 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {loading ? (
-                <tr>
-                  <td colSpan={5} className="py-14 text-center text-sm text-gray-500 dark:text-gray-400">
-                    Loading teams...
-                  </td>
-                </tr>
-              ) : teams.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="py-14 text-center text-sm text-gray-500 dark:text-gray-400">
-                    No teams found
-                  </td>
-                </tr>
-              ) : (
-                teams.map((team) => (
-                  <tr
-                    key={team._id}
-                    className="transition hover:bg-gray-50 dark:hover:bg-white/[0.03]"
-                  >
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50 text-brand-500 dark:bg-brand-500/10">
-                          <UsersIcon size={18} />
-                        </div>
-                        <div>
-                          <h5 className="text-sm font-medium text-gray-800 dark:text-white/90">
-                            {team.name}
-                          </h5>
-                        </div>
-                      </div>
-                    </td>
-
-                    <td className="px-5 py-4 text-sm text-gray-600 dark:text-gray-400 max-w-[250px] truncate">
-                      {team.description || "-"}
-                    </td>
-
-                    <td className="px-5 py-4 text-sm text-gray-600 whitespace-nowrap dark:text-gray-400">
-                      {team.managerId
-                        ? `${team.managerId.firstName} ${team.managerId.lastName}`
-                        : "-"}
-                    </td>
-
-                    <td className="px-5 py-4 text-center whitespace-nowrap">
-                      <span className="inline-flex rounded-full bg-blue-light-50 px-2.5 py-0.5 text-xs font-medium text-blue-light-600 dark:bg-blue-light-500/15 dark:text-blue-light-400">
-                        {team.members?.length || 0}
-                      </span>
-                    </td>
-
-                    <td className="px-5 py-4">
-                      <div className="flex items-center justify-center gap-2">
-                        <Link
-                          href={`/teams/${team._id}`}
-                          title="View Hierarchy"
-                          className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-600 dark:border-gray-700 dark:text-gray-400 dark:hover:border-brand-800 dark:hover:bg-brand-500/10"
-                        >
-                          <Eye size={16} />
-                        </Link>
-                        <button
-                          onClick={() => setTeamToEdit(team)}
-                          title="Edit Team"
-                          className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 dark:border-gray-700 dark:text-gray-400 dark:hover:border-blue-800 dark:hover:bg-blue-500/10"
-                        >
-                          <Pencil size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(team._id, team.name)}
-                          title="Delete Team"
-                          className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:border-error-300 hover:bg-error-50 hover:text-error-600 dark:border-gray-700 dark:text-gray-400 dark:hover:border-error-800 dark:hover:bg-error-500/10"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+          {/* <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Visual representation of reporting structure
+          </p> */}
         </div>
       </div>
 
-      <CreateTeamModal
-        open={openCreateModal}
-        onClose={() => setOpenCreateModal(false)}
-        onSuccess={fetchTeams}
-      />
-      
-      <UpdateTeamModal
-        open={!!teamToEdit}
-        team={teamToEdit}
-        onClose={() => setTeamToEdit(null)}
-        onSuccess={fetchTeams}
-      />
+      <div className="rounded-2xl border border-gray-200 bg-white p-8 dark:border-gray-800 dark:bg-white/[0.03] min-h-[500px] overflow-auto flex justify-center items-start">
+        {loading ? (
+          <div className="flex h-full items-center justify-center w-full">
+            <span className="text-gray-500">Loading hierarchy...</span>
+          </div>
+        ) : !hierarchy ? (
+          <div className="flex h-full items-center justify-center w-full">
+            <span className="text-gray-500">Team not found</span>
+          </div>
+        ) : !hierarchy.manager ? (
+          <div className="flex h-full flex-col items-center justify-center gap-3 w-full">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-gray-400 dark:bg-gray-800">
+              <Users size={32} />
+            </div>
+            <p className="text-gray-500">No hierarchy defined for this team.</p>
+          </div>
+        ) : (
+          <div className="pt-4 pb-12 org-tree w-full max-w-full overflow-x-auto overflow-y-hidden flex justify-center">
+            <ul>
+              {renderNode(hierarchy.manager)}
+            </ul>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
