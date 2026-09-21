@@ -152,12 +152,6 @@ export default function NotionPagesClientPage() {
   const [clearOpen, setClearOpen] = useState(false);
   const [clearing, setClearing] = useState(false);
 
-  // Feedback
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const [selectedRowIndex, setSelectedRowIndex] = useState<number | null>(null);
-  const [newRowRemark, setNewRowRemark] = useState("");
-  const [savingFeedback, setSavingFeedback] = useState(false);
-
   // Toast
   const [toast, setToast] = useState<{
     msg: string;
@@ -229,6 +223,8 @@ export default function NotionPagesClientPage() {
   );
 
   const editable = canEdit(selectedPageId || undefined, activePage);
+  const r = role?.toUpperCase();
+  const canUploadData = r === "ADMIN" || r === "SUPER_ADMIN" || r === "MANAGER";
 
   /* ---------------- actions ---------------- */
 
@@ -389,41 +385,28 @@ export default function NotionPagesClientPage() {
     }
   };
 
-  const openFeedback = (index: number) => {
-    setSelectedRowIndex(index);
-    setNewRowRemark("");
-    setFeedbackOpen(true);
-  };
-
-  const handleSaveFeedback = async () => {
-    if (selectedRowIndex === null || !activePage || !selectedPageId) return;
-    const remark = newRowRemark.trim();
-    if (!remark) return;
-
+  const handleSaveRemark = async (rowIndex: number, value: string) => {
+    if (!activePage || !selectedPageId) return;
+    const remark = value.trim();
+    
     const updatedRows = [...activePage.rows];
-    const row = { ...updatedRows[selectedRowIndex] };
-    const stamp = new Date().toLocaleString();
-    row.feedback_notes = row.feedback_notes
-      ? `${row.feedback_notes}\n\n[${stamp}]: ${remark}`
-      : `[${stamp}]: ${remark}`;
-    updatedRows[selectedRowIndex] = row;
+    const row = { ...updatedRows[rowIndex] };
+    
+    if (row.feedback_notes === remark) return;
 
-    setSavingFeedback(true);
+    row.feedback_notes = remark;
+    updatedRows[rowIndex] = row;
+
     try {
-      const res = await api.patch(`/notion-pages/${selectedPageId}`, {
+      setActivePage({ ...activePage, rows: updatedRows });
+      await api.patch(`/notion-pages/${selectedPageId}`, {
         rows: updatedRows,
       });
-      setActivePage(res.data?.data ?? res.data);
-      setNewRowRemark("");
-      notify("Feedback added");
-      requestAnimationFrame(() => {
-        historyRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-      });
+      notify("Remark saved");
     } catch (e) {
       console.error(e);
-      notify("Couldn’t save the feedback.", "error");
-    } finally {
-      setSavingFeedback(false);
+      notify("Couldn’t save the remark.", "error");
+      await fetchPageDetails(selectedPageId);
     }
   };
 
@@ -442,22 +425,6 @@ export default function NotionPagesClientPage() {
         )
       );
   }, [rowsData, searchQuery, pageColumns]);
-
-  const activeFeedback = useMemo(
-    () =>
-      selectedRowIndex !== null
-        ? parseFeedback(activePage?.rows?.[selectedRowIndex]?.feedback_notes)
-        : [],
-    [activePage, selectedRowIndex]
-  );
-
-  const feedbackRowLabel = useMemo(() => {
-    if (selectedRowIndex === null) return "";
-    const row = activePage?.rows?.[selectedRowIndex];
-    const firstCol = pageColumns[0];
-    const val = firstCol ? row?.[firstCol.key] : "";
-    return val ? String(val) : `Row ${selectedRowIndex + 1}`;
-  }, [activePage, selectedRowIndex, pageColumns]);
 
   const workspaceName = currentUser?.firstName
     ? `${currentUser.firstName}’s Team`
@@ -871,7 +838,7 @@ export default function NotionPagesClientPage() {
               setPageMenuAnchor(null);
               setUploadOpen(true);
             }}
-            disabled={!editable || activePage?.pageType !== "SHEET"}
+            disabled={!editable || !canUploadData || activePage?.pageType !== "SHEET"}
           >
             <TableIcon size={15} /> Paste leads
           </MenuItem>
@@ -989,14 +956,16 @@ export default function NotionPagesClientPage() {
                 </Button>
                 {activePage?.pageType === "SHEET" && (
                   <>
-                    <Button
-                      size="small"
-                      startIcon={<TableIcon size={15} />}
-                      onClick={() => setUploadOpen(true)}
-                      sx={outlineBtn}
-                    >
-                      Paste leads
-                    </Button>
+                    {canUploadData && (
+                      <Button
+                        size="small"
+                        startIcon={<TableIcon size={15} />}
+                        onClick={() => setUploadOpen(true)}
+                        sx={outlineBtn}
+                      >
+                        Paste leads
+                      </Button>
+                    )}
                     {rowsData.length > 0 && (
                       <Button
                         size="small"
@@ -1095,15 +1064,14 @@ export default function NotionPagesClientPage() {
                           </TableCell>
                         ))}
                         <TableCell
-                          sx={{ ...headCell, width: 92, textAlign: "center" }}
+                          sx={{ ...headCell, minWidth: 200, textAlign: "left" }}
                         >
-                          Feedback
+                          Remarks
                         </TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {filteredRows.map(({ row, i }) => {
-                        const count = parseFeedback(row.feedback_notes).length;
                         return (
                           <TableRow
                             key={row.id || i}
@@ -1140,40 +1108,30 @@ export default function NotionPagesClientPage() {
                               );
                             })}
 
-                            <TableCell sx={{ ...bodyCell, textAlign: "center", py: 0.4 }}>
-                              <Tooltip
-                                title={
-                                  count
-                                    ? `${count} ${count === 1 ? "note" : "notes"} — open`
-                                    : "Add feedback"
-                                }
-                                placement="left"
-                                arrow
-                              >
-                                <Button
-                                  size="small"
-                                  onClick={() => openFeedback(i)}
-                                  startIcon={<MessageSquare size={14} />}
-                                  sx={{
-                                    minWidth: 0,
-                                    px: 1,
-                                    py: 0.25,
-                                    borderRadius: "6px",
-                                    textTransform: "none",
-                                    fontSize: "12.5px",
-                                    fontWeight: 600,
-                                    color: count ? c.accent : c.textFaint,
-                                    bgcolor: count ? c.accentSoft : "transparent",
-                                    "& .MuiButton-startIcon": { mr: count ? 0.5 : 0 },
-                                    "&:hover": {
-                                      bgcolor: c.accentSoft,
-                                      color: c.accent,
-                                    },
-                                  }}
-                                >
-                                  {count || ""}
-                                </Button>
-                              </Tooltip>
+                            <TableCell sx={{ ...bodyCell, textAlign: "left", py: 0.4 }}>
+                              <InputBase
+                                defaultValue={row.feedback_notes || ""}
+                                onBlur={(e) => handleSaveRemark(i, e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    (e.target as HTMLInputElement).blur();
+                                  }
+                                }}
+                                placeholder="Add remark..."
+                                sx={{
+                                  fontSize: "13px",
+                                  color: c.textMain,
+                                  width: "100%",
+                                  px: 1,
+                                  py: 0.5,
+                                  borderRadius: "4px",
+                                  border: "1px solid transparent",
+                                  "&:hover, &.Mui-focused": {
+                                    border: `1px solid ${c.border}`,
+                                    bgcolor: c.sidebarBg,
+                                  },
+                                }}
+                              />
                             </TableCell>
                           </TableRow>
                         );
@@ -1227,7 +1185,7 @@ export default function NotionPagesClientPage() {
                   Copy rows straight from Excel or Google Sheets and paste them
                   here. The first row becomes your column names.
                 </Typography>
-                {editable && (
+                {editable && canUploadData && (
                   <Button
                     variant="contained"
                     disableElevation
@@ -1436,185 +1394,7 @@ export default function NotionPagesClientPage() {
         </DialogActions>
       </Dialog>
 
-      {/* ========================== Feedback =========================== */}
-      <Dialog
-        open={feedbackOpen}
-        onClose={() => setFeedbackOpen(false)}
-        PaperProps={{ sx: dialogPaper(500) }}
-      >
-        <DialogTitle
-          sx={{
-            ...dialogTitle,
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            gap: 2,
-          }}
-        >
-          <Box sx={{ minWidth: 0 }}>
-            Feedback
-            <Typography
-              noWrap
-              sx={{ fontSize: "13px", fontWeight: 400, color: c.textMuted, mt: 0.25 }}
-            >
-              {feedbackRowLabel}
-            </Typography>
-          </Box>
-          <IconButton
-            size="small"
-            aria-label="Close"
-            onClick={() => setFeedbackOpen(false)}
-            sx={{ color: c.textMuted, mt: -0.5, "&:hover": { bgcolor: c.hover } }}
-          >
-            <X size={16} />
-          </IconButton>
-        </DialogTitle>
 
-        <DialogContent sx={{ px: 3, pt: 1, display: "flex", flexDirection: "column", gap: 2.5 }}>
-          {/* History */}
-          <Box>
-            <Stack
-              direction="row"
-              sx={{ alignItems: "center", justifyContent: "space-between", mb: 0.75 }}
-            >
-              <Typography sx={{ fontSize: "12.5px", fontWeight: 600, color: c.textMuted }}>
-                History
-              </Typography>
-              {activeFeedback.length > 1 && (
-                <Typography sx={{ fontSize: "12px", color: c.textFaint }}>
-                  Newest first
-                </Typography>
-              )}
-            </Stack>
-
-            <Box
-              ref={historyRef}
-              sx={{
-                border: `1px solid ${c.border}`,
-                borderRadius: "10px",
-                bgcolor: c.sidebarBg,
-                maxHeight: 190,
-                minHeight: 110,
-                overflowY: "auto",
-                "&::-webkit-scrollbar": { width: 8 },
-                "&::-webkit-scrollbar-thumb": {
-                  bgcolor: c.borderStrong,
-                  borderRadius: 4,
-                  border: "2px solid transparent",
-                  backgroundClip: "content-box",
-                },
-              }}
-            >
-              {activeFeedback.length === 0 ? (
-                <Stack
-                  sx={{
-                    minHeight: 110,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 0.5,
-                    color: c.textMuted,
-                    px: 3,
-                    textAlign: "center",
-                  }}
-                >
-                  <Clock size={18} color={c.textFaint} />
-                  <Typography sx={{ fontSize: "13px" }}>
-                    No feedback on this row yet
-                  </Typography>
-                </Stack>
-              ) : (
-                [...activeFeedback].reverse().map((entry, idx) => (
-                  <Box
-                    key={idx}
-                    sx={{
-                      px: 1.75,
-                      py: 1.25,
-                      borderBottom: idx === activeFeedback.length - 1 ? 0 : `1px solid ${c.border}`,
-                    }}
-                  >
-                    {entry.time && (
-                      <Typography
-                        sx={{
-                          fontSize: "11.5px",
-                          color: c.textFaint,
-                          fontFamily: FONT_MONO,
-                          mb: 0.4,
-                        }}
-                      >
-                        {entry.time}
-                      </Typography>
-                    )}
-                    <Typography
-                      sx={{
-                        fontSize: "13.5px",
-                        lineHeight: 1.55,
-                        color: c.textMain,
-                        whiteSpace: "pre-wrap",
-                      }}
-                    >
-                      {entry.text}
-                    </Typography>
-                  </Box>
-                ))
-              )}
-            </Box>
-          </Box>
-
-          {/* New note */}
-          <Box>
-            <Stack
-              direction="row"
-              sx={{ alignItems: "center", justifyContent: "space-between", mb: 0.75 }}
-            >
-              <Typography sx={{ fontSize: "12.5px", fontWeight: 600, color: c.textMuted }}>
-                Add a note
-              </Typography>
-              <Typography
-                sx={{
-                  fontSize: "11.5px",
-                  color: newRowRemark.length > 450 ? c.danger : c.textFaint,
-                  fontFamily: FONT_MONO,
-                }}
-              >
-                {newRowRemark.length}/500
-              </Typography>
-            </Stack>
-            <TextField
-              fullWidth
-              multiline
-              rows={3}
-              autoFocus
-              inputProps={{ maxLength: 500 }}
-              placeholder="What happened on this lead?"
-              value={newRowRemark}
-              onChange={(e) => setNewRowRemark(e.target.value)}
-              onKeyDown={(e) => {
-                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") handleSaveFeedback();
-              }}
-              sx={textFieldSx}
-            />
-            <Typography sx={{ mt: 0.75, fontSize: "11.5px", color: c.textFaint }}>
-              Notes are timestamped and kept — they never overwrite earlier ones.
-            </Typography>
-          </Box>
-        </DialogContent>
-
-        <DialogActions sx={dialogActions}>
-          <Button onClick={() => setFeedbackOpen(false)} sx={ghostBtn}>
-            Close
-          </Button>
-          <Button
-            variant="contained"
-            disableElevation
-            onClick={handleSaveFeedback}
-            disabled={!newRowRemark.trim() || savingFeedback}
-            startIcon={savingFeedback ? <CircularProgress size={14} color="inherit" /> : null}
-            sx={primaryBtn}
-          >
-            Add note
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       {/* =========================== Toast ============================ */}
       <Snackbar

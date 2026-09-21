@@ -41,79 +41,102 @@ export default function DashboardClient() {
 
   const { stats, recentActivity, monthlyLeads, roleType } = dashboard;
 
-  const statCards = roleType === 'MANAGER' || roleType === 'TEAM_LEADER' ? [
-    {
-      title: "Team Size",
-      value: stats.teamSize,
-      icon: Users,
-      color: "from-blue-500 to-blue-600",
-      lightColor: "bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400",
-    },
-    {
-      title: "Active Members",
-      value: stats.activeMembers,
-      icon: UserCircle,
-      color: "from-green-500 to-green-600",
-      lightColor: "bg-green-50 text-green-600 dark:bg-green-500/10 dark:text-green-400",
-    },
-    {
-      title: "Team Pages",
-      value: stats.teamPages,
-      icon: FileText,
-      color: "from-purple-500 to-purple-600",
-      lightColor: "bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400",
-    },
-    {
-      title: "Total Leads",
-      value: stats.totalLeads,
-      icon: Target,
-      color: "from-orange-500 to-orange-600",
-      lightColor: "bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400",
-    }
-  ] : [
-    {
-      title: "Total Users",
-      value: stats.totalUsers,
-      icon: Users,
-      color: "from-blue-500 to-blue-600",
-      lightColor: "bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400",
-    },
-    {
-      title: "Active Users",
-      value: stats.activeUsers,
-      icon: UserCircle,
-      color: "from-green-500 to-green-600",
-      lightColor: "bg-green-50 text-green-600 dark:bg-green-500/10 dark:text-green-400",
-    },
-    {
-      title: "Total Teams",
-      value: stats.totalTeams,
-      icon: Briefcase,
-      color: "from-purple-500 to-purple-600",
-      lightColor: "bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400",
-    },
-    {
-      title: "Branches",
-      value: stats.totalBranches,
-      icon: Building2,
-      color: "from-orange-500 to-orange-600",
-      lightColor: "bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400",
-    },
-    {
-      title: "Departments",
-      value: stats.totalDepartments,
-      icon: Activity,
-      color: "from-pink-500 to-pink-600",
-      lightColor: "bg-pink-50 text-pink-600 dark:bg-pink-500/10 dark:text-pink-400",
-    },
-    {
-      title: "Total Roles",
-      value: stats.totalRoles,
-      icon: ShieldCheck,
-      color: "from-indigo-500 to-indigo-600",
-      lightColor: "bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400",
-    },
-  ];
+  let statCards: any[] = [];
+  
+  if (roleType === 'MANAGER' || roleType === 'TEAM_LEADER') {
+    statCards = [
+      {
+        title: "Team Size",
+        value: stats.teamSize,
+        icon: Users,
+        color: "from-blue-500 to-blue-600",
+        lightColor: "bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400",
+      },
+      {
+        title: "Active Members",
+        value: stats.activeMembers,
+        icon: UserCircle,
+        color: "from-green-500 to-green-600",
+        lightColor: "bg-green-50 text-green-600 dark:bg-green-500/10 dark:text-green-400",
+      },
+      {
+        title: "Team Pages",
+        value: stats.teamPages,
+        icon: FileText,
+        color: "from-purple-500 to-purple-600",
+        lightColor: "bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400",
+      },
+      {
+        title: "Total Leads",
+        value: stats.totalLeads,
+        icon: Target,
+        color: "from-orange-500 to-orange-600",
+        lightColor: "bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400",
+      }
+    ];
+  } else if (roleType === 'EMPLOYEE') {
+    statCards = [
+      {
+        title: "Assigned Pages",
+        value: stats.assignedPages || 0,
+        icon: FileText,
+        color: "from-purple-500 to-purple-600",
+        lightColor: "bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400",
+      },
+      {
+        title: "My Leads",
+        value: stats.myLeads || 0,
+        icon: Target,
+        color: "from-orange-500 to-orange-600",
+        lightColor: "bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400",
+      }
+    ];
+  } else {
+    statCards = [
+      {
+        title: "Total Users",
+        value: stats.totalUsers,
+        icon: Users,
+        color: "from-blue-500 to-blue-600",
+        lightColor: "bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400",
+      },
+      {
+        title: "Active Users",
+        value: stats.activeUsers,
+        icon: UserCircle,
+        color: "from-green-500 to-green-600",
+        lightColor: "bg-green-50 text-green-600 dark:bg-green-500/10 dark:text-green-400",
+      },
+      {
+        title: "Total Teams",
+        value: stats.totalTeams,
+        icon: Briefcase,
+        color: "from-purple-500 to-purple-600",
+        lightColor: "bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400",
+      },
+      {
+        title: "Branches",
+        value: stats.totalBranches,
+        icon: Building2,
+        color: "from-orange-500 to-orange-600",
+        lightColor: "bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400",
+      },
+      {
+        title: "Departments",
+        value: stats.totalDepartments,
+        icon: Activity,
+        color: "from-pink-500 to-pink-600",
+        lightColor: "bg-pink-50 text-pink-600 dark:bg-pink-500/10 dark:text-pink-400",
+      },
+      {
+        title: "Total Roles",
+        value: stats.totalRoles,
+        icon: ShieldCheck,
+        color: "from-indigo-500 to-indigo-600",
+        lightColor: "bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400",
+      },
+    ];
+  }
 
   const chartOptions = {
     chart: {
