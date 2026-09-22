@@ -101,7 +101,7 @@ export default function LeadTimeline({
                 {item.icon}
               </Avatar>
 
-              <Box flex={1}>
+              <Box sx={{ flex: 1 }}>
                 <Stack
                   direction="row"
                   justifyContent="space-between"
@@ -126,7 +126,7 @@ export default function LeadTimeline({
                 </Stack>
 
                 <Typography
-                  mt={1}
+                  sx={{ mt: 1 }}
                   color="text.secondary"
                 >
                   {item.description}

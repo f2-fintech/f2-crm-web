@@ -67,7 +67,7 @@ export default function LeadDetailsPage() {
         spacing={2}
         justifyContent="space-between"
         alignItems="center"
-        mb={3}
+        sx={{ mb: 3 }}
       >
         <Button
           startIcon={<ArrowBack />}

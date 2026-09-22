@@ -59,7 +59,7 @@ export default function LeadOverview({
           <CardContent>
             <Typography
               variant="h6"
-              mb={2}
+              sx={{ mb: 2 }}
             >
               Personal Information
             </Typography>
@@ -120,7 +120,7 @@ export default function LeadOverview({
           <CardContent>
             <Typography
               variant="h6"
-              mb={2}
+              sx={{ mb: 2 }}
             >
               Loan Information
             </Typography>
@@ -181,7 +181,7 @@ export default function LeadOverview({
           <CardContent>
             <Typography
               variant="h6"
-              mb={2}
+              sx={{ mb: 2 }}
             >
               Lead Status
             </Typography>
@@ -262,7 +262,7 @@ export default function LeadOverview({
           <CardContent>
             <Typography
               variant="h6"
-              mb={2}
+              sx={{ mb: 2 }}
             >
               Follow Up
             </Typography>
@@ -331,7 +331,7 @@ export default function LeadOverview({
           <CardContent>
             <Typography
               variant="h6"
-              mb={2}
+              sx={{ mb: 2 }}
             >
               Remarks
             </Typography>

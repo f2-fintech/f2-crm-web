@@ -150,7 +150,7 @@ export default function LeadApplications({
           direction="row"
           justifyContent="space-between"
           alignItems="center"
-          mb={3}
+          sx={{ mb: 3 }}
         >
           <Typography variant="h6">
             Applications

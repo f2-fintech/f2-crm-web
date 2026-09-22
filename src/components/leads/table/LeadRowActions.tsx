@@ -66,11 +66,13 @@ export default function LeadRowActions({
         anchorEl={anchorEl}
         open={open}
         onClose={handleClose}
-        PaperProps={{
-          elevation: 3,
-          sx: {
-            minWidth: 220,
-            borderRadius: 2,
+        slotProps={{
+          paper: {
+            elevation: 3,
+            sx: {
+              minWidth: 220,
+              borderRadius: 2,
+            },
           },
         }}
       >

@@ -69,7 +69,9 @@ export default function LeadPagination({
       <Stack
         direction="row"
         spacing={2}
-        alignItems="center"
+        sx={{
+          alignItems: "center",
+        }}
       >
         <FormControl size="small">
           <Select<number>

@@ -5,13 +5,20 @@ import { useCallback, useEffect, useState } from "react";
 import axios from "@/lib/axios";
 
 export interface DashboardData {
+  roleType?: string;
   stats: {
-    totalUsers: number;
-    activeUsers: number;
-    totalTeams: number;
-    totalBranches: number;
-    totalDepartments: number;
-    totalRoles: number;
+    totalUsers?: number;
+    activeUsers?: number;
+    totalTeams?: number;
+    totalBranches?: number;
+    totalDepartments?: number;
+    totalRoles?: number;
+    teamSize?: number;
+    activeMembers?: number;
+    teamPages?: number;
+    totalLeads?: number;
+    assignedPages?: number;
+    myLeads?: number;
   };
   recentActivity: Array<{
     _id: string;

@@ -54,12 +54,12 @@ export default function LeadToolbar({
         md: "row",
       }}
       spacing={2}
-      alignItems={{
-        xs: "stretch",
-        md: "center",
-      }}
-      justifyContent="space-between"
       sx={{
+        alignItems: {
+          xs: "stretch",
+          md: "center",
+        },
+        justifyContent: "space-between",
         mb: 3,
       }}
     >
@@ -80,14 +80,16 @@ export default function LeadToolbar({
             md: 350,
           },
         }}
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <Search
-                fontSize="small"
-              />
-            </InputAdornment>
-          ),
+        slotProps={{
+          input: {
+            startAdornment: (
+              <InputAdornment position="start">
+                <Search
+                  fontSize="small"
+                />
+              </InputAdornment>
+            ),
+          },
         }}
       />
 
@@ -96,7 +98,7 @@ export default function LeadToolbar({
       <Stack
         direction="row"
         spacing={1}
-        flexWrap="wrap"
+        sx={{ flexWrap: "wrap" }}
       >
         <Tooltip title="Refresh">
           <IconButton

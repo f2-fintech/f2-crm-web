@@ -43,10 +43,7 @@ export default function EmploymentInformation({
       }}
     >
       <CardContent>
-        <Typography
-          variant="h6"
-          mb={3}
-        >
+        <Typography variant="h6" sx={{ mb: 3 }}>
           Employment Information
         </Typography>
 

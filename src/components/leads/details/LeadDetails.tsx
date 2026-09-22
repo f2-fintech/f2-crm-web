@@ -48,7 +48,7 @@ export default function LeadDetails({
           {lead.leadId}
         </Typography>
 
-        <Box mt={3}>
+        <Box sx={{ mt: 3 }}>
           <Tabs
             value={tab}
             onChange={(_, value) =>
