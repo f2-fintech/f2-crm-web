@@ -45,8 +45,8 @@ export default function NotionPageView({
   return (
     <Box sx={{ flexGrow: 1, display: "flex", flexDirection: "column", overflowY: "auto" }}>
       {/* Topbar */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 3, py: 1.5 }}>
-        <Stack direction="row" alignItems="center" spacing={1} sx={{ color: notionColors.textMuted }}>
+      <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center", px: 3, py: 1.5 }}>
+        <Stack direction="row" spacing={1} sx={{ alignItems: "center", color: notionColors.textMuted }}>
           <Typography variant="body2" sx={{ cursor: "pointer", "&:hover": { textDecoration: "underline" } }}>Vineet Team</Typography>
           <Typography variant="body2">/</Typography>
           <Typography variant="body2" sx={{ color: notionColors.textMain }}>{selectedPageTitle}</Typography>
@@ -69,7 +69,7 @@ export default function NotionPageView({
             {selectedPageTitle}
           </Typography>
           
-          <Stack direction="row" spacing={2} sx={{ mb: 4, borderBottom: `1px solid ${notionColors.borderLight}`, pb: 2 }}>
+          <Stack direction="row" spacing={2} sx={{ alignItems: "center", mb: 4, borderBottom: `1px solid ${notionColors.borderLight}`, pb: 2 }}>
             <Button variant="outlined" size="small" startIcon={<Plus size={16} />} onClick={onOpenCreateModal} sx={{ textTransform: "none", borderColor: notionColors.borderLight, color: notionColors.textMain, "&:hover": { bgcolor: notionColors.sidebarHover } }}>
               Add Sub-page
             </Button>
@@ -82,7 +82,7 @@ export default function NotionPageView({
         {/* Leads Data Table (if data exists) */}
         {rowsData.length > 0 ? (
           <Box>
-            <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 2 }}>
               <Search size={16} color={notionColors.textMuted} />
               <InputBase 
                 placeholder="Search in database..." 
@@ -136,10 +136,9 @@ export default function NotionPageView({
               <Stack 
                 key={child._id} 
                 direction="row" 
-                alignItems="center" 
                 spacing={1} 
                 onClick={() => onSelectChildPage(child)}
-                sx={{ py: 1, cursor: "pointer", "&:hover": { textDecoration: "underline" } }}
+                sx={{ alignItems: "center", py: 1, cursor: "pointer", "&:hover": { textDecoration: "underline" } }}
               >
                 <FileText size={18} color={notionColors.textMuted} />
                 <Typography sx={{ color: notionColors.textMain, fontWeight: 500 }}>{child.title}</Typography>

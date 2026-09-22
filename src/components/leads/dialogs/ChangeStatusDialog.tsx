@@ -13,7 +13,7 @@ import {
   TextField,
 } from "@mui/material";
 
-import { LeadStatus } from "@/types/leads/lead";
+import { LeadStatus } from "@/types/lead";
 
 interface ChangeStatusDialogProps {
   open: boolean;
@@ -117,8 +117,10 @@ export default function ChangeStatusDialog({
               value={
                 values.lastFollowUp
               }
-              InputLabelProps={{
-                shrink: true,
+              slotProps={{
+                inputLabel: {
+                  shrink: true,
+                }
               }}
               onChange={(e) =>
                 onChange(
@@ -144,8 +146,10 @@ export default function ChangeStatusDialog({
               value={
                 values.nextFollowUp
               }
-              InputLabelProps={{
-                shrink: true,
+              slotProps={{
+                inputLabel: {
+                  shrink: true,
+                }
               }}
               onChange={(e) =>
                 onChange(

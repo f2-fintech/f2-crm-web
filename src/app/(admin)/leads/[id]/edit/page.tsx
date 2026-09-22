@@ -120,9 +120,9 @@ export default function EditLeadPage() {
   if (loading) {
     return (
       <Stack
-        alignItems="center"
-        justifyContent="center"
         sx={{
+          alignItems: "center",
+          justifyContent: "center",
           minHeight: 400,
         }}
       >
@@ -147,9 +147,11 @@ export default function EditLeadPage() {
 
       <Stack
         direction="row"
-        justifyContent="space-between"
-        alignItems="center"
-        mb={3}
+        sx={{ 
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3 
+        }}
       >
         <Button
           variant="outlined"

@@ -13,7 +13,7 @@ import {
   TextField,
 } from "@mui/material";
 
-import { LeadPriority } from "@/types/leads/lead";
+import { LeadPriority } from "@/types/lead";
 
 interface AssignLeadDialogProps {
   open: boolean;
@@ -246,9 +246,7 @@ export default function AssignLeadDialog({
               value={
                 values.nextFollowUp
               }
-              InputLabelProps={{
-                shrink: true,
-              }}
+              slotProps={{ inputLabel: { shrink: true } }}
               onChange={(e) =>
                 onChange(
                   "nextFollowUp",

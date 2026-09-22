@@ -186,6 +186,43 @@ export default function useNotionPages() {
     }
   };
 
+  // 9. Delete Page directly in MongoDB
+  const deletePage = async (pageId: string) => {
+    try {
+      setLoading(true);
+      const response = await api.delete(`/notion-pages/${pageId}`);
+      const res = unpackData(response);
+      await fetchTree();
+      setSelectedPageId(null);
+      setActivePage(null);
+      return res;
+    } catch (err: any) {
+      console.error("Error deleting page:", err);
+      setError(err?.response?.data?.message || "Failed to delete page");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 10. Assign Page to Employee directly in MongoDB
+  const assignPage = async (pageId: string, assignedMemberId: string) => {
+    try {
+      setLoading(true);
+      const response = await api.patch(`/notion-pages/${pageId}`, { assignedMemberId });
+      const updatedDoc = unpackData(response);
+      setActivePage(updatedDoc);
+      await fetchTree();
+      return updatedDoc;
+    } catch (err: any) {
+      console.error("Error assigning page:", err);
+      setError(err?.response?.data?.message || "Failed to assign page");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchTree();
   }, [fetchTree]);
@@ -204,6 +241,8 @@ export default function useNotionPages() {
     cloneFormat,
     addRecord,
     updatePageTitle,
+    deletePage,
+    assignPage,
     setSelectedPageId,
     setActivePage,
   };

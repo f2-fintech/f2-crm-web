@@ -47,7 +47,7 @@ export default function CreateLeadPage() {
         direction="row"
         justifyContent="space-between"
         alignItems="center"
-        mb={3}
+        sx={{ mb: 3 }}
       >
         <Button
           startIcon={<ArrowBackIcon />}

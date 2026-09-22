@@ -45,6 +45,7 @@ import {
   Smile,
   Table as TableIcon,
   Trash2,
+  UserPlus,
   X,
 } from "lucide-react";
 import useNotionPages, { NotionPageItem } from "@/hooks/useNotionPages";
@@ -120,6 +121,8 @@ export default function NotionPagesClientPage() {
     fetchPageDetails,
     createPage,
     updatePageTitle,
+    deletePage,
+    assignPage,
     setActivePage,
   } = useNotionPages();
 
@@ -151,6 +154,15 @@ export default function NotionPagesClientPage() {
   // Clear confirm
   const [clearOpen, setClearOpen] = useState(false);
   const [clearing, setClearing] = useState(false);
+
+  // Delete page
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  // Assign page
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [assigning, setAssigning] = useState(false);
+  const [selectedAssignee, setSelectedAssignee] = useState("");
 
   // Toast
   const [toast, setToast] = useState<{
@@ -194,7 +206,7 @@ export default function NotionPagesClientPage() {
 
   useEffect(() => {
     if (!activePage) return;
-    if (Array.isArray(activePage.rows)) setRowsData(activePage.rows);
+    setRowsData(Array.isArray(activePage.rows) ? activePage.rows : []);
     if (activePage.title) setSelectedPageTitle(activePage.title);
   }, [activePage]);
 
@@ -225,8 +237,50 @@ export default function NotionPagesClientPage() {
   const editable = canEdit(selectedPageId || undefined, activePage);
   const r = role?.toUpperCase();
   const canUploadData = r === "ADMIN" || r === "SUPER_ADMIN" || r === "MANAGER";
+  const canCreatePage = r === "ADMIN" || r === "SUPER_ADMIN" || r === "MANAGER";
+
+  const isSyntheticNode = useMemo(() => {
+    const isTeam = treeData?.shared?.some(t => t.id === selectedPageId || t._id === selectedPageId);
+    const isUser = selectedPageId?.startsWith("user_");
+    return isTeam || isUser;
+  }, [treeData, selectedPageId]);
+
+  const findPath = useCallback((
+    nodes: NotionPageItem[],
+    targetId: string,
+    currentPath: NotionPageItem[] = []
+  ): NotionPageItem[] | null => {
+    if (!nodes) return null;
+    for (const node of nodes) {
+      const newPath = [...currentPath, node];
+      if (node.id === targetId || node._id === targetId) return newPath;
+      if (node.children && node.children.length > 0) {
+        const found = findPath(node.children, targetId, newPath);
+        if (found) return found;
+      }
+    }
+    return null;
+  }, []);
+
+  const breadcrumbs = useMemo(() => {
+    if (!selectedPageId) return [];
+    const allRoots = [...(treeData?.shared || []), ...(treeData?.private || [])];
+    return findPath(allRoots, selectedPageId) || [];
+  }, [treeData, selectedPageId, findPath]);
 
   /* ---------------- actions ---------------- */
+
+  const assignableUsers = useMemo(() => {
+    const users: { id: string; name: string }[] = [];
+    treeData?.shared?.forEach(team => {
+      team.children?.forEach(child => {
+        if (child.id?.startsWith("user_")) {
+          users.push({ id: child.id.replace("user_", ""), name: child.title });
+        }
+      });
+    });
+    return users;
+  }, [treeData]);
 
   const handleShareClick = () => {
     if (!selectedPageId) return;
@@ -521,7 +575,7 @@ export default function NotionPagesClientPage() {
                 {node.title}
               </Typography>
 
-              {canEdit(nodeKey) && (
+              {canCreatePage && canEdit(nodeKey) && (
                 <Tooltip title="Add a page inside" placement="top" arrow>
                   <IconButton
                     size="small"
@@ -733,50 +787,84 @@ export default function NotionPagesClientPage() {
         >
           <Stack
             direction="row"
-            sx={{ alignItems: "center", gap: 0.75, color: c.textMuted, minWidth: 0 }}
+            sx={{ alignItems: "center", gap: 0.75, color: c.textMuted, minWidth: 0, overflow: "hidden" }}
           >
-            <Typography
-              noWrap
-              sx={{
-                fontSize: "13px",
-                px: 0.5,
-                borderRadius: "4px",
-                cursor: "pointer",
-                "&:hover": { bgcolor: c.hover, color: c.textMain },
-              }}
-            >
-              {workspaceName}
-            </Typography>
-            <Typography sx={{ color: c.textFaint, fontSize: "13px" }}>/</Typography>
-            {editable ? (
-              <InputBase
-                value={selectedPageTitle}
-                onChange={(e) => setSelectedPageTitle(e.target.value)}
-                onBlur={(e) => handleRenamePage(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                  if (e.key === "Escape") {
-                    setSelectedPageTitle(activePage?.title || "Untitled");
-                    (e.target as HTMLInputElement).blur();
-                  }
-                }}
-                sx={{
-                  color: c.textMain,
-                  fontSize: "13px",
-                  fontWeight: 500,
-                  minWidth: 60,
-                  px: 0.5,
-                  borderRadius: "4px",
-                  "&:hover, &.Mui-focused": { bgcolor: c.hover },
-                }}
-              />
+            {breadcrumbs.length > 0 ? (
+              breadcrumbs.map((crumb, idx) => (
+                <React.Fragment key={crumb.id || crumb._id}>
+                  {idx > 0 && <Typography sx={{ color: c.textFaint, fontSize: "13px" }}>/</Typography>}
+                  {idx === breadcrumbs.length - 1 && editable ? (
+                    <InputBase
+                      value={selectedPageTitle}
+                      onChange={(e) => setSelectedPageTitle(e.target.value)}
+                      onBlur={(e) => handleRenamePage(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                        if (e.key === "Escape") {
+                          setSelectedPageTitle(activePage?.title || crumb.title);
+                          (e.target as HTMLInputElement).blur();
+                        }
+                      }}
+                      sx={{
+                        color: c.textMain,
+                        fontSize: "13px",
+                        fontWeight: 500,
+                        minWidth: 60,
+                        px: 0.5,
+                        borderRadius: "4px",
+                        "&:hover, &.Mui-focused": { bgcolor: c.hover },
+                      }}
+                    />
+                  ) : (
+                    <Typography
+                      noWrap
+                      onClick={() => {
+                        if (idx !== breadcrumbs.length - 1) {
+                          const node = breadcrumbs[idx];
+                          const id = node.id || node._id;
+                          if (id) {
+                            setSelectedPageTitle(node.title);
+                            setSelectedPageId(id);
+                            setSearchQuery("");
+                            setLoadingPage(true);
+                            fetchPageDetails(id).finally(() => setLoadingPage(false));
+                          }
+                        }
+                      }}
+                      sx={{
+                        fontSize: "13px",
+                        fontWeight: idx === breadcrumbs.length - 1 ? 500 : 400,
+                        color: idx === breadcrumbs.length - 1 ? c.textMain : c.textMuted,
+                        px: 0.5,
+                        borderRadius: "4px",
+                        cursor: idx === breadcrumbs.length - 1 ? "default" : "pointer",
+                        "&:hover": idx === breadcrumbs.length - 1 ? {} : { bgcolor: c.hover, color: c.textMain },
+                        maxWidth: "150px",
+                      }}
+                    >
+                      {idx === breadcrumbs.length - 1 ? selectedPageTitle : crumb.title}
+                    </Typography>
+                  )}
+                </React.Fragment>
+              ))
             ) : (
-              <Typography
-                noWrap
-                sx={{ color: c.textMain, fontSize: "13px", fontWeight: 500 }}
-              >
-                {selectedPageTitle}
-              </Typography>
+              <>
+                <Typography
+                  noWrap
+                  sx={{
+                    fontSize: "13px",
+                    px: 0.5,
+                    borderRadius: "4px",
+                    color: c.textMuted,
+                  }}
+                >
+                  {workspaceName}
+                </Typography>
+                <Typography sx={{ color: c.textFaint, fontSize: "13px" }}>/</Typography>
+                <Typography noWrap sx={{ color: c.textMain, fontSize: "13px", fontWeight: 500 }}>
+                  {selectedPageTitle}
+                </Typography>
+              </>
             )}
           </Stack>
 
@@ -814,25 +902,29 @@ export default function NotionPagesClientPage() {
           onClose={() => setPageMenuAnchor(null)}
           anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
           transformOrigin={{ vertical: "top", horizontal: "right" }}
-          PaperProps={{
-            sx: {
-              minWidth: 210,
-              borderRadius: "10px",
-              border: `1px solid ${c.border}`,
-              boxShadow: "0 10px 30px rgba(15, 15, 15, 0.12)",
-              "& .MuiMenuItem-root": { fontSize: "13.5px", gap: 1.25, py: 0.9 },
-            },
+          slotProps={{
+            paper: {
+              sx: {
+                minWidth: 210,
+                borderRadius: "10px",
+                border: `1px solid ${c.border}`,
+                boxShadow: "0 10px 30px rgba(15, 15, 15, 0.12)",
+                "& .MuiMenuItem-root": { fontSize: "13.5px", gap: 1.25, py: 0.9 },
+              },
+            }
           }}
         >
-          <MenuItem
-            onClick={() => {
-              setPageMenuAnchor(null);
-              openCreateDialog(selectedPageId || undefined);
-            }}
-            disabled={!editable}
-          >
-            <Plus size={15} /> Add a page inside
-          </MenuItem>
+          {canCreatePage && (
+            <MenuItem
+              onClick={() => {
+                setPageMenuAnchor(null);
+                openCreateDialog(selectedPageId || undefined);
+              }}
+              disabled={!editable}
+            >
+              <Plus size={15} /> Add a page inside
+            </MenuItem>
+          )}
           <MenuItem
             onClick={() => {
               setPageMenuAnchor(null);
@@ -853,6 +945,30 @@ export default function NotionPagesClientPage() {
           >
             <Trash2 size={15} /> Remove all rows
           </MenuItem>
+
+          {!isSyntheticNode && (r === "MANAGER" || r === "TEAM_LEADER" || r === "SUPER_ADMIN" || r === "ADMIN") && (
+            <MenuItem
+              onClick={() => {
+                setPageMenuAnchor(null);
+                setAssignOpen(true);
+              }}
+              disabled={!editable}
+            >
+              <UserPlus size={15} /> Assign page
+            </MenuItem>
+          )}
+
+          {!isSyntheticNode && (r === "SUPER_ADMIN" || r === "ADMIN") && (
+            <MenuItem
+              onClick={() => {
+                setPageMenuAnchor(null);
+                setDeleteOpen(true);
+              }}
+              sx={{ color: c.danger }}
+            >
+              <Trash2 size={15} /> Delete page
+            </MenuItem>
+          )}
         </Menu>
 
         {/* Page body */}
@@ -946,14 +1062,16 @@ export default function NotionPagesClientPage() {
                   borderBottom: `1px solid ${c.border}`,
                 }}
               >
-                <Button
-                  size="small"
-                  startIcon={<Plus size={15} />}
-                  onClick={() => openCreateDialog(selectedPageId || undefined)}
-                  sx={outlineBtn}
-                >
-                  Add a page inside
-                </Button>
+                {canCreatePage && (
+                  <Button
+                    size="small"
+                    startIcon={<Plus size={15} />}
+                    onClick={() => openCreateDialog(selectedPageId || undefined)}
+                    sx={outlineBtn}
+                  >
+                    Add a page inside
+                  </Button>
+                )}
                 {activePage?.pageType === "SHEET" && (
                   <>
                     {canUploadData && (
@@ -1248,7 +1366,7 @@ export default function NotionPagesClientPage() {
       <Dialog
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        PaperProps={{ sx: dialogPaper(420) }}
+        slotProps={{ paper: { sx: dialogPaper(420) } }}
       >
         <DialogTitle sx={dialogTitle}>New page</DialogTitle>
         <DialogContent sx={{ px: 3, pt: 1 }}>
@@ -1290,7 +1408,7 @@ export default function NotionPagesClientPage() {
       <Dialog
         open={uploadOpen}
         onClose={() => setUploadOpen(false)}
-        PaperProps={{ sx: dialogPaper(560) }}
+        slotProps={{ paper: { sx: dialogPaper(560) } }}
       >
         <DialogTitle sx={dialogTitle}>Paste leads</DialogTitle>
         <DialogContent sx={{ px: 3, pt: 1 }}>
@@ -1361,7 +1479,7 @@ export default function NotionPagesClientPage() {
       <Dialog
         open={clearOpen}
         onClose={() => setClearOpen(false)}
-        PaperProps={{ sx: dialogPaper(420) }}
+        slotProps={{ paper: { sx: dialogPaper(420) } }}
       >
         <DialogTitle sx={dialogTitle}>Remove all rows?</DialogTitle>
         <DialogContent sx={{ px: 3, pt: 1 }}>
@@ -1395,6 +1513,104 @@ export default function NotionPagesClientPage() {
       </Dialog>
 
 
+
+      {/* ========================= Delete confirm ========================= */}
+      <Dialog
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        slotProps={{ paper: { sx: dialogPaper(420) } }}
+      >
+        <DialogTitle sx={dialogTitle}>Delete this page?</DialogTitle>
+        <DialogContent sx={{ px: 3, pt: 1 }}>
+          <Typography variant="body2" sx={{ color: c.textMuted }}>
+            This will permanently delete the page and all of its contents. This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={dialogActions}>
+          <Button onClick={() => setDeleteOpen(false)} sx={ghostBtn}>
+            Cancel
+          </Button>
+          <Button
+            onClick={async () => {
+              if (!selectedPageId) return;
+              setDeleting(true);
+              try {
+                await deletePage(selectedPageId);
+                notify("Page deleted successfully", "success");
+                setDeleteOpen(false);
+              } catch (e: any) {
+                notify(e?.message || "Failed to delete page", "error");
+              } finally {
+                setDeleting(false);
+              }
+            }}
+            disabled={deleting}
+            sx={{
+              ...primaryBtn,
+              bgcolor: c.danger,
+              "&:hover": { bgcolor: "#b93c33" },
+            }}
+          >
+            {deleting ? "Deleting..." : "Delete Page"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ========================= Assign page ========================= */}
+      <Dialog
+        open={assignOpen}
+        onClose={() => setAssignOpen(false)}
+        slotProps={{ paper: { sx: dialogPaper(420) } }}
+      >
+        <DialogTitle sx={dialogTitle}>Assign Page</DialogTitle>
+        <DialogContent sx={{ px: 3, pt: 1 }}>
+          <Typography variant="body2" sx={{ color: c.textMuted, mb: 2 }}>
+            Assign this page to a team member.
+          </Typography>
+          <TextField
+            select
+            fullWidth
+            label="Select Team Member"
+            value={selectedAssignee}
+            onChange={(e) => setSelectedAssignee(e.target.value)}
+            size="small"
+            sx={{
+              "& .MuiOutlinedInput-root": { borderRadius: "8px" },
+            }}
+          >
+            {assignableUsers.map((u) => (
+              <MenuItem key={u.id} value={u.id}>
+                {u.name}
+              </MenuItem>
+            ))}
+          </TextField>
+        </DialogContent>
+        <DialogActions sx={dialogActions}>
+          <Button onClick={() => setAssignOpen(false)} sx={ghostBtn}>
+            Cancel
+          </Button>
+          <Button
+            onClick={async () => {
+              if (!selectedPageId || !selectedAssignee) return;
+              setAssigning(true);
+              try {
+                await assignPage(selectedPageId, selectedAssignee);
+                notify("Page assigned successfully", "success");
+                setAssignOpen(false);
+                setSelectedAssignee("");
+              } catch (e: any) {
+                notify(e?.message || "Failed to assign page", "error");
+              } finally {
+                setAssigning(false);
+              }
+            }}
+            disabled={assigning || !selectedAssignee}
+            sx={{ ...primaryBtn, bgcolor: c.accent, "&:hover": { bgcolor: c.accentHover } }}
+          >
+            {assigning ? "Assigning..." : "Assign"}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* =========================== Toast ============================ */}
       <Snackbar

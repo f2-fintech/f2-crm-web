@@ -41,10 +41,7 @@ export default function AssignmentInformation({
       }}
     >
       <CardContent>
-        <Typography
-          variant="h6"
-          mb={3}
-        >
+        <Typography variant="h6" sx={{ mb: 3 }}>
           Assignment Information
         </Typography>
 
@@ -227,8 +224,10 @@ export default function AssignmentInformation({
                     )
                   : ""
               }
-              InputLabelProps={{
-                shrink: true,
+              slotProps={{
+                inputLabel: {
+                  shrink: true,
+                }
               }}
               onChange={(e) =>
                 onChange(

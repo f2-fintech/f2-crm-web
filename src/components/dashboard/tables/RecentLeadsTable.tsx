@@ -82,7 +82,7 @@ export default function RecentLeadsTable({
       <CardContent>
         <Typography
           variant="h6"
-          mb={3}
+          sx={{ mb: 3 }}
         >
           Recent Leads
         </Typography>
