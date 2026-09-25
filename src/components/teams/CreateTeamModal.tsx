@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
+import SingleSelect from "@/components/ui/SingleSelect";
+import MultiSelect from "@/components/ui/MultiSelect";
 
 interface CreateTeamModalProps {
   open: boolean;
@@ -15,6 +17,7 @@ interface IUserOption {
   firstName: string;
   lastName: string;
   email: string;
+  role?: string;
 }
 
 export default function CreateTeamModal({
@@ -29,14 +32,14 @@ export default function CreateTeamModal({
     name: "",
     description: "",
     managerId: "",
-    teamLeaderId: "",
+    teamLeaderIds: [] as string[],
     managerMemberIds: [] as string[],
     teamLeaderMemberIds: [] as string[],
   });
 
   const fetchUsers = async () => {
     try {
-      const res = await api.get("/users?limit=100");
+      const res = await api.get("/users?limit=200");
       const usersList = Array.isArray(res.data) ? res.data : res.data.data || [];
       setUsers(usersList);
     } catch (err) {
@@ -54,41 +57,7 @@ export default function CreateTeamModal({
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
-    setForm((prev) => {
-      const newForm = { ...prev, [name]: value };
-      
-      // Reset team leader if manager changes and they were the same
-      if (name === 'managerId' && value === prev.teamLeaderId) {
-        newForm.teamLeaderId = "";
-      }
-      
-      // If manager or team leader changes, remove that user from any member lists
-      if (name === 'managerId' || name === 'teamLeaderId') {
-        newForm.managerMemberIds = newForm.managerMemberIds.filter(id => id !== value);
-        newForm.teamLeaderMemberIds = newForm.teamLeaderMemberIds.filter(id => id !== value);
-      }
-      return newForm;
-    });
-  };
-
-  const toggleMember = (userId: string, type: 'manager' | 'teamLeader') => {
-    setForm((prev) => {
-      const field = type === 'manager' ? 'managerMemberIds' : 'teamLeaderMemberIds';
-      const otherField = type === 'manager' ? 'teamLeaderMemberIds' : 'managerMemberIds';
-      
-      const isSelected = prev[field].includes(userId);
-      
-      // Remove from the other list to ensure a user only reports to one person
-      const newOtherField = prev[otherField].filter(id => id !== userId);
-      
-      return {
-        ...prev,
-        [otherField]: newOtherField,
-        [field]: isSelected
-          ? prev[field].filter((id) => id !== userId)
-          : [...prev[field], userId],
-      };
-    });
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleClose = () => {
@@ -96,7 +65,7 @@ export default function CreateTeamModal({
       name: "",
       description: "",
       managerId: "",
-      teamLeaderId: "",
+      teamLeaderIds: [],
       managerMemberIds: [],
       teamLeaderMemberIds: [],
     });
@@ -126,13 +95,13 @@ export default function CreateTeamModal({
         throw new Error("Failed to retrieve the new team ID.");
       }
 
-      // 2. Add Team Leader
-      if (form.teamLeaderId) {
-        await api.post(`/teams/${teamId}/members`, {
-          userId: form.teamLeaderId,
+      // 2. Add Team Leaders
+      const teamLeaderPromises = form.teamLeaderIds.map(tlId => 
+        api.post(`/teams/${teamId}/members`, {
+          userId: tlId,
           reportsTo: form.managerId
-        });
-      }
+        })
+      );
 
       // 3. Add members reporting to Manager
       const managerMemberPromises = form.managerMemberIds.map(memberId => 
@@ -142,18 +111,19 @@ export default function CreateTeamModal({
         })
       );
 
-      // 4. Add members reporting to Team Leader
+      // 4. Add members reporting to Team Leaders
+      const firstTlId = form.teamLeaderIds.length > 0 ? form.teamLeaderIds[0] : form.managerId;
       const teamLeaderMemberPromises = form.teamLeaderMemberIds.map(memberId => 
         api.post(`/teams/${teamId}/members`, {
           userId: memberId,
-          reportsTo: form.teamLeaderId
+          reportsTo: firstTlId
         })
       );
 
       // Execute all additions concurrently
-      await Promise.all([...managerMemberPromises, ...teamLeaderMemberPromises]);
+      await Promise.all([...teamLeaderPromises, ...managerMemberPromises, ...teamLeaderMemberPromises]);
 
-      const totalMembersAdded = form.managerMemberIds.length + form.teamLeaderMemberIds.length + (form.teamLeaderId ? 1 : 0);
+      const totalMembersAdded = form.managerMemberIds.length + form.teamLeaderMemberIds.length + form.teamLeaderIds.length;
       
       toast.success(
         <div>
@@ -180,11 +150,18 @@ export default function CreateTeamModal({
 
   if (!open) return null;
 
-  // Derived filtered lists
-  const availableTeamLeaders = users.filter((u) => u._id !== form.managerId);
-  const availableMembers = users.filter(
-    (u) => u._id !== form.managerId && u._id !== form.teamLeaderId
-  );
+  // Options
+  const managerOptions = users
+    .filter(u => u.role === "MANAGER")
+    .map(u => ({ value: u._id, label: `${u.firstName} ${u.lastName} (${u.email})` }));
+  
+  const tlOptions = users
+    .filter(u => u._id !== form.managerId)
+    .map(u => ({ value: u._id, label: `${u.firstName} ${u.lastName} (TL)` }));
+  
+  const memberOptions = users
+    .filter(u => u._id !== form.managerId && !form.teamLeaderIds.includes(u._id))
+    .map(u => ({ value: u._id, label: `${u.firstName} ${u.lastName}` }));
 
   return (
     <div
@@ -250,44 +227,40 @@ export default function CreateTeamModal({
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                    Manager <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    name="managerId"
+                  <SingleSelect
+                    label="Manager *"
+                    options={managerOptions}
                     value={form.managerId}
-                    onChange={handleChange}
-                    className="w-full rounded-xl border border-gray-200 p-3 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:focus:border-brand-500 cursor-pointer appearance-none"
-                  >
-                    <option value="">Select Manager</option>
-                    {users.map((user) => (
-                      <option key={user._id} value={user._id}>
-                        {user.firstName} {user.lastName} ({user.email})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => {
+                      setForm(prev => {
+                        const next = { ...prev, managerId: val };
+                        next.teamLeaderIds = next.teamLeaderIds.filter(id => id !== val);
+                        next.managerMemberIds = next.managerMemberIds.filter(id => id !== val);
+                        next.teamLeaderMemberIds = next.teamLeaderMemberIds.filter(id => id !== val);
+                        return next;
+                      });
+                    }}
+                    placeholder="Select Manager"
+                  />
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                    Team Leader (Optional)
-                  </label>
-                  <select
-                    name="teamLeaderId"
-                    value={form.teamLeaderId}
-                    onChange={handleChange}
-                    disabled={!form.managerId}
-                    className="w-full rounded-xl border border-gray-200 p-3 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:focus:border-brand-500 cursor-pointer appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <option value="">Select Team Leader</option>
-                    {availableTeamLeaders.map((user) => (
-                      <option key={user._id} value={user._id}>
-                        {user.firstName} {user.lastName}
-                      </option>
-                    ))}
-                  </select>
+                  <MultiSelect
+                    label="Team Leaders (TL)"
+                    options={tlOptions}
+                    value={form.teamLeaderIds}
+                    onChange={(val) => {
+                      setForm(prev => {
+                        const next = { ...prev, teamLeaderIds: val };
+                        next.managerMemberIds = next.managerMemberIds.filter(id => !val.includes(id));
+                        next.teamLeaderMemberIds = next.teamLeaderMemberIds.filter(id => !val.includes(id));
+                        return next;
+                      });
+                    }}
+                    placeholder="Select Team Leaders"
+                  />
                   <p className="mt-1.5 text-xs text-gray-500">
-                    Reports to Manager. Can have own members.
+                    Reports to Manager.
                   </p>
                 </div>
               </div>
@@ -296,86 +269,26 @@ export default function CreateTeamModal({
             {/* Manager's Members */}
             {form.managerId && (
               <div>
-                <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400">2</span>
-                  Members reporting to Manager ({form.managerMemberIds.length})
-                </h3>
-                
-                {availableMembers.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 py-8 text-center dark:border-gray-700 dark:bg-gray-800/30">
-                    <p className="text-sm text-gray-500">No more users available.</p>
-                  </div>
-                ) : (
-                  <div className="max-h-48 overflow-y-auto rounded-xl border border-gray-200 p-3 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 flex flex-wrap gap-2">
-                    {availableMembers.map((user) => {
-                      const isSelected = form.managerMemberIds.includes(user._id);
-                      return (
-                        <button
-                          key={`mgr-${user._id}`}
-                          type="button"
-                          onClick={() => toggleMember(user._id, 'manager')}
-                          className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-all duration-200 border ${
-                            isSelected
-                              ? "bg-brand-50 border-brand-200 text-brand-700 dark:bg-brand-500/20 dark:border-brand-500/30 dark:text-brand-300 shadow-sm"
-                              : "bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
-                          }`}
-                        >
-                          <div className={`flex h-4 w-4 items-center justify-center rounded border ${isSelected ? 'border-brand-500 bg-brand-500 text-white' : 'border-gray-300 dark:border-gray-600'}`}>
-                            {isSelected && (
-                              <svg viewBox="0 0 14 14" fill="none" className="w-3 h-3">
-                                <path d="M3 7L6 10L11 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                              </svg>
-                            )}
-                          </div>
-                          {user.firstName} {user.lastName}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                <MultiSelect
+                  label={`Members reporting to Manager (${form.managerMemberIds.length})`}
+                  options={memberOptions.filter(m => !form.teamLeaderMemberIds.includes(m.value))}
+                  value={form.managerMemberIds}
+                  onChange={(val) => setForm(prev => ({ ...prev, managerMemberIds: val }))}
+                  placeholder="Search and add employees..."
+                />
               </div>
             )}
 
             {/* Team Leader's Members */}
-            {form.teamLeaderId && (
+            {form.teamLeaderIds.length > 0 && (
               <div>
-                <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-purple-100 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400">3</span>
-                  Members reporting to Team Leader ({form.teamLeaderMemberIds.length})
-                </h3>
-                
-                {availableMembers.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 py-8 text-center dark:border-gray-700 dark:bg-gray-800/30">
-                    <p className="text-sm text-gray-500">No more users available.</p>
-                  </div>
-                ) : (
-                  <div className="max-h-48 overflow-y-auto rounded-xl border border-gray-200 p-3 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 flex flex-wrap gap-2">
-                    {availableMembers.map((user) => {
-                      const isSelected = form.teamLeaderMemberIds.includes(user._id);
-                      return (
-                        <button
-                          key={`tl-${user._id}`}
-                          type="button"
-                          onClick={() => toggleMember(user._id, 'teamLeader')}
-                          className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-all duration-200 border ${
-                            isSelected
-                              ? "bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-500/20 dark:border-purple-500/30 dark:text-purple-300 shadow-sm"
-                              : "bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
-                          }`}
-                        >
-                          <div className={`flex h-4 w-4 items-center justify-center rounded border ${isSelected ? 'border-purple-500 bg-purple-500 text-white' : 'border-gray-300 dark:border-gray-600'}`}>
-                            {isSelected && (
-                              <svg viewBox="0 0 14 14" fill="none" className="w-3 h-3">
-                                <path d="M3 7L6 10L11 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                              </svg>
-                            )}
-                          </div>
-                          {user.firstName} {user.lastName}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                <MultiSelect
+                  label={`Members reporting to Team Leaders (${form.teamLeaderMemberIds.length})`}
+                  options={memberOptions.filter(m => !form.managerMemberIds.includes(m.value))}
+                  value={form.teamLeaderMemberIds}
+                  onChange={(val) => setForm(prev => ({ ...prev, teamLeaderMemberIds: val }))}
+                  placeholder="Search and add employees..."
+                />
               </div>
             )}
           </div>

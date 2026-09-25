@@ -4,6 +4,8 @@ export const ROLES = {
   MANAGER: "MANAGER",
   TEAM_LEADER: "TEAM_LEADER",
   EMPLOYEE: "EMPLOYEE",
+  SOURCER: "SOURCER",
+  CHANNEL_PARTNER: "CHANNEL_PARTNER",
 };
 
 export const ALL_ROLES = [
@@ -12,10 +14,10 @@ export const ALL_ROLES = [
   ROLES.MANAGER,
   ROLES.TEAM_LEADER,
   ROLES.EMPLOYEE,
+  ROLES.SOURCER,
+  ROLES.CHANNEL_PARTNER,
 ];
 
-// Define minimum roles required for different route prefixes
-// If a route is not specified here, it will be accessible by all authenticated users by default.
 export const ROUTE_PERMISSIONS: Record<string, string[]> = {
   "/users": [ROLES.SUPER_ADMIN, ROLES.ADMIN],
   "/roles": [ROLES.SUPER_ADMIN, ROLES.ADMIN],
@@ -30,11 +32,10 @@ export const ROUTE_PERMISSIONS: Record<string, string[]> = {
 
 export const hasPermission = (pathname: string, userRole: string): boolean => {
   if (!userRole) return false;
-  // Check exact matches or prefixes
   for (const [route, allowedRoles] of Object.entries(ROUTE_PERMISSIONS)) {
     if (pathname === route || pathname.startsWith(`${route}/`)) {
       return allowedRoles.includes(userRole);
     }
   }
-  return true; // Default allow if not restricted in ROUTE_PERMISSIONS
+  return true;
 };

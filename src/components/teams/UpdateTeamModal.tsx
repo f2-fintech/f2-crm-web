@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
+import SingleSelect from "@/components/ui/SingleSelect";
+import MultiSelect from "@/components/ui/MultiSelect";
 
 interface UpdateTeamModalProps {
   open: boolean;
@@ -20,6 +22,7 @@ interface IUserOption {
   firstName: string;
   lastName: string;
   email: string;
+  role?: string;
 }
 
 export default function UpdateTeamModal({
@@ -36,14 +39,14 @@ export default function UpdateTeamModal({
     name: "",
     description: "",
     managerId: "",
-    teamLeaderId: "",
+    teamLeaderIds: [] as string[],
     managerMemberIds: [] as string[],
     teamLeaderMemberIds: [] as string[],
   });
 
   const fetchUsers = async () => {
     try {
-      const res = await api.get("/users?limit=100");
+      const res = await api.get("/users?limit=200");
       const usersList = Array.isArray(res.data) ? res.data : res.data.data || [];
       setUsers(usersList);
     } catch (err) {
@@ -59,17 +62,17 @@ export default function UpdateTeamModal({
       
       const manager = hierarchy.manager;
       let managerId = manager?.id || "";
-      let teamLeaderId = "";
+      let teamLeaderIds: string[] = [];
       let managerMemberIds: string[] = [];
       let teamLeaderMemberIds: string[] = [];
 
       if (manager && manager.directReports) {
         manager.directReports.forEach((report: any) => {
           if (report.directReports && report.directReports.length > 0) {
-            teamLeaderId = report.id;
-            teamLeaderMemberIds = report.directReports.map((r: any) => r.id);
-          } else if (report.role === 'TEAM_LEADER' && !teamLeaderId) {
-            teamLeaderId = report.id;
+            teamLeaderIds.push(report.id);
+            teamLeaderMemberIds.push(...report.directReports.map((r: any) => r.id));
+          } else if (report.role === 'TEAM_LEADER' && !teamLeaderIds.includes(report.id)) {
+            teamLeaderIds.push(report.id);
           } else {
             managerMemberIds.push(report.id);
           }
@@ -79,7 +82,7 @@ export default function UpdateTeamModal({
       setForm((prev) => ({
         ...prev,
         managerId,
-        teamLeaderId,
+        teamLeaderIds,
         managerMemberIds,
         teamLeaderMemberIds
       }));
@@ -108,41 +111,7 @@ export default function UpdateTeamModal({
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
-    setForm((prev) => {
-      const newForm = { ...prev, [name]: value };
-      
-      // Reset team leader if manager changes and they were the same
-      if (name === 'managerId' && value === prev.teamLeaderId) {
-        newForm.teamLeaderId = "";
-      }
-      
-      // If manager or team leader changes, remove that user from any member lists
-      if (name === 'managerId' || name === 'teamLeaderId') {
-        newForm.managerMemberIds = newForm.managerMemberIds.filter(id => id !== value);
-        newForm.teamLeaderMemberIds = newForm.teamLeaderMemberIds.filter(id => id !== value);
-      }
-      return newForm;
-    });
-  };
-
-  const toggleMember = (userId: string, type: 'manager' | 'teamLeader') => {
-    setForm((prev) => {
-      const field = type === 'manager' ? 'managerMemberIds' : 'teamLeaderMemberIds';
-      const otherField = type === 'manager' ? 'teamLeaderMemberIds' : 'managerMemberIds';
-      
-      const isSelected = prev[field].includes(userId);
-      
-      // Remove from the other list to ensure a user only reports to one person
-      const newOtherField = prev[otherField].filter(id => id !== userId);
-      
-      return {
-        ...prev,
-        [otherField]: newOtherField,
-        [field]: isSelected
-          ? prev[field].filter((id) => id !== userId)
-          : [...prev[field], userId],
-      };
-    });
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleClose = () => {
@@ -150,7 +119,7 @@ export default function UpdateTeamModal({
       name: "",
       description: "",
       managerId: "",
-      teamLeaderId: "",
+      teamLeaderIds: [],
       managerMemberIds: [],
       teamLeaderMemberIds: [],
     });
@@ -176,7 +145,7 @@ export default function UpdateTeamModal({
       // 2. Sync members and hierarchy
       await api.post(`/teams/${team._id}/members/sync`, {
         managerId: form.managerId,
-        teamLeaderId: form.teamLeaderId,
+        teamLeaderIds: form.teamLeaderIds,
         managerMemberIds: form.managerMemberIds,
         teamLeaderMemberIds: form.teamLeaderMemberIds
       });
@@ -196,11 +165,18 @@ export default function UpdateTeamModal({
 
   if (!open || !team) return null;
 
-  // Derived filtered lists
-  const availableTeamLeaders = users.filter((u) => u._id !== form.managerId);
-  const availableMembers = users.filter(
-    (u) => u._id !== form.managerId && u._id !== form.teamLeaderId
-  );
+  // Options
+  const managerOptions = users
+    .filter(u => u.role === "MANAGER")
+    .map(u => ({ value: u._id, label: `${u.firstName} ${u.lastName} (${u.email})` }));
+  
+  const tlOptions = users
+    .filter(u => u._id !== form.managerId)
+    .map(u => ({ value: u._id, label: `${u.firstName} ${u.lastName} (TL)` }));
+  
+  const memberOptions = users
+    .filter(u => u._id !== form.managerId && !form.teamLeaderIds.includes(u._id))
+    .map(u => ({ value: u._id, label: `${u.firstName} ${u.lastName}` }));
 
   return (
     <div
@@ -213,12 +189,13 @@ export default function UpdateTeamModal({
       >
         <div className="flex items-center justify-between border-b px-6 py-5 dark:border-gray-800">
           <div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Update Team</h2>
-            <p className="text-sm text-gray-500 mt-1">Modify team hierarchy and members.</p>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Edit Team: {team.name}</h2>
+            <p className="text-sm text-gray-500 mt-1">Update team details and member assignments.</p>
           </div>
           <button
             onClick={handleClose}
             className="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300 transition-colors"
+            aria-label="Close"
           >
             ✕
           </button>
@@ -226,14 +203,9 @@ export default function UpdateTeamModal({
 
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {fetchingHierarchy ? (
-            <div className="flex h-40 items-center justify-center">
-              <div className="flex items-center gap-2 text-gray-500">
-                <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Loading hierarchy...
-              </div>
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-200 border-t-brand-500"></div>
+              <p className="mt-4 text-sm text-gray-500">Loading team hierarchy...</p>
             </div>
           ) : (
             <div className="flex flex-col gap-6">
@@ -263,6 +235,7 @@ export default function UpdateTeamModal({
                     value={form.description}
                     onChange={handleChange}
                     className="w-full rounded-xl border border-gray-200 p-3 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:focus:border-brand-500"
+                    placeholder="What does this team do?"
                   />
                 </div>
               </div>
@@ -275,42 +248,41 @@ export default function UpdateTeamModal({
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div>
-                    <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                      Manager <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      name="managerId"
+                    <SingleSelect
+                      label="Manager *"
+                      options={managerOptions}
                       value={form.managerId}
-                      onChange={handleChange}
-                      className="w-full rounded-xl border border-gray-200 p-3 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:focus:border-brand-500 cursor-pointer appearance-none"
-                    >
-                      <option value="">Select Manager</option>
-                      {users.map((user) => (
-                        <option key={user._id} value={user._id}>
-                          {user.firstName} {user.lastName} ({user.email})
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => {
+                        setForm(prev => {
+                          const next = { ...prev, managerId: val };
+                          next.teamLeaderIds = next.teamLeaderIds.filter(id => id !== val);
+                          next.managerMemberIds = next.managerMemberIds.filter(id => id !== val);
+                          next.teamLeaderMemberIds = next.teamLeaderMemberIds.filter(id => id !== val);
+                          return next;
+                        });
+                      }}
+                      placeholder="Select Manager"
+                    />
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                      Team Leader (Optional)
-                    </label>
-                    <select
-                      name="teamLeaderId"
-                      value={form.teamLeaderId}
-                      onChange={handleChange}
-                      disabled={!form.managerId}
-                      className="w-full rounded-xl border border-gray-200 p-3 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:focus:border-brand-500 cursor-pointer appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <option value="">Select Team Leader</option>
-                      {availableTeamLeaders.map((user) => (
-                        <option key={user._id} value={user._id}>
-                          {user.firstName} {user.lastName}
-                        </option>
-                      ))}
-                    </select>
+                    <MultiSelect
+                      label="Team Leaders (TL)"
+                      options={tlOptions}
+                      value={form.teamLeaderIds}
+                      onChange={(val) => {
+                        setForm(prev => {
+                          const next = { ...prev, teamLeaderIds: val };
+                          next.managerMemberIds = next.managerMemberIds.filter(id => !val.includes(id));
+                          next.teamLeaderMemberIds = next.teamLeaderMemberIds.filter(id => !val.includes(id));
+                          return next;
+                        });
+                      }}
+                      placeholder="Select Team Leaders"
+                    />
+                    <p className="mt-1.5 text-xs text-gray-500">
+                      Reports to Manager.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -318,86 +290,26 @@ export default function UpdateTeamModal({
               {/* Manager's Members */}
               {form.managerId && (
                 <div>
-                  <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400">2</span>
-                    Members reporting to Manager ({form.managerMemberIds.length})
-                  </h3>
-                  
-                  {availableMembers.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 py-8 text-center dark:border-gray-700 dark:bg-gray-800/30">
-                      <p className="text-sm text-gray-500">No more users available.</p>
-                    </div>
-                  ) : (
-                    <div className="max-h-48 overflow-y-auto rounded-xl border border-gray-200 p-3 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 flex flex-wrap gap-2">
-                      {availableMembers.map((user) => {
-                        const isSelected = form.managerMemberIds.includes(user._id);
-                        return (
-                          <button
-                            key={`mgr-${user._id}`}
-                            type="button"
-                            onClick={() => toggleMember(user._id, 'manager')}
-                            className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-all duration-200 border ${
-                              isSelected
-                                ? "bg-brand-50 border-brand-200 text-brand-700 dark:bg-brand-500/20 dark:border-brand-500/30 dark:text-brand-300 shadow-sm"
-                                : "bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
-                            }`}
-                          >
-                            <div className={`flex h-4 w-4 items-center justify-center rounded border ${isSelected ? 'border-brand-500 bg-brand-500 text-white' : 'border-gray-300 dark:border-gray-600'}`}>
-                              {isSelected && (
-                                <svg viewBox="0 0 14 14" fill="none" className="w-3 h-3">
-                                  <path d="M3 7L6 10L11 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
-                              )}
-                            </div>
-                            {user.firstName} {user.lastName}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
+                  <MultiSelect
+                    label={`Members reporting to Manager (${form.managerMemberIds.length})`}
+                    options={memberOptions.filter(m => !form.teamLeaderMemberIds.includes(m.value))}
+                    value={form.managerMemberIds}
+                    onChange={(val) => setForm(prev => ({ ...prev, managerMemberIds: val }))}
+                    placeholder="Search and add employees..."
+                  />
                 </div>
               )}
 
               {/* Team Leader's Members */}
-              {form.teamLeaderId && (
+              {form.teamLeaderIds.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-purple-100 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400">3</span>
-                    Members reporting to Team Leader ({form.teamLeaderMemberIds.length})
-                  </h3>
-                  
-                  {availableMembers.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 py-8 text-center dark:border-gray-700 dark:bg-gray-800/30">
-                      <p className="text-sm text-gray-500">No more users available.</p>
-                    </div>
-                  ) : (
-                    <div className="max-h-48 overflow-y-auto rounded-xl border border-gray-200 p-3 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 flex flex-wrap gap-2">
-                      {availableMembers.map((user) => {
-                        const isSelected = form.teamLeaderMemberIds.includes(user._id);
-                        return (
-                          <button
-                            key={`tl-${user._id}`}
-                            type="button"
-                            onClick={() => toggleMember(user._id, 'teamLeader')}
-                            className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-all duration-200 border ${
-                              isSelected
-                                ? "bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-500/20 dark:border-purple-500/30 dark:text-purple-300 shadow-sm"
-                                : "bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
-                            }`}
-                          >
-                            <div className={`flex h-4 w-4 items-center justify-center rounded border ${isSelected ? 'border-purple-500 bg-purple-500 text-white' : 'border-gray-300 dark:border-gray-600'}`}>
-                              {isSelected && (
-                                <svg viewBox="0 0 14 14" fill="none" className="w-3 h-3">
-                                  <path d="M3 7L6 10L11 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
-                              )}
-                            </div>
-                            {user.firstName} {user.lastName}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
+                  <MultiSelect
+                    label={`Members reporting to Team Leaders (${form.teamLeaderMemberIds.length})`}
+                    options={memberOptions.filter(m => !form.managerMemberIds.includes(m.value))}
+                    value={form.teamLeaderMemberIds}
+                    onChange={(val) => setForm(prev => ({ ...prev, teamLeaderMemberIds: val }))}
+                    placeholder="Search and add employees..."
+                  />
                 </div>
               )}
             </div>
@@ -424,10 +336,10 @@ export default function UpdateTeamModal({
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                Updating...
+                Saving...
               </>
             ) : (
-              "Update Team"
+              "Save Changes"
             )}
           </button>
         </div>

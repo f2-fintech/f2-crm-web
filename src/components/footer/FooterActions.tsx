@@ -47,8 +47,13 @@ const actions = [
 
 export default function FooterActions() {
   const [openNotebook, setOpenNotebook] = useState(false);
+  const [noteContent, setNoteContent] = useState("");
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      setNoteContent(localStorage.getItem("crm_notebook_content") || "");
+    }
+    
     const esc = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpenNotebook(false);
     };
@@ -182,54 +187,18 @@ export default function FooterActions() {
         </div>
 
         {/* Body */}
-        <div className="h-[calc(100vh-60px)] overflow-y-auto bg-white">
-
-          {/* Temporary Empty State */}
-
-          <div className="flex h-full items-center justify-center">
-
-            <div className="text-center">
-{/* 
-              <NotebookPen
-                size={65}
-                className="mx-auto mb-5 text-gray-300"
-              /> */}
-
-              {/* <h3 className="text-xl font-semibold text-gray-700">
-                Notebook
-              </h3> */}
-
-              <p className="mt-2 text-sm text-gray-500">
-                Your notebook content will appear here.
-              </p>
-
-              <button
-                onClick={() =>
-                  window.open(
-                    "#",
-                    "_blank"
-                  )
-                }
-                className="mt-6 rounded-lg bg-violet-600 px-5 py-2 text-white transition hover:bg-violet-700"
-              >
-                Open Notebook
-              </button>
-
-            </div>
-
-          </div>
-
-          {/*
-
-          Later replace above section with
-
-          <iframe
-              src="#"
-              className="h-full w-full"
+        <div className="h-[calc(100vh-60px)] flex flex-col bg-white p-4">
+          <textarea
+            className="flex-1 w-full resize-none border-none bg-transparent p-0 text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-0 dark:bg-white dark:text-gray-800"
+            placeholder="Write your notes or queries here..."
+            value={noteContent}
+            onChange={(e) => {
+              setNoteContent(e.target.value);
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('crm_notebook_content', e.target.value);
+              }
+            }}
           />
-
-          */}
-
         </div>
       </div>
 

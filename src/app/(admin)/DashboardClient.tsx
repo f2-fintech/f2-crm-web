@@ -74,7 +74,7 @@ export default function DashboardClient() {
         lightColor: "bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400",
       }
     ];
-  } else if (roleType === 'EMPLOYEE') {
+  } else if (['EMPLOYEE', 'SOURCER', 'CHANNEL_PARTNER'].includes(roleType)) {
     statCards = [
       {
         title: "Assigned Pages",

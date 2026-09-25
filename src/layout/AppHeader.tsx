@@ -1,9 +1,11 @@
 "use client";
 
+import TranslateDropdown from "@/components/header/TranslateDropdown";
 import NotificationDropdown from "@/components/header/NotificationDropdown";
 import UserDropdown from "@/components/header/UserDropdown";
 import { useSidebar } from "@/context/SidebarContext";
 import { usePathname } from "next/navigation";
+import Link from "next/link";
 import React, { useState, useEffect, useRef } from "react";
 import {
   Search,
@@ -177,15 +179,15 @@ const AppHeader: React.FC = () => {
             <Plus className="h-4 w-4" strokeWidth={2.5} />
           </button>
 
-          <IconButton title="Translate">
-            <Languages className="h-[18px] w-[18px]" />
-          </IconButton>
+          <TranslateDropdown />
 
           <NotificationDropdown />
 
-          <IconButton title="Calendar">
-            <Calendar className="h-[18px] w-[18px]" />
-          </IconButton>
+          <Link href="/calendar">
+            <IconButton title="Calendar">
+              <Calendar className="h-[18px] w-[18px]" />
+            </IconButton>
+          </Link>
 
           <IconButton title="Assistant">
             <Bot className="h-[18px] w-[18px]" />
