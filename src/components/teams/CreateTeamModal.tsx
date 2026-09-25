@@ -34,7 +34,7 @@ export default function CreateTeamModal({
     managerId: "",
     teamLeaderIds: [] as string[],
     managerMemberIds: [] as string[],
-    teamLeaderMemberIds: [] as string[],
+    tlMembers: {} as Record<string, string[]>,
   });
 
   const fetchUsers = async () => {
@@ -67,7 +67,7 @@ export default function CreateTeamModal({
       managerId: "",
       teamLeaderIds: [],
       managerMemberIds: [],
-      teamLeaderMemberIds: [],
+      tlMembers: {},
     });
     onClose();
   };
@@ -112,18 +112,20 @@ export default function CreateTeamModal({
       );
 
       // 4. Add members reporting to Team Leaders
-      const firstTlId = form.teamLeaderIds.length > 0 ? form.teamLeaderIds[0] : form.managerId;
-      const teamLeaderMemberPromises = form.teamLeaderMemberIds.map(memberId => 
-        api.post(`/teams/${teamId}/members`, {
-          userId: memberId,
-          reportsTo: firstTlId
-        })
+      const teamLeaderMemberPromises = Object.entries(form.tlMembers).flatMap(([tlId, memberIds]) => 
+        memberIds.map(memberId => 
+          api.post(`/teams/${teamId}/members`, {
+            userId: memberId,
+            reportsTo: tlId
+          })
+        )
       );
 
       // Execute all additions concurrently
       await Promise.all([...teamLeaderPromises, ...managerMemberPromises, ...teamLeaderMemberPromises]);
 
-      const totalMembersAdded = form.managerMemberIds.length + form.teamLeaderMemberIds.length + form.teamLeaderIds.length;
+      const tlMembersCount = Object.values(form.tlMembers).flat().length;
+      const totalMembersAdded = form.managerMemberIds.length + tlMembersCount + form.teamLeaderIds.length;
       
       toast.success(
         <div>
@@ -236,7 +238,9 @@ export default function CreateTeamModal({
                         const next = { ...prev, managerId: val };
                         next.teamLeaderIds = next.teamLeaderIds.filter(id => id !== val);
                         next.managerMemberIds = next.managerMemberIds.filter(id => id !== val);
-                        next.teamLeaderMemberIds = next.teamLeaderMemberIds.filter(id => id !== val);
+                        Object.keys(next.tlMembers).forEach(k => {
+                           next.tlMembers[k] = next.tlMembers[k].filter(id => id !== val);
+                        });
                         return next;
                       });
                     }}
@@ -253,7 +257,14 @@ export default function CreateTeamModal({
                       setForm(prev => {
                         const next = { ...prev, teamLeaderIds: val };
                         next.managerMemberIds = next.managerMemberIds.filter(id => !val.includes(id));
-                        next.teamLeaderMemberIds = next.teamLeaderMemberIds.filter(id => !val.includes(id));
+                        
+                        // Clean up tlMembers for TLs that were removed, and filter out new TLs from existing members
+                        const newTlMembers: Record<string, string[]> = {};
+                        val.forEach(tlId => {
+                           newTlMembers[tlId] = (prev.tlMembers[tlId] || []).filter(id => !val.includes(id));
+                        });
+                        next.tlMembers = newTlMembers;
+                        
                         return next;
                       });
                     }}
@@ -271,7 +282,7 @@ export default function CreateTeamModal({
               <div>
                 <MultiSelect
                   label={`Members reporting to Manager (${form.managerMemberIds.length})`}
-                  options={memberOptions.filter(m => !form.teamLeaderMemberIds.includes(m.value))}
+                  options={memberOptions.filter(m => !Object.values(form.tlMembers).flat().includes(m.value))}
                   value={form.managerMemberIds}
                   onChange={(val) => setForm(prev => ({ ...prev, managerMemberIds: val }))}
                   placeholder="Search and add employees..."
@@ -280,17 +291,29 @@ export default function CreateTeamModal({
             )}
 
             {/* Team Leader's Members */}
-            {form.teamLeaderIds.length > 0 && (
-              <div>
-                <MultiSelect
-                  label={`Members reporting to Team Leaders (${form.teamLeaderMemberIds.length})`}
-                  options={memberOptions.filter(m => !form.managerMemberIds.includes(m.value))}
-                  value={form.teamLeaderMemberIds}
-                  onChange={(val) => setForm(prev => ({ ...prev, teamLeaderMemberIds: val }))}
-                  placeholder="Search and add employees..."
-                />
-              </div>
-            )}
+            {form.teamLeaderIds.map(tlId => {
+              const tlUser = users.find(u => u._id === tlId);
+              const tlName = tlUser ? `${tlUser.firstName} ${tlUser.lastName}` : "Team Leader";
+              const currentMembers = form.tlMembers[tlId] || [];
+              const otherTlMembers = Object.entries(form.tlMembers)
+                .filter(([id]) => id !== tlId)
+                .flatMap(([, members]) => members);
+              
+              return (
+                <div key={tlId}>
+                  <MultiSelect
+                    label={`Members reporting to ${tlName} (${currentMembers.length})`}
+                    options={memberOptions.filter(m => !form.managerMemberIds.includes(m.value) && !otherTlMembers.includes(m.value))}
+                    value={currentMembers}
+                    onChange={(val) => setForm(prev => ({ 
+                      ...prev, 
+                      tlMembers: { ...prev.tlMembers, [tlId]: val } 
+                    }))}
+                    placeholder={`Search and add employees for ${tlName}...`}
+                  />
+                </div>
+              );
+            })}
           </div>
         </div>
 

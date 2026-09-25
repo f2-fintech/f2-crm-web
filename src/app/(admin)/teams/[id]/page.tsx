@@ -158,10 +158,12 @@ export default function TeamHierarchyPage() {
             <p className="text-gray-500">No hierarchy defined for this team.</p>
           </div>
         ) : (
-          <div className="pt-4 pb-12 org-tree w-full max-w-full overflow-x-auto overflow-y-hidden flex justify-center">
-            <ul>
-              {renderNode(hierarchy.manager)}
-            </ul>
+          <div className="pt-4 pb-12 org-tree w-full max-w-full overflow-x-auto overflow-y-hidden">
+            <div className="min-w-max w-full flex justify-center px-10">
+              <ul>
+                {renderNode(hierarchy.manager)}
+              </ul>
+            </div>
           </div>
         )}
       </div>
