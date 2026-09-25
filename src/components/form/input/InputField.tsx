@@ -11,6 +11,7 @@ const Input: FC<InputProps> = ({
   id,
   name,
   placeholder,
+  value,
   defaultValue,
   onChange,
   className = "",
@@ -43,6 +44,7 @@ const Input: FC<InputProps> = ({
         id={id}
         name={name}
         placeholder={placeholder}
+        value={value}
         defaultValue={defaultValue}
         onChange={onChange}
         min={min}

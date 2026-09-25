@@ -68,6 +68,38 @@ export default function NotionPageView({
           <Typography variant="h2" sx={{ fontWeight: 700, color: notionColors.textMain, mb: 2, fontSize: "40px", fontFamily: "ui-serif, Georgia, serif" }}>
             {selectedPageTitle}
           </Typography>
+
+          {/* Audit Logs & Properties */}
+          <Box sx={{ mb: 4, display: 'flex', flexDirection: 'column', gap: 1, py: 2, borderBottom: `1px solid ${notionColors.borderLight}` }}>
+            <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+              <Typography sx={{ width: 120, color: notionColors.textMuted, fontSize: '14px' }}>Created By</Typography>
+              <Typography sx={{ color: notionColors.textMain, fontSize: '14px' }}>
+                {activePage?.createdBy?.firstName 
+                  ? `${activePage.createdBy.firstName} ${activePage.createdBy.lastName || ""}` 
+                  : activePage?.createdBy || "System"}
+              </Typography>
+            </Stack>
+            <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+              <Typography sx={{ width: 120, color: notionColors.textMuted, fontSize: '14px' }}>Created At</Typography>
+              <Typography sx={{ color: notionColors.textMain, fontSize: '14px' }}>
+                {activePage?.createdAt ? new Date(activePage.createdAt).toLocaleString() : "-"}
+              </Typography>
+            </Stack>
+            <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+              <Typography sx={{ width: 120, color: notionColors.textMuted, fontSize: '14px' }}>Assigned To</Typography>
+              <Typography sx={{ color: notionColors.textMain, fontSize: '14px' }}>
+                {activePage?.assignedMemberId?.firstName 
+                  ? `${activePage.assignedMemberId.firstName} ${activePage.assignedMemberId.lastName || ""}` 
+                  : activePage?.assignedMemberId || "Unassigned"}
+              </Typography>
+            </Stack>
+            <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+              <Typography sx={{ width: 120, color: notionColors.textMuted, fontSize: '14px' }}>Last Updated</Typography>
+              <Typography sx={{ color: notionColors.textMain, fontSize: '14px' }}>
+                {activePage?.updatedAt ? new Date(activePage.updatedAt).toLocaleString() : "-"}
+              </Typography>
+            </Stack>
+          </Box>
           
           <Stack direction="row" spacing={2} sx={{ alignItems: "center", mb: 4, borderBottom: `1px solid ${notionColors.borderLight}`, pb: 2 }}>
             <Button variant="outlined" size="small" startIcon={<Plus size={16} />} onClick={onOpenCreateModal} sx={{ textTransform: "none", borderColor: notionColors.borderLight, color: notionColors.textMain, "&:hover": { bgcolor: notionColors.sidebarHover } }}>

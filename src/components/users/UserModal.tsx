@@ -72,11 +72,11 @@ export default function UserModal({
         email: user.email || "",
         phone: user.phone || "",
         password: "",
-        roleId: user.roleId?._id || "",
-        branchId: user.branchId?._id || "",
-        departmentId: user.departmentId?._id || "",
+        roleId: user.roleId?._id || user.roleId || "",
+        branchId: user.branchId?._id || user.branchId || "",
+        departmentId: user.departmentId?._id || user.departmentId || "",
         profileImage: user.profileImage || "",
-        isActive: user.isActive,
+        isActive: user.isActive !== undefined ? user.isActive : true,
       });
     }
 

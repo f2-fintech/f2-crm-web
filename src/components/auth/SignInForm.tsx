@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 import { signInWithPopup } from "firebase/auth";
 import { auth, googleProvider } from "@/lib/firebase";
 
@@ -75,8 +76,22 @@ export default function SignInForm() {
 
       router.push("/");
     } catch (err: any) {
-      console.error(err);
-      setError(err.response?.data?.message || err.message || "Failed to sign in with Google");
+      console.error("GOOGLE LOGIN ERROR:", err);
+      let errorMsg = err.response?.data?.message || err.message || "Failed to sign in with Google";
+      
+      // If the error message is an array (e.g. class-validator), join it
+      if (Array.isArray(errorMsg)) {
+        errorMsg = errorMsg.join(", ");
+      }
+
+      if (errorMsg.includes("User account not found")) {
+        toast.error("User not found. Please contact your administration.");
+      } else {
+        toast.error(errorMsg);
+      }
+      
+      // Clear the main form error just in case
+      setError("");
     } finally {
       setLoading(false);
     }
