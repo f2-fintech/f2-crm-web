@@ -51,6 +51,8 @@ import {
 import useNotionPages, { NotionPageItem } from "@/hooks/useNotionPages";
 import { useAuth } from "@/hooks/useAuth";
 import api from "@/lib/axios";
+import NotionPageView from "@/components/notion/NotionPageView";
+import TrashDialog from "@/components/notion/dialogs/TrashDialog";
 
 /* ------------------------------------------------------------------ *
  * Tokens
@@ -158,6 +160,9 @@ export default function NotionPagesClientPage() {
   // Delete page
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  
+  // Trash
+  const [trashOpen, setTrashOpen] = useState(false);
 
   // Assign page
   const [assignOpen, setAssignOpen] = useState(false);
@@ -189,16 +194,18 @@ export default function NotionPagesClientPage() {
       
       if (queryPageId) {
         setSelectedPageId(queryPageId);
+        setLoadingPage(true);
         fetchPageDetails(queryPageId).then((page: any) => {
           if (page?.title) setSelectedPageTitle(page.title);
-        });
+        }).finally(() => setLoadingPage(false));
       } else if (treeData?.shared?.length) {
         const first = treeData.shared[0];
         const id = first._id || first.id;
         if (id) {
           setSelectedPageId(id);
           setSelectedPageTitle(first.title);
-          fetchPageDetails(id);
+          setLoadingPage(true);
+          fetchPageDetails(id).finally(() => setLoadingPage(false));
         }
       }
     }
@@ -236,8 +243,8 @@ export default function NotionPagesClientPage() {
 
   const editable = canEdit(selectedPageId || undefined, activePage);
   const r = role?.toUpperCase();
-  const canUploadData = r === "ADMIN" || r === "SUPER_ADMIN" || r === "MANAGER";
-  const canCreatePage = r === "ADMIN" || r === "SUPER_ADMIN" || r === "MANAGER";
+  const canUploadData = editable;
+  const canCreatePage = true;
 
   const isSyntheticNode = useMemo(() => {
     const isTeam = treeData?.shared?.some(t => t.id === selectedPageId || t._id === selectedPageId);
@@ -763,6 +770,27 @@ export default function NotionPagesClientPage() {
         >
           New page
         </Button>
+        {user?.role && ["SUPER_ADMIN", "ADMIN"].includes(user.role) && (
+          <Button
+            fullWidth
+            startIcon={<Trash2 size={15} />}
+            onClick={() => setTrashOpen(true)}
+            sx={{
+              justifyContent: "flex-start",
+              textTransform: "none",
+              color: c.textMuted,
+              fontSize: "13.5px",
+              fontWeight: 500,
+              py: 1.25,
+              px: 2,
+              borderRadius: 0,
+              borderTop: `1px solid ${c.border}`,
+              "&:hover": { bgcolor: c.hover, color: c.textMain },
+            }}
+          >
+            Trash
+          </Button>
+        )}
       </Box>
 
       {/* ========================= Main column ========================= */}
@@ -982,9 +1010,20 @@ export default function NotionPagesClientPage() {
             mx: "auto",
           }}
         >
-          {/* Title block */}
-          <Box className="title-block" sx={{ mb: 3 }}>
-            {editable && (
+          {loadingPage || deleting ? (
+            <Stack sx={{ alignItems: "center", justifyContent: "center", height: "40vh" }}>
+              <CircularProgress size={32} sx={{ color: c.textMuted }} />
+            </Stack>
+          ) : !selectedPageId ? (
+            <Stack sx={{ alignItems: "center", justifyContent: "center", height: "40vh" }}>
+              <FileText size={48} color={c.borderStrong} />
+              <Typography sx={{ mt: 2, color: c.textMuted, fontWeight: 500 }}>No page selected</Typography>
+            </Stack>
+          ) : (
+            <>
+              {/* Title block */}
+              <Box className="title-block" sx={{ mb: 3 }}>
+                {editable && (
               <Button
                 size="small"
                 startIcon={<Smile size={14} />}
@@ -1359,6 +1398,8 @@ export default function NotionPagesClientPage() {
               ))}
             </Box>
           )}
+            </>
+          )}
         </Box>
       </Box>
 
@@ -1634,6 +1675,8 @@ export default function NotionPagesClientPage() {
           {toast?.msg}
         </Alert>
       </Snackbar>
+
+      <TrashDialog open={trashOpen} onClose={() => setTrashOpen(false)} />
     </Box>
   );
 }
