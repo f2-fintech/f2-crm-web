@@ -8,7 +8,7 @@ export default function SidebarWidget() {
         Check the onboarding guide to get set up faster.
       </p>
       <a
-        href="#"
+        href="/guide"
         className="flex items-center justify-center rounded-lg bg-indigo-500 p-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-600"
       >
         View Guide

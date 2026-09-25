@@ -223,6 +223,38 @@ export default function useNotionPages() {
     }
   };
 
+  // 11. Fetch Deleted Pages
+  const fetchDeletedPages = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/notion-pages/deleted');
+      return unpackData(response);
+    } catch (err: any) {
+      console.error("Error fetching deleted pages:", err);
+      setError(err?.response?.data?.message || "Failed to fetch deleted pages");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 12. Restore Page
+  const restorePage = async (pageId: string) => {
+    try {
+      setLoading(true);
+      const response = await api.patch(`/notion-pages/${pageId}/restore`);
+      const res = unpackData(response);
+      await fetchTree();
+      return res;
+    } catch (err: any) {
+      console.error("Error restoring page:", err);
+      setError(err?.response?.data?.message || "Failed to restore page");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchTree();
   }, [fetchTree]);
@@ -243,6 +275,8 @@ export default function useNotionPages() {
     updatePageTitle,
     deletePage,
     assignPage,
+    fetchDeletedPages,
+    restorePage,
     setSelectedPageId,
     setActivePage,
   };
