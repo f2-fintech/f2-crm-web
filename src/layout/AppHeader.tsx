@@ -161,6 +161,7 @@ const AppHeader: React.FC = () => {
           <div className="relative hidden md:block">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
+              id="global-search"
               ref={inputRef}
               type="text"
               placeholder="Search records"
@@ -172,6 +173,7 @@ const AppHeader: React.FC = () => {
           </div>
 
           <button
+            id="quick-create-btn"
             title="Quick create"
             aria-label="Quick create"
             className="flex h-9 w-9 items-center justify-center rounded-lg border-2 border-indigo-500 text-indigo-500 transition-colors hover:bg-indigo-50"
@@ -192,6 +194,15 @@ const AppHeader: React.FC = () => {
           <IconButton title="Assistant">
             <Bot className="h-[18px] w-[18px]" />
           </IconButton>
+
+          <button
+            id="start-tour-btn"
+            title="Help / Guide"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
+            onClick={() => window.dispatchEvent(new Event('start-guide-tour'))}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+          </button>
 
           <IconButton title="Settings">
             <Settings className="h-[18px] w-[18px]" />

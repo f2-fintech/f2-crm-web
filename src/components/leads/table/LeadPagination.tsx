@@ -75,7 +75,7 @@ export default function LeadPagination({
       >
         <FormControl size="small">
           <Select<number>
-            value={limit}
+            value={limit ?? 10}
             onChange={handleLimitChange}
             sx={{
               minWidth: 90,
@@ -100,8 +100,8 @@ export default function LeadPagination({
         </FormControl>
 
         <Pagination
-          page={page}
-          count={totalPages}
+          page={page ?? 1}
+          count={totalPages ?? 1}
           color="primary"
           shape="rounded"
           showFirstButton

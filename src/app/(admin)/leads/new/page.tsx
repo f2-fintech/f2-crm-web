@@ -25,14 +25,14 @@ export default function CreateLeadPage() {
     handleChange,
     validate,
     reset,
+    createLead,
   } = useLeadForm();
 
   const handleSubmit = async () => {
     if (!validate()) return;
 
     try {
-      // await createLead(values);
-
+      await createLead(values);
       router.push("/leads");
     } catch (error) {
       console.log(error);
@@ -44,10 +44,12 @@ export default function CreateLeadPage() {
       <PageBreadcrumb pageTitle="Create Lead" />
 
       <Stack
-        direction="row"
-        justifyContent="space-between"
-        alignItems="center"
-        sx={{ mb: 3 }}
+        sx={{ 
+          mb: 3, 
+          flexDirection: "row", 
+          justifyContent: "space-between", 
+          alignItems: "center" 
+        }}
       >
         <Button
           startIcon={<ArrowBackIcon />}

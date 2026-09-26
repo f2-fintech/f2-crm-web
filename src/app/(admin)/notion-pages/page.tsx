@@ -32,6 +32,7 @@ import {
   Typography,
 } from "@mui/material";
 import {
+  Activity,
   ChevronDown,
   ChevronRight,
   Clock,
@@ -53,6 +54,7 @@ import { useAuth } from "@/hooks/useAuth";
 import api from "@/lib/axios";
 import NotionPageView from "@/components/notion/NotionPageView";
 import TrashDialog from "@/components/notion/dialogs/TrashDialog";
+import ActivityLogDialog from "@/components/notion/dialogs/ActivityLogDialog";
 
 /* ------------------------------------------------------------------ *
  * Tokens
@@ -163,6 +165,9 @@ export default function NotionPagesClientPage() {
   
   // Trash
   const [trashOpen, setTrashOpen] = useState(false);
+
+  // Activity log
+  const [activityLogOpen, setActivityLogOpen] = useState(false);
 
   // Assign page
   const [assignOpen, setAssignOpen] = useState(false);
@@ -449,10 +454,16 @@ export default function NotionPagesClientPage() {
   const handleSaveRemark = async (rowIndex: number, value: string) => {
     if (!activePage || !selectedPageId) return;
     const remark = value.trim();
-    
+
+    // Block saving empty remarks
+    if (!remark) {
+      notify("Please write a remark before saving.", "error");
+      return;
+    }
+
     const updatedRows = [...activePage.rows];
     const row = { ...updatedRows[rowIndex] };
-    
+
     if (row.feedback_notes === remark) return;
 
     row.feedback_notes = remark;
@@ -644,6 +655,7 @@ export default function NotionPagesClientPage() {
     >
       {/* ============================ Sidebar ============================ */}
       <Box
+        id="notion-sidebar"
         component="nav"
         sx={{
           width: 264,
@@ -753,6 +765,7 @@ export default function NotionPagesClientPage() {
 
         <Divider sx={{ borderColor: c.border }} />
         <Button
+          id="notion-add-page-btn"
           fullWidth
           startIcon={<Plus size={15} />}
           onClick={() => openCreateDialog(undefined)}
@@ -795,6 +808,7 @@ export default function NotionPagesClientPage() {
 
       {/* ========================= Main column ========================= */}
       <Box
+        id="notion-main-view"
         onScroll={(e) => setScrolled((e.target as HTMLElement).scrollTop > 4)}
         sx={{ flexGrow: 1, display: "flex", flexDirection: "column", overflowY: "auto" }}
       >
@@ -913,6 +927,18 @@ export default function NotionPagesClientPage() {
             >
               Share
             </Button>
+            {selectedPageId && !selectedPageId.startsWith("user_") && (
+              <Tooltip title="Page Activity Log" placement="bottom" arrow>
+                <IconButton
+                  size="small"
+                  aria-label="Activity log"
+                  onClick={() => setActivityLogOpen(true)}
+                  sx={{ color: c.textMuted, borderRadius: "6px", "&:hover": { bgcolor: c.hover, color: c.accent } }}
+                >
+                  <Activity size={16} />
+                </IconButton>
+              </Tooltip>
+            )}
             <IconButton
               size="small"
               aria-label="More actions"
@@ -1267,10 +1293,13 @@ export default function NotionPagesClientPage() {
 
                             <TableCell sx={{ ...bodyCell, textAlign: "left", py: 0.4 }}>
                               <InputBase
+                                multiline
+                                maxRows={5}
                                 defaultValue={row.feedback_notes || ""}
                                 onBlur={(e) => handleSaveRemark(i, e.target.value)}
                                 onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
+                                  if (e.key === "Enter" && !e.shiftKey) {
+                                    e.preventDefault();
                                     (e.target as HTMLInputElement).blur();
                                   }
                                 }}
@@ -1279,13 +1308,18 @@ export default function NotionPagesClientPage() {
                                   fontSize: "13px",
                                   color: c.textMain,
                                   width: "100%",
-                                  px: 1,
-                                  py: 0.5,
-                                  borderRadius: "4px",
+                                  px: 1.5,
+                                  py: 0.75,
+                                  borderRadius: "6px",
                                   border: "1px solid transparent",
-                                  "&:hover, &.Mui-focused": {
+                                  transition: "all 0.2s ease",
+                                  "&:hover": {
+                                    bgcolor: "rgba(0,0,0,0.02)",
+                                  },
+                                  "&.Mui-focused": {
                                     border: `1px solid ${c.border}`,
                                     bgcolor: c.sidebarBg,
+                                    boxShadow: "0 2px 6px rgba(0,0,0,0.05)",
                                   },
                                 }}
                               />
@@ -1677,6 +1711,13 @@ export default function NotionPagesClientPage() {
       </Snackbar>
 
       <TrashDialog open={trashOpen} onClose={() => setTrashOpen(false)} />
+
+      <ActivityLogDialog
+        open={activityLogOpen}
+        onClose={() => setActivityLogOpen(false)}
+        pageId={selectedPageId}
+        pageTitle={selectedPageTitle}
+      />
     </Box>
   );
 }

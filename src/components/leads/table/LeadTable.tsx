@@ -11,7 +11,7 @@ import {
   GridPaginationModel,
 } from "@mui/x-data-grid";
 
-import { LeadColumns } from "./LeadColumns";
+import { getLeadColumns } from "./LeadColumns";
 
 interface LeadTableProps {
   rows: any[];
@@ -24,6 +24,7 @@ interface LeadTableProps {
   onPaginationChange: (
     model: GridPaginationModel,
   ) => void;
+  onViewJourney?: (lead: any) => void;
 }
 
 export default function LeadTable({
@@ -35,6 +36,7 @@ export default function LeadTable({
   rowCount,
 
   onPaginationChange,
+  onViewJourney,
 }: LeadTableProps) {
   return (
     <Card
@@ -52,7 +54,7 @@ export default function LeadTable({
         >
           <DataGrid
             rows={rows}
-            columns={LeadColumns}
+            columns={getLeadColumns({ onViewJourney })}
             loading={loading}
             getRowId={(row) => row._id}
             checkboxSelection

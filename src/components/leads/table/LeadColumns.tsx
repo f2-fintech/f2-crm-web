@@ -6,7 +6,9 @@ import PriorityChip from "../chips/PriorityChip";
 import SourceChip from "../chips/SourceChip";
 import LeadRowActions from "./LeadRowActions";
 
-export const LeadColumns: GridColDef[] = [
+export const getLeadColumns = (handlers?: {
+  onViewJourney?: (lead: any) => void;
+}): GridColDef[] => [
   {
     field: "leadId",
     headerName: "Lead ID",
@@ -99,7 +101,7 @@ export const LeadColumns: GridColDef[] = [
     sortable: false,
     filterable: false,
     renderCell: ({ row }) => (
-      <LeadRowActions lead={row} />
+      <LeadRowActions lead={row} onViewJourney={handlers?.onViewJourney} />
     ),
   },
 ];
