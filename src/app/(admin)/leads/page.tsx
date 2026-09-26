@@ -15,6 +15,7 @@ import LeadPagination from "@/components/leads/table/LeadPagination";
 
 import LeadFilters from "@/components/leads/filters/LeadFilters";
 import BulkUploadDialog from "@/components/leads/dialogs/BulkUploadDialog";
+import LeadJourneyDialog from "@/components/leads/dialogs/LeadJourneyDialog";
 
 import useLeads from "@/hooks/useLeads";
 import useLeadFilters from "@/hooks/useLeadFilters";
@@ -28,6 +29,8 @@ export default function LeadsPage() {
 
   const [openUpload, setOpenUpload] =
     useState(false);
+
+  const [journeyLeadId, setJourneyLeadId] = useState<string | null>(null);
 
   const {
     leads,
@@ -76,19 +79,24 @@ export default function LeadsPage() {
         <LeadTable
           rows={leads}
           loading={loading}
+          page={page}
+          pageSize={10}
+          rowCount={total}
+          onPaginationChange={() => {}}
+          onViewJourney={(lead) => setJourneyLeadId(lead._id)}
         />
 
         {/* Pagination */}
 
         <Box
-          display="flex"
-          justifyContent="flex-end"
+          sx={{ display: "flex", justifyContent: "flex-end" }}
         >
           <LeadPagination
             page={page}
             total={total}
-            totalPages={totalPages}
-            onChange={setPage}
+            limit={10}
+            onPageChange={setPage}
+            onLimitChange={() => {}}
           />
         </Box>
       </Stack>
@@ -120,6 +128,12 @@ export default function LeadsPage() {
           upload.setFile
         }
         onDownloadTemplate={() => {}}
+      />
+
+      <LeadJourneyDialog
+        open={!!journeyLeadId}
+        onClose={() => setJourneyLeadId(null)}
+        leadId={journeyLeadId}
       />
     </>
   );

@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
+import api from "@/lib/axios";
 
 interface Todo {
-  id: string;
+  _id: string;
   date: string;
   text: string;
   completed: boolean;
@@ -16,18 +17,18 @@ export default function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [newTodo, setNewTodo] = useState("");
 
-  useEffect(() => {
-    const saved = localStorage.getItem("crm_calendar_todos");
-    if (saved) {
-      try {
-        setTodos(JSON.parse(saved));
-      } catch (e) {}
+  const fetchTodos = async () => {
+    try {
+      const res = await api.get("/todos");
+      setTodos(res.data);
+    } catch (err) {
+      console.error("Failed to fetch todos:", err);
     }
-  }, []);
+  };
 
   useEffect(() => {
-    localStorage.setItem("crm_calendar_todos", JSON.stringify(todos));
-  }, [todos]);
+    fetchTodos();
+  }, []);
 
   const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
   const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
@@ -40,25 +41,53 @@ export default function CalendarPage() {
 
   const selectedTodos = todos.filter((t) => t.date === selectedKey);
 
-  const addTodo = (e: React.FormEvent) => {
+  const addTodo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTodo.trim()) return;
-    const todo: Todo = {
-      id: Date.now().toString(),
-      date: selectedKey,
-      text: newTodo.trim(),
-      completed: false,
-    };
-    setTodos([...todos, todo]);
-    setNewTodo("");
+    
+    try {
+      const res = await api.post("/todos", {
+        text: newTodo.trim(),
+        date: selectedKey,
+        completed: false,
+      });
+      setTodos((prev) => [res.data, ...prev]);
+      setNewTodo("");
+    } catch (err) {
+      console.error("Failed to add todo:", err);
+    }
   };
 
-  const toggleTodo = (id: string) => {
-    setTodos(todos.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)));
+  const toggleTodo = async (id: string) => {
+    const todoToToggle = todos.find((t) => t._id === id);
+    if (!todoToToggle) return;
+    
+    // Optimistic update
+    setTodos(todos.map((t) => (t._id === id ? { ...t, completed: !t.completed } : t)));
+    
+    try {
+      await api.patch(`/todos/${id}`, {
+        completed: !todoToToggle.completed,
+      });
+    } catch (err) {
+      console.error("Failed to toggle todo:", err);
+      // Revert on error
+      setTodos(todos.map((t) => (t._id === id ? { ...t, completed: todoToToggle.completed } : t)));
+    }
   };
 
-  const deleteTodo = (id: string) => {
-    setTodos(todos.filter((t) => t.id !== id));
+  const deleteTodo = async (id: string) => {
+    const prevTodos = [...todos];
+    // Optimistic update
+    setTodos(todos.filter((t) => t._id !== id));
+    
+    try {
+      await api.delete(`/todos/${id}`);
+    } catch (err) {
+      console.error("Failed to delete todo:", err);
+      // Revert on error
+      setTodos(prevTodos);
+    }
   };
 
   const renderCells = () => {
@@ -100,7 +129,7 @@ export default function CalendarPage() {
           <div className="mt-1 space-y-1">
             {dayTodos.slice(0, 2).map((t) => (
               <div
-                key={t.id}
+                key={t._id}
                 className={`truncate text-xs ${t.completed ? "line-through text-gray-400" : "text-gray-600 dark:text-gray-400"}`}
               >
                 • {t.text}
@@ -182,14 +211,14 @@ export default function CalendarPage() {
               ) : (
                 selectedTodos.map((t) => (
                   <div
-                    key={t.id}
+                    key={t._id}
                     className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-800/50"
                   >
                     <div className="flex items-center gap-3 overflow-hidden">
                       <input
                         type="checkbox"
                         checked={t.completed}
-                        onChange={() => toggleTodo(t.id)}
+                        onChange={() => toggleTodo(t._id)}
                         className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
                       />
                       <span
@@ -201,7 +230,7 @@ export default function CalendarPage() {
                       </span>
                     </div>
                     <button
-                      onClick={() => deleteTodo(t.id)}
+                      onClick={() => deleteTodo(t._id)}
                       className="text-gray-400 hover:text-red-500"
                     >
                       <Trash2 className="h-4 w-4" />

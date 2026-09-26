@@ -128,14 +128,15 @@ const AppSidebar: React.FC = () => {
           <li key={nav.name} className="relative">
             {nav.subItems ? (
               <button
+                id={`sidebar-item-${nav.name.toLowerCase().replace(/\s+/g, '-')}`}
                 onClick={() => handleSubmenuToggle(index, menuType)}
-                className={`group flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${groupOpen
-                    ? "bg-white/10 text-white"
+                className={`group relative flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${groupOpen
+                    ? "bg-white/5 text-white ring-1 ring-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
                     : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
                   } ${!showLabels ? "lg:justify-center" : "justify-start"}`}
               >
                 <span
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center ${groupOpen
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center transition-colors duration-200 ${groupOpen
                       ? "text-indigo-400"
                       : "text-slate-500 group-hover:text-slate-300"
                     }`}
@@ -153,17 +154,18 @@ const AppSidebar: React.FC = () => {
             ) : (
               nav.path && (
                 <Link
+                  id={`sidebar-item-${nav.name.toLowerCase().replace(/\s+/g, '-')}`}
                   href={nav.path}
-                  className={`group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${isActive(nav.path)
-                      ? "bg-white/10 text-white"
+                  className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${isActive(nav.path)
+                      ? "bg-gradient-to-r from-indigo-500/10 to-transparent text-indigo-200 ring-1 ring-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
                       : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
                     } ${!showLabels ? "lg:justify-center" : "justify-start"}`}
                 >
                   {isActive(nav.path) && (
-                    <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-indigo-400" />
+                    <span className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]" />
                   )}
                   <span
-                    className={`flex h-5 w-5 shrink-0 items-center justify-center ${isActive(nav.path)
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center transition-colors duration-200 ${isActive(nav.path)
                         ? "text-indigo-400"
                         : "text-slate-500 group-hover:text-slate-300"
                       }`}
@@ -191,12 +193,14 @@ const AppSidebar: React.FC = () => {
                   {nav.subItems.map((subItem) => (
                     <li key={subItem.name}>
                       <Link
+                        id={`sidebar-subitem-${subItem.name.toLowerCase().replace(/\s+/g, '-')}`}
                         href={subItem.path}
-                        className={`flex items-center gap-2 rounded-md px-2.5 py-2 text-sm transition-colors ${isActive(subItem.path)
-                            ? "font-medium text-indigo-300"
-                            : "text-slate-400 hover:text-slate-200"
+                        className={`group flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm transition-all duration-200 ${isActive(subItem.path)
+                            ? "bg-white/5 font-medium text-indigo-300 ring-1 ring-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+                            : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
                           }`}
                       >
+                        <span className={`h-1.5 w-1.5 rounded-full transition-colors duration-200 ${isActive(subItem.path) ? "bg-indigo-400 shadow-[0_0_6px_rgba(99,102,241,0.6)]" : "bg-slate-600 group-hover:bg-slate-400"}`} />
                         <span className="truncate">{subItem.name}</span>
                         <span className="ml-auto flex items-center gap-1">
                           {subItem.new && (
@@ -276,6 +280,18 @@ const AppSidebar: React.FC = () => {
   const filteredNavItems = React.useMemo(() => filterItems(navItems), [filterItems]);
   const filteredOthersItems = React.useMemo(() => filterItems(othersItems), [filterItems]);
 
+  useEffect(() => {
+    const handleOpenAdminMenu = () => {
+      // Find the index of "Administration" in filteredOthersItems
+      const index = filteredOthersItems.findIndex(item => item.name === "Administration");
+      if (index !== -1) {
+        setOpenSubmenu({ type: "others", index });
+      }
+    };
+    window.addEventListener("open-admin-menu", handleOpenAdminMenu);
+    return () => window.removeEventListener("open-admin-menu", handleOpenAdminMenu);
+  }, [filteredOthersItems]);
+
   const handleSubmenuToggle = (index: number, menuType: "main" | "others") => {
     setOpenSubmenu((prevOpenSubmenu) => {
       if (
@@ -291,14 +307,30 @@ const AppSidebar: React.FC = () => {
 
   return (
     <aside
-      className={`fixed left-0 top-0 z-50 mt-16 flex h-screen flex-col border-r border-white/5 bg-[#0f1729] px-4 text-slate-300 transition-all duration-300 ease-in-out lg:mt-0
+      id="sidebar-menu"
+      className={`fixed left-0 top-0 z-50 mt-16 flex h-screen flex-col border-r border-white/10 bg-gradient-to-b from-[#0f172a] to-[#020617] px-4 text-slate-300 shadow-2xl transition-all duration-300 ease-in-out lg:mt-0
         ${isExpanded || isMobileOpen ? "w-[290px]" : isHovered ? "w-[290px]" : "w-[90px]"}
         ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}
         lg:translate-x-0`}
       onMouseEnter={() => !isExpanded && setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className="h-8" />
+      {/* ── Logo Section ── */}
+      <div className={`flex shrink-0 items-center gap-3 pt-7 pb-6 transition-all duration-300 ${!showLabels ? "lg:justify-center px-0" : "px-2 justify-start"}`}>
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 font-extrabold text-white shadow-[0_4px_14px_rgba(99,102,241,0.4)] ring-1 ring-white/10">
+          F2
+        </div>
+        {showLabels && (
+          <div className="flex flex-col overflow-hidden whitespace-nowrap transition-opacity duration-300">
+            <span className="text-[17.5px] font-extrabold tracking-wide text-white leading-tight">
+              F2 CRM
+            </span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-400 mt-0.5">
+              Fintech
+            </span>
+          </div>
+        )}
+      </div>
 
       <div className="no-scrollbar flex flex-col overflow-y-auto duration-300 ease-linear">
         <nav className="mb-6">

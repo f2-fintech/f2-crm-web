@@ -7,6 +7,7 @@ import Backdrop from "@/layout/Backdrop";
 import AppFooter from "@/components/footer/AppFooter";
 import RoleGuard from "@/components/auth/RoleGuard";
 import React from "react";
+import GuideTour from "@/components/tour/GuideTour";
 
 export default function AdminLayout({
   children,
@@ -23,6 +24,7 @@ export default function AdminLayout({
 
   return (
     <div className="min-h-screen xl:flex">
+      <GuideTour />
       <AppSidebar />
       <Backdrop />
       <div
