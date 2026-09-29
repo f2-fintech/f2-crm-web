@@ -84,14 +84,16 @@ export default function TrashDialog({
       maxWidth="md"
       fullWidth
       scroll="paper"
-      PaperProps={{
-        sx: {
-          borderRadius: "14px",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.14)",
-          display: "flex",
-          flexDirection: "column",
-          maxHeight: "85vh",
-        },
+      slotProps={{
+        paper: {
+          sx: {
+            borderRadius: "14px",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.14)",
+            display: "flex",
+            flexDirection: "column",
+            maxHeight: "85vh",
+          }
+        }
       }}
     >
       {/* ── Header (fixed) ─────────────────────────────────── */}

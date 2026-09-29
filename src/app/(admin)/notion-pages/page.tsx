@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import {
   Alert,
   Box,
@@ -26,6 +27,7 @@ import {
   TableCell,
   TableContainer,
   TableHead,
+  TablePagination,
   TableRow,
   TextField,
   Tooltip,
@@ -143,6 +145,10 @@ export default function NotionPagesClientPage() {
   const [scrolled, setScrolled] = useState(false);
   const [pageMenuAnchor, setPageMenuAnchor] = useState<null | HTMLElement>(null);
 
+  // Pagination
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
+
   // Upload
   const [uploadOpen, setUploadOpen] = useState(false);
   const [pastedData, setPastedData] = useState("");
@@ -175,16 +181,18 @@ export default function NotionPagesClientPage() {
   const [selectedAssignee, setSelectedAssignee] = useState("");
 
   // Toast
-  const [toast, setToast] = useState<{
-    msg: string;
-    severity: "success" | "error";
-  } | null>(null);
+  const savingRemarksRef = useRef<Set<number>>(new Set());
 
   const historyRef = useRef<HTMLDivElement | null>(null);
 
   const notify = useCallback(
-    (msg: string, severity: "success" | "error" = "success") =>
-      setToast({ msg, severity }),
+    (msg: string, severity: "success" | "error" = "success") => {
+      if (severity === "success") {
+        toast.success(msg);
+      } else {
+        toast.error(msg);
+      }
+    },
     []
   );
 
@@ -221,6 +229,51 @@ export default function NotionPagesClientPage() {
     setRowsData(Array.isArray(activePage.rows) ? activePage.rows : []);
     if (activePage.title) setSelectedPageTitle(activePage.title);
   }, [activePage]);
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Don't interfere if user is typing in an input/textarea
+      const tag = document.activeElement?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || document.activeElement?.getAttribute("contenteditable") === "true") {
+        return;
+      }
+      
+      const container = document.getElementById("notion-table-container");
+      if (!container) return;
+
+      const scrollAmount = 80;
+      
+      switch (e.key) {
+        case "ArrowDown":
+          container.scrollTop += scrollAmount;
+          e.preventDefault();
+          break;
+        case "ArrowUp":
+          container.scrollTop -= scrollAmount;
+          e.preventDefault();
+          break;
+        case "ArrowLeft":
+          container.scrollLeft -= scrollAmount;
+          e.preventDefault();
+          break;
+        case "ArrowRight":
+          container.scrollLeft += scrollAmount;
+          e.preventDefault();
+          break;
+        case "PageDown":
+          container.scrollTop += container.clientHeight;
+          e.preventDefault();
+          break;
+        case "PageUp":
+          container.scrollTop -= container.clientHeight;
+          e.preventDefault();
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, []);
 
   /* ---------------- permissions ---------------- */
 
@@ -455,16 +508,13 @@ export default function NotionPagesClientPage() {
     if (!activePage || !selectedPageId) return;
     const remark = value.trim();
 
-    // Block saving empty remarks
-    if (!remark) {
-      notify("Please write a remark before saving.", "error");
-      return;
-    }
-
     const updatedRows = [...activePage.rows];
     const row = { ...updatedRows[rowIndex] };
 
-    if (row.feedback_notes === remark) return;
+    if ((row.feedback_notes || "") === remark) return;
+
+    if (savingRemarksRef.current.has(rowIndex)) return;
+    savingRemarksRef.current.add(rowIndex);
 
     row.feedback_notes = remark;
     updatedRows[rowIndex] = row;
@@ -479,6 +529,8 @@ export default function NotionPagesClientPage() {
       console.error(e);
       notify("Couldn’t save the remark.", "error");
       await fetchPageDetails(selectedPageId);
+    } finally {
+      savingRemarksRef.current.delete(rowIndex);
     }
   };
 
@@ -503,6 +555,23 @@ export default function NotionPagesClientPage() {
     : "Workspace";
   const initials = currentUser?.firstName?.charAt(0)?.toUpperCase() || "W";
   const avatarColor = hashColor(currentUser?.firstName || "workspace");
+
+  const paginatedRows = useMemo(() => {
+    return filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  }, [filteredRows, page, rowsPerPage]);
+
+  const handleChangePage = (event: unknown, newPage: number) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  useEffect(() => {
+    setPage(0);
+  }, [searchQuery, selectedPageId]);
 
   /* ---------------- sidebar tree ---------------- */
 
@@ -1229,10 +1298,13 @@ export default function NotionPagesClientPage() {
                 </Stack>
 
                 <TableContainer
+                  id="notion-table-container"
+                  tabIndex={0}
                   sx={{
                     border: `1px solid ${c.border}`,
                     borderRadius: "10px",
                     maxHeight: "62vh",
+                    "&:focus": { outline: "none" }
                   }}
                 >
                   <Table size="small" stickyHeader>
@@ -1254,9 +1326,24 @@ export default function NotionPagesClientPage() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {filteredRows.map(({ row, i }) => {
-                        return (
-                          <TableRow
+                      {loadingPage ? (
+                        Array.from(new Array(10)).map((_, i) => (
+                          <TableRow key={`skeleton-${i}`}>
+                            <TableCell sx={{ ...bodyCell, width: 44 }} />
+                            {pageColumns.map((col: any) => (
+                              <TableCell key={`skeleton-${col.key}`} sx={bodyCell}>
+                                <Skeleton variant="text" width={`${Math.random() * 40 + 40}%`} animation="wave" />
+                              </TableCell>
+                            ))}
+                            <TableCell sx={{ ...bodyCell, minWidth: 200 }}>
+                              <Skeleton variant="text" width="80%" animation="wave" />
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        paginatedRows.map(({ row, i }) => {
+                          return (
+                            <TableRow
                             key={row.id || i}
                             sx={{
                               "&:hover": { bgcolor: c.hover },
@@ -1326,9 +1413,9 @@ export default function NotionPagesClientPage() {
                             </TableCell>
                           </TableRow>
                         );
-                      })}
+                      }))}
 
-                      {filteredRows.length === 0 && (
+                      {!loadingPage && filteredRows.length === 0 && (
                         <TableRow>
                           <TableCell
                             colSpan={pageColumns.length + 2}
@@ -1343,6 +1430,17 @@ export default function NotionPagesClientPage() {
                     </TableBody>
                   </Table>
                 </TableContainer>
+                
+                <TablePagination
+                  rowsPerPageOptions={[25, 50, 100]}
+                  component="div"
+                  count={filteredRows.length}
+                  rowsPerPage={rowsPerPage}
+                  page={page}
+                  onPageChange={handleChangePage}
+                  onRowsPerPageChange={handleChangeRowsPerPage}
+                  sx={{ borderBottom: "none" }}
+                />
 
                 <Typography
                   sx={{ mt: 1.25, fontSize: "12.5px", color: c.textFaint, px: 0.5 }}
@@ -1688,27 +1786,6 @@ export default function NotionPagesClientPage() {
       </Dialog>
 
       {/* =========================== Toast ============================ */}
-      <Snackbar
-        open={!!toast}
-        autoHideDuration={3200}
-        onClose={() => setToast(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      >
-        <Alert
-          severity={toast?.severity || "success"}
-          variant="filled"
-          onClose={() => setToast(null)}
-          sx={{
-            borderRadius: "8px",
-            fontSize: "13.5px",
-            fontWeight: 500,
-            boxShadow: "0 8px 24px rgba(15,15,15,0.2)",
-            ...(toast?.severity === "success" && { bgcolor: c.textMain }),
-          }}
-        >
-          {toast?.msg}
-        </Alert>
-      </Snackbar>
 
       <TrashDialog open={trashOpen} onClose={() => setTrashOpen(false)} />
 

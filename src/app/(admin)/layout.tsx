@@ -24,7 +24,7 @@ export default function AdminLayout({
 
   return (
     <div className="min-h-screen xl:flex">
-      <GuideTour />
+      {/* <GuideTour /> */}
       <AppSidebar />
       <Backdrop />
       <div
