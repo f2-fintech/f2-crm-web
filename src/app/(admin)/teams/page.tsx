@@ -7,6 +7,7 @@ import api from "@/lib/axios";
 import toast from "react-hot-toast";
 import CreateTeamModal from "@/components/teams/CreateTeamModal";
 import UpdateTeamModal from "@/components/teams/UpdateTeamModal";
+import Pagination from "@/components/tables/Pagination";
 
 interface ITeam {
   _id: string;
@@ -25,6 +26,10 @@ export default function TeamsPage() {
   const [loading, setLoading] = useState(false);
   const [openCreateModal, setOpenCreateModal] = useState(false);
   const [teamToEdit, setTeamToEdit] = useState<ITeam | null>(null);
+  
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const fetchTeams = async () => {
     try {
@@ -56,6 +61,9 @@ export default function TeamsPage() {
       setLoading(false);
     }
   };
+
+  const currentTeams = teams.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPages = Math.ceil(teams.length / itemsPerPage) || 1;
 
   return (
     <div className="space-y-6">
@@ -110,14 +118,14 @@ export default function TeamsPage() {
                     Loading teams...
                   </td>
                 </tr>
-              ) : teams.length === 0 ? (
+              ) : currentTeams.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-14 text-center text-sm text-gray-500 dark:text-gray-400">
-                    No teams found
+                    No teams found on this page
                   </td>
                 </tr>
               ) : (
-                teams.map((team) => (
+                currentTeams.map((team) => (
                   <tr
                     key={team._id}
                     className="transition hover:bg-gray-50 dark:hover:bg-white/[0.03]"
@@ -182,6 +190,20 @@ export default function TeamsPage() {
             </tbody>
           </table>
         </div>
+        
+        {/* Pagination Footer */}
+        {teams.length > 0 && (
+          <div className="border-t border-gray-200 p-4 dark:border-gray-800 flex items-center justify-between">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Showing <span className="font-medium text-gray-800 dark:text-white/90">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-medium text-gray-800 dark:text-white/90">{Math.min(currentPage * itemsPerPage, teams.length)}</span> of <span className="font-medium text-gray-800 dark:text-white/90">{teams.length}</span> teams
+            </p>
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+            />
+          </div>
+        )}
       </div>
 
       <CreateTeamModal

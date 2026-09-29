@@ -11,6 +11,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TablePagination,
   Typography,
 } from "@mui/material";
 import { Plus, MoreHorizontal, Search, Table as TableIcon, FileText } from "lucide-react";
@@ -41,6 +42,24 @@ export default function NotionPageView({
   const filteredRows = rowsData.filter((row) =>
     JSON.stringify(row).toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const [page, setPage] = React.useState(0);
+  const [rowsPerPage, setRowsPerPage] = React.useState(50);
+
+  const handleChangePage = (event: unknown, newPage: number) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  React.useEffect(() => {
+    setPage(0);
+  }, [searchQuery]);
+
+  const paginatedRows = filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
   return (
     <Box sx={{ flexGrow: 1, display: "flex", flexDirection: "column", overflowY: "auto" }}>
@@ -135,7 +154,7 @@ export default function NotionPageView({
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filteredRows.map((row, idx) => (
+                  {paginatedRows.map((row, idx) => (
                     <TableRow key={idx} sx={{ "&:hover": { bgcolor: notionColors.sidebarHover } }}>
                       <TableCell sx={{ color: notionColors.textMain, fontSize: "14px", fontWeight: 500, py: 1 }}>{row.col2 || row.id}</TableCell>
                       <TableCell sx={{ color: notionColors.textMain, fontSize: "14px", py: 1 }}>{row.col1}</TableCell>
@@ -150,6 +169,15 @@ export default function NotionPageView({
                   ))}
                 </TableBody>
               </Table>
+              <TablePagination
+                rowsPerPageOptions={[25, 50, 100]}
+                component="div"
+                count={filteredRows.length}
+                rowsPerPage={rowsPerPage}
+                page={page}
+                onPageChange={handleChangePage}
+                onRowsPerPageChange={handleChangeRowsPerPage}
+              />
             </TableContainer>
           </Box>
         ) : (
@@ -182,3 +210,4 @@ export default function NotionPageView({
     </Box>
   );
 }
+

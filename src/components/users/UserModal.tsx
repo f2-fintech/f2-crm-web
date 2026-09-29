@@ -230,7 +230,6 @@ export default function UserModal({
 
             <input
               type="email"
-              disabled={mode === "edit"}
               name="email"
               value={form.email}
               onChange={handleChange}
