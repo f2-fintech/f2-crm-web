@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import api from "@/lib/axios";
+import toast from "react-hot-toast";
 
 interface Props {
   open: boolean;
@@ -38,15 +39,15 @@ export default function ChangePasswordModal({
 
   const handleSubmit = async () => {
     if (!password) {
-      return alert("Password is required");
+      return toast.error("Password is required");
     }
 
     if (password.length < 8) {
-      return alert("Password must be at least 8 characters");
+      return toast.error("Password must be at least 8 characters");
     }
 
     if (password !== confirmPassword) {
-      return alert("Passwords do not match");
+      return toast.error("Passwords do not match");
     }
 
     try {
@@ -56,14 +57,14 @@ export default function ChangePasswordModal({
         password,
       });
 
-      alert(res.data.message);
+      toast.success(res.data?.message || "Password updated successfully");
 
       onSuccess?.();
       handleClose();
     } catch (error: any) {
-      alert(
-        error?.response?.data?.message ||
-          "Failed to update password"
+      const msg = error?.response?.data?.message;
+      toast.error(
+        Array.isArray(msg) ? msg[0] : (msg || "Failed to update password")
       );
     } finally {
       setLoading(false);

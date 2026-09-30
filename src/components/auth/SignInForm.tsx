@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { signInWithPopup } from "firebase/auth";
@@ -164,13 +163,6 @@ export default function SignInForm() {
               Password
               <span className="ml-1 text-error-500">*</span>
             </Label>
-
-            <Link
-              href="/forgot-password"
-              className="text-sm font-medium text-brand-500 hover:text-brand-600"
-            >
-              Forgot Password?
-            </Link>
           </div>
 
           <div className="relative">

@@ -2,29 +2,24 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-
+import { Camera, LogOut, KeyRound } from "lucide-react";
 import api from "@/lib/axios";
-
 import { useModal } from "../../hooks/useModal";
 import { Modal } from "../ui/modal";
 import Button from "../ui/button/Button";
 import Input from "../form/input/InputField";
 import Label from "../form/Label";
+import InternalChangePasswordModal from "./InternalChangePasswordModal";
 
 interface UserProfile {
   _id: string;
-  employeeId: string;
   firstName: string;
   lastName: string;
   email: string;
-  phone: string;
   profileImage?: string;
   isActive: boolean;
-  lastLogin: string;
-
   roleId?: {
     _id: string;
-    name: string;
     displayName: string;
   };
 }
@@ -38,71 +33,31 @@ const getInitials = (firstName?: string, lastName?: string) => {
 
 export default function UserMetaCard() {
   const { isOpen, openModal, closeModal } = useModal();
-
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [user, setUser] = useState<UserProfile | null>(null);
-
-  const [form, setForm] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    phone: "",
-    profileImage: "",
-  });
+  const [form, setForm] = useState({ profileImage: "" });
 
   useEffect(() => {
     const loadProfile = async () => {
       try {
         const res = await api.get("/auth/profile");
         const profile = res.data.data ?? res.data;
-
         setUser(profile);
-        setForm({
-          firstName: profile.firstName || "",
-          lastName: profile.lastName || "",
-          email: profile.email || "",
-          phone: profile.phone || "",
-          profileImage: profile.profileImage || "",
-        });
+        setForm({ profileImage: profile.profileImage || "" });
       } catch (error) {
         console.error("Profile Error :", error);
       } finally {
         setLoading(false);
       }
     };
-
     loadProfile();
   }, []);
 
-  const handleOpenModal = () => {
-    setErrorMessage(null);
-    if (user) {
-      setForm({
-        firstName: user.firstName || "",
-        lastName: user.lastName || "",
-        email: user.email || "",
-        phone: user.phone || "",
-        profileImage: user.profileImage || "",
-      });
-    }
-    openModal();
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm({
-      ...form,
-      [e.target.name]: e.target.value,
-    });
-  };
-
-  const handleSave = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    setErrorMessage(null);
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
     setSaving(true);
-
     try {
       let res;
       try {
@@ -110,259 +65,124 @@ export default function UserMetaCard() {
       } catch {
         res = await api.put("/auth/profile", form);
       }
-
       const updatedProfile = res.data.data ?? res.data;
-      const mergedUser = { ...user, ...updatedProfile, ...form };
-
+      const mergedUser = { ...user, ...updatedProfile, ...form } as UserProfile;
       setUser(mergedUser);
-
       if (typeof window !== "undefined") {
         localStorage.setItem("user", JSON.stringify(mergedUser));
         window.dispatchEvent(new Event("storage"));
       }
-
       closeModal();
-    } catch (error: any) {
+    } catch (error) {
       console.error("Save Profile Error:", error);
-      setErrorMessage(
-        error?.response?.data?.message || "Failed to update profile. Please try again."
-      );
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex h-40 items-center justify-center rounded-2xl border border-gray-200 p-6 text-gray-500 dark:border-gray-800">
-        Loading Profile...
-      </div>
-    );
-  }
+  const handleLogout = async () => {
+    try {
+      await api.post("/auth/logout");
+    } catch (error) {
+      console.error("Logout Error:", error);
+    } finally {
+      localStorage.clear();
+      document.cookie = "accessToken=; Max-Age=0; path=/;";
+      document.cookie = "refreshToken=; Max-Age=0; path=/;";
+      window.location.href = "/login";
+    }
+  };
 
-  if (!user) {
-    return (
-      <div className="p-6 border border-red-200 rounded-2xl text-red-500 bg-red-50 dark:bg-red-950/20 dark:border-red-900/30">
-        Unable to load profile. Please refresh or login again.
-      </div>
-    );
-  }
+  if (loading) return <div className="h-64 rounded-2xl border flex items-center justify-center">Loading...</div>;
+  if (!user) return <div className="h-64 rounded-2xl border text-red-500 flex items-center justify-center">Error loading profile.</div>;
 
   return (
     <>
-      <div className="p-5 border border-gray-200 rounded-2xl dark:border-gray-800 lg:p-6 bg-white dark:bg-gray-900">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
-            {user.profileImage &&
-            user.profileImage !== "#" &&
-            user.profileImage !== "/images/user/owner.jpg" ? (
-              <Image
-                src={user.profileImage}
-                alt="Profile"
-                width={90}
-                height={90}
-                className="h-[90px] w-[90px] rounded-full border border-gray-200 object-cover dark:border-gray-700"
-                unoptimized
-              />
+      <div className="flex flex-col items-center p-6 border border-gray-200 rounded-2xl bg-white dark:bg-gray-900 dark:border-gray-800 shadow-sm relative overflow-hidden">
+        {/* Banner Background */}
+        <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-r from-brand-500/20 to-brand-600/20 dark:from-brand-500/10 dark:to-brand-600/10"></div>
+        
+        {/* Avatar */}
+        <div className="relative mt-8 mb-4">
+          <div className="h-28 w-28 rounded-full border-4 border-white dark:border-gray-900 shadow-lg overflow-hidden bg-white z-10 relative">
+            {user.profileImage && user.profileImage !== "#" && user.profileImage !== "/images/user/owner.jpg" ? (
+              <Image src={user.profileImage} alt="Profile" width={112} height={112} className="h-full w-full object-cover" unoptimized />
             ) : (
-              <div className="flex h-[90px] w-[90px] shrink-0 items-center justify-center rounded-full bg-brand-500 text-3xl font-bold text-white shadow-md border border-brand-600">
+              <div className="flex h-full w-full items-center justify-center bg-brand-500 text-4xl font-bold text-white">
                 {getInitials(user.firstName, user.lastName)}
               </div>
             )}
-
-            <div>
-              <h3 className="text-2xl font-semibold text-gray-800 dark:text-white">
-                {user.firstName} {user.lastName}
-              </h3>
-
-              <p className="mt-1 text-sm font-medium text-brand-500">
-                {user.roleId?.displayName || "User"}
-              </p>
-
-              <div className="mt-3 space-y-1.5">
-                <p className="text-sm text-gray-600 dark:text-gray-300">
-                  Employee ID :
-                  <span className="ml-2 font-semibold text-gray-800 dark:text-gray-100">
-                    {user.employeeId || "N/A"}
-                  </span>
-                </p>
-
-                <p className="text-sm text-gray-600 dark:text-gray-300">
-                  Email :
-                  <span className="ml-2 text-gray-800 dark:text-gray-100">
-                    {user.email}
-                  </span>
-                </p>
-
-                <p className="text-sm text-gray-600 dark:text-gray-300">
-                  Phone :
-                  <span className="ml-2 text-gray-800 dark:text-gray-100">
-                    {user.phone || "Not set"}
-                  </span>
-                </p>
-
-                <p className="text-sm text-gray-600 dark:text-gray-300">
-                  Status :
-                  <span
-                    className={`ml-2 font-semibold ${
-                      user.isActive ? "text-green-600" : "text-red-500"
-                    }`}
-                  >
-                    {user.isActive ? "Active" : "Inactive"}
-                  </span>
-                </p>
-
-                <p className="text-sm text-gray-600 dark:text-gray-300">
-                  Last Login :
-                  <span className="ml-2 text-gray-800 dark:text-gray-100">
-                    {user.lastLogin
-                      ? new Date(user.lastLogin).toLocaleString()
-                      : "Never"}
-                  </span>
-                </p>
-              </div>
-            </div>
           </div>
-
-          <button
-            onClick={handleOpenModal}
-            className="flex items-center justify-center gap-2 rounded-full border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+          <button 
+            onClick={() => { setForm({ profileImage: user.profileImage || "" }); openModal(); }}
+            className="absolute bottom-1 right-1 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full shadow-md text-gray-600 hover:text-brand-500 transition-colors z-20"
           >
-            Edit Profile
+            <Camera size={16} />
+          </button>
+        </div>
+
+        {/* User Info */}
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white text-center">
+          {user.firstName} {user.lastName}
+        </h2>
+        <p className="text-sm font-medium text-brand-600 dark:text-brand-400 mt-1 mb-4 text-center">
+          {user.roleId?.displayName || "User"}
+        </p>
+        
+        <div className="flex items-center gap-2 mb-6">
+          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${user.isActive ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'}`}>
+            {user.isActive ? 'Active Account' : 'Inactive Account'}
+          </span>
+        </div>
+
+        <div className="w-full h-px bg-gray-200 dark:bg-gray-800 mb-6"></div>
+
+        {/* Quick Actions */}
+        <div className="w-full flex flex-col gap-3">
+          <button 
+            onClick={() => setIsPasswordModalOpen(true)}
+            className="flex items-center justify-center gap-2 w-full py-2.5 px-4 text-sm font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-xl hover:bg-gray-100 hover:text-brand-600 transition-colors dark:bg-gray-800/50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+          >
+            <KeyRound size={16} />
+            Change Password
+          </button>
+          
+          <button 
+            onClick={handleLogout}
+            className="flex items-center justify-center gap-2 w-full py-2.5 px-4 text-sm font-medium text-red-600 bg-red-50 border border-red-100 rounded-xl hover:bg-red-100 transition-colors dark:bg-red-900/10 dark:border-red-900/20 dark:hover:bg-red-900/30"
+          >
+            <LogOut size={16} />
+            Sign Out
           </button>
         </div>
       </div>
 
-      <Modal isOpen={isOpen} onClose={closeModal} className="max-w-[700px] m-4">
+      <InternalChangePasswordModal 
+        open={isPasswordModalOpen} 
+        onClose={() => setIsPasswordModalOpen(false)} 
+      />
+
+      <Modal isOpen={isOpen} onClose={closeModal} className="max-w-[400px] m-4">
         <div className="relative w-full max-h-[85vh] overflow-y-auto rounded-3xl bg-white p-6 dark:bg-gray-900">
-          <h3 className="mb-4 text-2xl font-semibold text-gray-800 dark:text-white">
-            Edit Profile
+          <h3 className="mb-4 text-xl font-semibold text-gray-800 dark:text-white">
+            Update Avatar
           </h3>
-
-          {errorMessage && (
-            <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600 border border-red-200 dark:bg-red-950/30 dark:border-red-900/50">
-              {errorMessage}
-            </div>
-          )}
-
           <form onSubmit={handleSave}>
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+            <div className="flex flex-col gap-4">
               <div>
-                <Label>First Name</Label>
-                <Input
-                  type="text"
-                  name="firstName"
-                  value={form.firstName}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-
-              <div>
-                <Label>Last Name</Label>
-                <Input
-                  type="text"
-                  name="lastName"
-                  value={form.lastName}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-
-              <div className="md:col-span-2">
                 <Label>Profile Image URL</Label>
                 <Input
                   type="text"
                   name="profileImage"
                   placeholder="https://example.com/avatar.jpg"
                   value={form.profileImage}
-                  onChange={handleInputChange}
-                />
-              </div>
-
-              <div>
-                <Label>Email</Label>
-                <Input
-                  type="email"
-                  name="email"
-                  value={form.email}
-                  onChange={handleInputChange}
-                  disabled
-                />
-                <span className="text-[11px] text-gray-400 mt-0.5 block">
-                  Email cannot be edited directly.
-                </span>
-              </div>
-
-              <div>
-                <Label>Phone</Label>
-                <Input
-                  type="text"
-                  name="phone"
-                  value={form.phone}
-                  onChange={handleInputChange}
-                />
-              </div>
-
-              <div>
-                <Label>Employee ID</Label>
-                <Input
-                  type="text"
-                  value={user.employeeId || ""}
-                  disabled
-                />
-              </div>
-
-              <div>
-                <Label>Role</Label>
-                <Input
-                  type="text"
-                  value={user.roleId?.displayName || "N/A"}
-                  disabled
-                />
-              </div>
-
-              <div>
-                <Label>Status</Label>
-                <Input
-                  type="text"
-                  value={user.isActive ? "Active" : "Inactive"}
-                  disabled
-                />
-              </div>
-
-              <div>
-                <Label>Last Login</Label>
-                <Input
-                  type="text"
-                  value={
-                    user.lastLogin
-                      ? new Date(user.lastLogin).toLocaleString()
-                      : "N/A"
-                  }
-                  disabled
+                  onChange={(e: any) => setForm({ profileImage: e.target.value })}
                 />
               </div>
             </div>
-
             <div className="mt-8 flex justify-end gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                type="button"
-                onClick={closeModal}
-                disabled={saving}
-              >
-                Cancel
-              </Button>
-
-              <Button
-                size="sm"
-                type="submit"
-                disabled={saving}
-              >
-                {saving ? "Saving..." : "Save Changes"}
-              </Button>
+              <Button variant="outline" size="sm" type="button" onClick={closeModal} disabled={saving}>Cancel</Button>
+              <Button size="sm" type="submit" disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
             </div>
           </form>
         </div>
