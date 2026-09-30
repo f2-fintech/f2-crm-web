@@ -50,6 +50,7 @@ import {
   Trash2,
   UserPlus,
   X,
+  Download,
 } from "lucide-react";
 import useNotionPages, { NotionPageItem } from "@/hooks/useNotionPages";
 import { useAuth } from "@/hooks/useAuth";
@@ -135,6 +136,60 @@ export default function NotionPagesClientPage() {
   const { user, role } = useAuth();
   const currentUser = user;
 
+  const isAdmin = useMemo(() => {
+    const r = role?.toUpperCase();
+    return r === "SUPER_ADMIN" || r === "ADMIN";
+  }, [role]);
+
+  const handleUpdateColumnName = async (colKey: string, newName: string) => {
+    if (!activePage || !selectedPageId) return;
+    const finalName = newName.trim();
+    if (!finalName) return;
+
+    const newColumns = activePage.columns.map((col: any) =>
+      col.key === colKey ? { ...col, name: finalName } : col
+    );
+
+    setActivePage({ ...activePage, columns: newColumns });
+    try {
+      await api.patch(`/notion-pages/${selectedPageId}`, { columns: newColumns });
+      notify("Column renamed");
+    } catch (e) {
+      console.error(e);
+      notify("Couldn’t rename column.", "error");
+      await fetchPageDetails(selectedPageId);
+    }
+  };
+
+  const handleExportData = () => {
+    if (!activePage || !activePage.rows || !activePage.columns) return;
+    const headers = ["#", ...activePage.columns.map((c: any) => c.name), "Remarks"];
+    const csvRows = [headers.join(",")];
+    activePage.rows.forEach((row: any, i: number) => {
+      const rowData = [
+        i + 1,
+        ...activePage.columns.map((c: any) => {
+          let val = row[c.key] || "";
+          if (typeof val === "string" && val.includes(",")) {
+            val = `"${val}"`;
+          }
+          return val;
+        }),
+        `"${row.feedback_notes || ""}"`
+      ];
+      csvRows.push(rowData.join(","));
+    });
+    const csvContent = csvRows.join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `${selectedPageTitle || "export"}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const [selectedPageTitle, setSelectedPageTitle] = useState("Untitled");
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
@@ -211,15 +266,6 @@ export default function NotionPagesClientPage() {
         fetchPageDetails(queryPageId).then((page: any) => {
           if (page?.title) setSelectedPageTitle(page.title);
         }).finally(() => setLoadingPage(false));
-      } else if (treeData?.shared?.length) {
-        const first = treeData.shared[0];
-        const id = first._id || first.id;
-        if (id) {
-          setSelectedPageId(id);
-          setSelectedPageTitle(first.title);
-          setLoadingPage(true);
-          fetchPageDetails(id).finally(() => setLoadingPage(false));
-        }
       }
     }
   }, [treeData, selectedPageId, fetchPageDetails]);
@@ -582,7 +628,7 @@ export default function NotionPagesClientPage() {
       .map((node) => {
         const nodeKey = node._id || node.id;
         const hasChildren = !!node.children?.length;
-        const isExpanded = q ? true : expandedNodes[nodeKey] !== false;
+        const isExpanded = q ? true : expandedNodes[nodeKey] === true;
         const isSelected = selectedPageId === nodeKey;
 
         return (
@@ -1218,6 +1264,16 @@ export default function NotionPagesClientPage() {
                         Paste leads
                       </Button>
                     )}
+                    {isAdmin && rowsData.length > 0 && (
+                      <Button
+                        size="small"
+                        startIcon={<Download size={15} />}
+                        onClick={handleExportData}
+                        sx={outlineBtn}
+                      >
+                        Export sheet
+                      </Button>
+                    )}
                     {rowsData.length > 0 && (
                       <Button
                         size="small"
@@ -1315,7 +1371,31 @@ export default function NotionPagesClientPage() {
                         </TableCell>
                         {pageColumns.map((col: any) => (
                           <TableCell key={col.key} sx={headCell}>
-                            {col.name}
+                            {isAdmin ? (
+                              <InputBase
+                                defaultValue={col.name}
+                                onBlur={(e) => {
+                                  if (e.target.value !== col.name) {
+                                    handleUpdateColumnName(col.key, e.target.value);
+                                  }
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    (e.target as HTMLInputElement).blur();
+                                  }
+                                }}
+                                sx={{
+                                  color: "inherit",
+                                  fontSize: "inherit",
+                                  fontWeight: "inherit",
+                                  fontFamily: "inherit",
+                                  "& input": { p: 0, textOverflow: "ellipsis" }
+                                }}
+                              />
+                            ) : (
+                              col.name
+                            )}
                           </TableCell>
                         ))}
                         <TableCell

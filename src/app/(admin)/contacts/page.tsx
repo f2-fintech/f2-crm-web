@@ -1,7 +1,11 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Search, Mail, Phone, Building2, Users, LayoutGrid, List, LayoutList, ChevronDown, X } from "lucide-react";
+import { 
+  Search, Mail, Phone, Building2, Users, 
+  LayoutGrid, List, ChevronDown, X,
+  MoreVertical, Filter, Briefcase, Activity
+} from "lucide-react";
 import api from "@/lib/axios";
 
 interface IUser {
@@ -17,69 +21,39 @@ interface IUser {
   teamId?: { _id: string; name: string };
 }
 
-type ViewMode = "table" | "grid" | "modern";
+type ViewMode = "grid" | "table";
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
-const initials = (f?: string, l?: string) =>
-  `${f?.[0] ?? ""}${l?.[0] ?? ""}`.toUpperCase() || "?";
-
-const avatarGradients = [
-  "from-violet-500 to-purple-600",
-  "from-blue-500 to-cyan-500",
-  "from-emerald-500 to-teal-600",
+// Premium Gradients for Avatars & Covers
+const gradients = [
+  "from-violet-500 to-fuchsia-500",
+  "from-blue-500 to-cyan-400",
+  "from-emerald-400 to-teal-500",
   "from-amber-400 to-orange-500",
-  "from-rose-500 to-pink-600",
+  "from-rose-400 to-red-500",
   "from-indigo-500 to-blue-600",
 ];
 
 const getGradient = (id: string) => {
   let hash = 0;
-  for (let i = 0; i < id.length; i++)
-    hash = id.charCodeAt(i) + ((hash << 5) - hash);
-  return avatarGradients[Math.abs(hash) % avatarGradients.length];
+  for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
+  return gradients[Math.abs(hash) % gradients.length];
 };
 
-function Avatar({ user, size = "md" }: { user: IUser; size?: "sm" | "md" | "lg" }) {
-  const sz = size === "sm" ? "h-9 w-9 text-xs" : size === "lg" ? "h-16 w-16 text-xl" : "h-11 w-11 text-sm";
-  if (user.profileImage)
-    return <img src={user.profileImage} alt={user.firstName} className={`${sz} rounded-full object-cover ring-2 ring-white dark:ring-gray-900`} />;
-  return (
-    <div className={`${sz} shrink-0 rounded-full bg-gradient-to-br ${getGradient(user._id)} flex items-center justify-center font-bold text-white ring-2 ring-white dark:ring-gray-900`}>
-      {initials(user.firstName, user.lastName)}
-    </div>
-  );
-}
-
-function ContactActions({ user, compact = false }: { user: IUser; compact?: boolean }) {
-  if (compact)
+function Avatar({ user, className = "" }: { user: IUser; className?: string }) {
+  if (user.profileImage) {
     return (
-      <div className="flex items-center gap-1.5">
-        {user.phone && (
-          <a href={`tel:${user.phone}`} className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 transition-all hover:bg-emerald-500 hover:text-white dark:bg-emerald-500/10 dark:text-emerald-400 dark:hover:bg-emerald-500 dark:hover:text-white" title={`Call ${user.phone}`}>
-            <Phone size={14} />
-          </a>
-        )}
-        <a href={`mailto:${user.email}`} className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600 transition-all hover:bg-blue-500 hover:text-white dark:bg-blue-500/10 dark:text-blue-400 dark:hover:bg-blue-500 dark:hover:text-white" title={`Email ${user.email}`}>
-          <Mail size={14} />
-        </a>
-      </div>
+      <img 
+        src={user.profileImage} 
+        alt={user.firstName} 
+        className={`object-cover ${className}`} 
+      />
     );
+  }
+  const initials = `${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}`.toUpperCase();
   return (
-    <div className="flex gap-2">
-      <a
-        href={user.phone ? `tel:${user.phone}` : "#"}
-        onClick={!user.phone ? (e) => e.preventDefault() : undefined}
-        className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-semibold transition-all duration-200 ${
-          user.phone
-            ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-500 hover:text-white hover:shadow-md dark:bg-emerald-500/10 dark:text-emerald-400 dark:hover:bg-emerald-500 dark:hover:text-white"
-            : "cursor-not-allowed bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-600"
-        }`}
-      >
-        <Phone size={13} />{user.phone ? "Call" : "No Phone"}
-      </a>
-      <a href={`mailto:${user.email}`} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-50 py-2.5 text-xs font-semibold text-blue-700 transition-all duration-200 hover:bg-blue-500 hover:text-white hover:shadow-md dark:bg-blue-500/10 dark:text-blue-400 dark:hover:bg-blue-500 dark:hover:text-white">
-        <Mail size={13} />Mail
-      </a>
+    <div className={`flex items-center justify-center font-bold text-white bg-gradient-to-br ${getGradient(user._id)} ${className}`}>
+      {initials}
     </div>
   );
 }
@@ -87,12 +61,13 @@ function ContactActions({ user, compact = false }: { user: IUser; compact?: bool
 export default function ContactsPage() {
   const [users, setUsers] = useState<IUser[]>([]);
   const [loading, setLoading] = useState(true);
+  
   const [search, setSearch] = useState("");
-  const [viewMode, setViewMode] = useState<ViewMode>("modern");
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
+  
   const [filterDept, setFilterDept] = useState("");
   const [filterTeam, setFilterTeam] = useState("");
-  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -100,350 +75,330 @@ export default function ContactsPage() {
         setLoading(true);
         const { data } = await api.get("/users", { params: { limit: 1000 } });
         setUsers(Array.isArray(data) ? data : data.data || []);
-      } catch { /* silent */ } finally { setLoading(false); }
+      } catch { } finally { setLoading(false); }
     })();
   }, []);
 
-  const departments = useMemo(
-    () => [...new Set(users.map(u => u.departmentId?.departmentName || u.departmentId?.name).filter(Boolean))] as string[],
-    [users]
-  );
-  const teams = useMemo(
-    () => [...new Set(users.map(u => u.teamId?.name).filter(Boolean))] as string[],
-    [users]
-  );
+  const departments = useMemo(() => [...new Set(users.map(u => u.departmentId?.departmentName || u.departmentId?.name).filter(Boolean))] as string[], [users]);
+  const teams = useMemo(() => [...new Set(users.map(u => u.teamId?.name).filter(Boolean))] as string[], [users]);
+  const activeCount = useMemo(() => users.filter(u => u.isActive !== false).length, [users]);
 
   const filtered = useMemo(() => {
     const term = search.toLowerCase();
     return users.filter(u => {
-      const ms = !term || u.firstName?.toLowerCase().includes(term) || u.lastName?.toLowerCase().includes(term) || u.email?.toLowerCase().includes(term) || u.phone?.includes(term) || u.teamId?.name?.toLowerCase().includes(term);
-      const md = !filterDept || u.departmentId?.departmentName === filterDept || u.departmentId?.name === filterDept;
-      const mt = !filterTeam || u.teamId?.name === filterTeam;
-      const ml = !activeLetter || u.firstName?.[0]?.toUpperCase() === activeLetter;
-      return ms && md && mt && ml;
+      const matchSearch = !term || 
+        u.firstName?.toLowerCase().includes(term) || 
+        u.lastName?.toLowerCase().includes(term) || 
+        u.email?.toLowerCase().includes(term) || 
+        u.phone?.includes(term);
+      const matchDept = !filterDept || u.departmentId?.departmentName === filterDept || u.departmentId?.name === filterDept;
+      const matchTeam = !filterTeam || u.teamId?.name === filterTeam;
+      const matchLetter = !activeLetter || u.firstName?.[0]?.toUpperCase() === activeLetter;
+      return matchSearch && matchDept && matchTeam && matchLetter;
     });
   }, [users, search, filterDept, filterTeam, activeLetter]);
 
-  const grouped = useMemo(() => {
-    const acc: Record<string, IUser[]> = {};
-    filtered.forEach(u => { const l = u.firstName?.[0]?.toUpperCase() || "#"; if (!acc[l]) acc[l] = []; acc[l].push(u); });
-    return acc;
-  }, [filtered]);
-
-  const sortedLetters = useMemo(
-    () => Object.keys(grouped).sort((a, b) => { if (a === "#") return 1; if (b === "#") return -1; return a.localeCompare(b); }),
-    [grouped]
-  );
-
-  const activeAlphabet = useMemo(
-    () => new Set(users.map(u => u.firstName?.[0]?.toUpperCase()).filter(Boolean)),
-    [users]
-  );
-
   const clearFilters = () => { setSearch(""); setFilterDept(""); setFilterTeam(""); setActiveLetter(null); };
-  const hasActive = !!(search || filterDept || filterTeam || activeLetter);
-
-  const viewButtons: { mode: ViewMode; Icon: React.ElementType; label: string }[] = [
-    { mode: "modern", Icon: LayoutGrid, label: "Modern" },
-    { mode: "grid", Icon: LayoutList, label: "Grid" },
-    { mode: "table", Icon: List, label: "Table" },
-  ];
 
   return (
-    <div className="flex min-h-full flex-col gap-6">
-
-      {/* ── Hero Banner ─────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-gray-900 to-slate-800 px-6 py-7 shadow-2xl">
-        <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-brand-500/15 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-12 left-10 h-48 w-48 rounded-full bg-blue-500/15 blur-3xl" />
-        <div className="pointer-events-none absolute right-40 top-5 h-32 w-32 rounded-full bg-violet-500/10 blur-2xl" />
-
-        <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-blue-600 shadow-lg shadow-brand-500/30">
-                <Users size={22} className="text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight text-white">Contacts Directory</h1>
-                <p className="mt-0.5 text-xs text-gray-400">Internal employee phonebook</p>
-              </div>
-            </div>
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              <span className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-gray-300"><Users size={11} />{users.length} Members</span>
-              <span className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-gray-300"><Building2 size={11} />{teams.length} Teams</span>
-              <span className="hidden items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-gray-300 sm:flex"><Building2 size={11} />{departments.length} Depts</span>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Search */}
-            <div className="relative">
-              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search name, email, phone..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="h-10 w-64 rounded-xl border border-white/10 bg-white/10 pl-9 pr-4 text-sm text-white placeholder-gray-400 outline-none transition focus:border-brand-400/60 focus:bg-white/15 focus:ring-2 focus:ring-brand-400/30"
-              />
-            </div>
-            {/* Filters */}
-            <button
-              onClick={() => setShowFilters(v => !v)}
-              className={`flex h-10 items-center gap-2 rounded-xl border px-4 text-sm font-medium transition-all ${
-                showFilters || filterDept || filterTeam
-                  ? "border-brand-400/60 bg-brand-500/20 text-brand-300"
-                  : "border-white/10 bg-white/10 text-gray-300 hover:bg-white/15"
-              }`}
-            >
-              <Building2 size={14} />
-              Filters
-              <ChevronDown size={13} className={`transition-transform ${showFilters ? "rotate-180" : ""}`} />
-            </button>
-            {/* View toggle */}
-            <div className="flex h-10 items-center gap-0.5 rounded-xl border border-white/10 bg-white/10 p-1">
-              {viewButtons.map(({ mode, Icon, label }) => (
-                <button
-                  key={mode}
-                  onClick={() => setViewMode(mode)}
-                  title={label}
-                  className={`flex h-full items-center justify-center rounded-lg px-3 text-sm transition-all ${
-                    viewMode === mode ? "bg-brand-500 text-white shadow-md" : "text-gray-400 hover:text-white"
-                  }`}
-                >
-                  <Icon size={16} />
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Filter bar */}
-        {showFilters && (
-          <div className="relative mt-5 flex flex-wrap items-center gap-3 border-t border-white/10 pt-5">
-            <select value={filterDept} onChange={e => setFilterDept(e.target.value)} className="h-9 rounded-lg border border-white/10 bg-white/10 px-3 text-sm text-gray-300 outline-none focus:border-brand-400/60">
-              <option value="" className="bg-gray-900">All Departments</option>
-              {departments.map(d => <option key={d} value={d} className="bg-gray-900">{d}</option>)}
-            </select>
-            <select value={filterTeam} onChange={e => setFilterTeam(e.target.value)} className="h-9 rounded-lg border border-white/10 bg-white/10 px-3 text-sm text-gray-300 outline-none focus:border-brand-400/60">
-              <option value="" className="bg-gray-900">All Teams</option>
-              {teams.map(t => <option key={t} value={t} className="bg-gray-900">{t}</option>)}
-            </select>
-            {hasActive && (
-              <button onClick={clearFilters} className="flex h-9 items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 text-sm text-red-400 hover:bg-red-500/20">
-                <X size={13} />Clear All
-              </button>
-            )}
-          </div>
-        )}
+    <div className="flex flex-col gap-8 min-h-full pb-10">
+      
+      {/* HEADER SECTION */}
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Directory</h1>
+        <p className="text-gray-500 mt-1">Manage and connect with your team members across the organization.</p>
       </div>
 
-      {/* ── A-Z Quick Nav ───────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-1.5">
+      {/* STATS CARDS */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5 shadow-sm flex items-center gap-4">
+          <div className="h-12 w-12 rounded-full bg-brand-50 dark:bg-brand-500/10 flex items-center justify-center text-brand-600 dark:text-brand-400">
+            <Users size={24} />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-gray-500">Total Members</p>
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{users.length}</h3>
+          </div>
+        </div>
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5 shadow-sm flex items-center gap-4">
+          <div className="h-12 w-12 rounded-full bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+            <Activity size={24} />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-gray-500">Active Employees</p>
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{activeCount}</h3>
+          </div>
+        </div>
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5 shadow-sm flex items-center gap-4">
+          <div className="h-12 w-12 rounded-full bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center text-blue-600 dark:text-blue-400">
+            <Briefcase size={24} />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-gray-500">Departments</p>
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{departments.length}</h3>
+          </div>
+        </div>
+      </div>
+
+      {/* TOOLBAR */}
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-sm flex flex-col xl:flex-row gap-4 justify-between items-center z-10 sticky top-4">
+        
+        {/* Search */}
+        <div className="relative w-full xl:w-96">
+          <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search by name, email, or phone..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full h-11 pl-10 pr-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all dark:text-white"
+          />
+        </div>
+
+        {/* Filters & View Toggle */}
+        <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+          <div className="flex items-center gap-2 px-3 h-11 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800/50">
+            <Filter size={16} className="text-gray-400" />
+            <select 
+              value={filterDept} 
+              onChange={e => setFilterDept(e.target.value)} 
+              className="bg-transparent text-sm font-medium text-gray-700 dark:text-gray-300 outline-none w-32 cursor-pointer"
+            >
+              <option value="">All Depts</option>
+              {departments.map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 px-3 h-11 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800/50">
+            <Building2 size={16} className="text-gray-400" />
+            <select 
+              value={filterTeam} 
+              onChange={e => setFilterTeam(e.target.value)} 
+              className="bg-transparent text-sm font-medium text-gray-700 dark:text-gray-300 outline-none w-28 cursor-pointer"
+            >
+              <option value="">All Teams</option>
+              {teams.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+
+          <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-xl p-1 h-11">
+            <button 
+              onClick={() => setViewMode("grid")}
+              className={`flex items-center justify-center h-full w-10 rounded-lg transition-all ${viewMode === "grid" ? "bg-white dark:bg-gray-700 shadow-sm text-brand-600 dark:text-brand-400" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"}`}
+            >
+              <LayoutGrid size={18} />
+            </button>
+            <button 
+              onClick={() => setViewMode("table")}
+              className={`flex items-center justify-center h-full w-10 rounded-lg transition-all ${viewMode === "table" ? "bg-white dark:bg-gray-700 shadow-sm text-brand-600 dark:text-brand-400" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"}`}
+            >
+              <List size={18} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ALPHABET FILTER */}
+      <div className="flex flex-wrap gap-1 px-1">
         <button
           onClick={() => setActiveLetter(null)}
-          className={`flex h-8 min-w-[2.5rem] items-center justify-center rounded-lg px-2 text-xs font-bold transition-all ${
-            !activeLetter ? "bg-brand-500 text-white shadow-md shadow-brand-500/40" : "bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
-          }`}
+          className={`h-8 px-3 rounded-lg text-xs font-bold transition-all ${!activeLetter ? "bg-gray-800 text-white dark:bg-white dark:text-gray-900" : "bg-transparent text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-800"}`}
         >
           All
         </button>
-        {ALPHABET.map(l => {
-          const has = activeAlphabet.has(l);
-          const active = activeLetter === l;
+        {ALPHABET.map(letter => {
+          const isActive = activeLetter === letter;
+          const exists = users.some(u => u.firstName?.[0]?.toUpperCase() === letter);
           return (
             <button
-              key={l}
-              onClick={() => setActiveLetter(active ? null : l)}
-              disabled={!has}
-              className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold transition-all ${
-                active
-                  ? "bg-brand-500 text-white shadow-md shadow-brand-500/40"
-                  : has
-                  ? "bg-gray-100 text-gray-700 hover:bg-brand-50 hover:text-brand-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-brand-500/20 dark:hover:text-brand-400"
-                  : "cursor-default text-gray-300 dark:text-gray-700"
+              key={letter}
+              onClick={() => exists && setActiveLetter(isActive ? null : letter)}
+              disabled={!exists}
+              className={`h-8 w-8 rounded-lg text-xs font-bold transition-all ${
+                isActive ? "bg-brand-500 text-white shadow-md" : 
+                exists ? "bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-800" : 
+                "text-gray-300 dark:text-gray-700 cursor-not-allowed opacity-50"
               }`}
             >
-              {l}
+              {letter}
             </button>
-          );
+          )
         })}
-        {hasActive && (
-          <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-600 ring-1 ring-brand-200 dark:bg-brand-500/10 dark:text-brand-400 dark:ring-brand-500/30">
-            {filtered.length} result{filtered.length !== 1 ? "s" : ""}
-            <button onClick={clearFilters} className="ml-0.5 hover:opacity-70"><X size={11} /></button>
-          </span>
-        )}
       </div>
 
-      {/* ── Content ─────────────────────────────────────── */}
+      {/* CONTENT AREA */}
       {loading ? (
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} className="h-56 animate-pulse rounded-2xl bg-gray-100 dark:bg-gray-800/60" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {[1,2,3,4,5,6,7,8].map(i => (
+            <div key={i} className="h-72 bg-gray-100 dark:bg-gray-800/50 rounded-2xl animate-pulse"></div>
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-white py-24 dark:border-gray-800 dark:bg-white/[0.02]">
-          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100 dark:bg-gray-800">
-            <Users size={28} className="text-gray-400" />
+        <div className="py-20 flex flex-col items-center justify-center text-center bg-white dark:bg-gray-900 border border-dashed border-gray-300 dark:border-gray-800 rounded-3xl">
+          <div className="h-16 w-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
+            <Search size={24} className="text-gray-400" />
           </div>
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-white">No contacts found</h3>
-          <p className="mt-1 text-sm text-gray-400">Try a different search or clear your filters.</p>
-          {hasActive && (
-            <button onClick={clearFilters} className="mt-5 rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-600">
-              Clear Filters
-            </button>
-          )}
+          <h3 className="text-xl font-bold text-gray-900 dark:text-white">No contacts found</h3>
+          <p className="text-gray-500 mt-2 max-w-sm">We couldn't find any employees matching your current filters.</p>
+          <button onClick={clearFilters} className="mt-6 px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-white font-medium rounded-xl transition-all shadow-sm hover:shadow-md">
+            Clear All Filters
+          </button>
         </div>
-      ) : (
-        <div className="space-y-10">
-
-          {/* Modern View */}
-          {viewMode === "modern" && sortedLetters.map(letter => (
-            <section key={letter}>
-              <div className="mb-5 flex items-center gap-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-blue-600 text-lg font-black text-white shadow-lg shadow-brand-500/30">
-                  {letter}
-                </div>
-                <div className="h-px flex-1 bg-gradient-to-r from-gray-200 via-gray-100 to-transparent dark:from-gray-700 dark:via-gray-800" />
-                <span className="text-xs font-semibold text-gray-400">
-                  {grouped[letter].length} {grouped[letter].length === 1 ? "contact" : "contacts"}
+      ) : viewMode === "grid" ? (
+        
+        /* GRID VIEW (PREMIUM CARDS) */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {filtered.map(user => (
+            <div key={user._id} className="group relative bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+              
+              {/* Card Header Background */}
+              <div className={`h-24 w-full bg-gradient-to-r ${getGradient(user._id)} opacity-80 group-hover:opacity-100 transition-opacity`} />
+              
+              {/* Status Badge */}
+              <div className="absolute top-4 right-4">
+                <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur-md bg-white/30 text-white shadow-sm border border-white/20`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${user.isActive !== false ? "bg-green-400" : "bg-gray-300 shadow-none"}`}></span>
+                  {user.isActive !== false ? "Active" : "Inactive"}
                 </span>
               </div>
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {grouped[letter].map(user => (
-                  <div key={user._id} className="group relative flex flex-col overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:border-transparent hover:shadow-2xl dark:border-gray-800 dark:bg-gray-900">
-                    <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-brand-400 via-blue-500 to-violet-500 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-                    <div className="flex flex-col p-5">
-                      <div className="flex items-start justify-between gap-2">
-                        <Avatar user={user} size="lg" />
-                        <div className="flex flex-col items-end gap-1.5">
-                          {user.teamId && (
-                            <span className="inline-flex max-w-[110px] truncate items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
-                              <Users size={8} />{user.teamId.name}
-                            </span>
-                          )}
-                          <span className={`inline-flex h-2 w-2 rounded-full ${user.isActive !== false ? "bg-emerald-400" : "bg-gray-300"}`} title={user.isActive !== false ? "Active" : "Inactive"} />
+
+              {/* Card Body */}
+              <div className="px-6 pb-6 pt-0 relative flex flex-col items-center text-center">
+                
+                {/* Avatar */}
+                <Avatar user={user} className="h-20 w-20 rounded-2xl ring-4 ring-white dark:ring-gray-900 -mt-10 shadow-md rotate-3 group-hover:rotate-0 transition-transform duration-300" />
+                
+                {/* Info */}
+                <div className="mt-4 w-full">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white truncate">
+                    {user.firstName} {user.lastName}
+                  </h3>
+                  <p className="text-sm font-medium text-brand-600 dark:text-brand-400 mt-1 truncate">
+                    {user.roleId?.displayName || user.roleId?.name || "Employee"}
+                  </p>
+                </div>
+
+                <div className="w-full mt-5 space-y-3">
+                  <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 p-2.5 rounded-xl border border-gray-100 dark:border-gray-800 group-hover:border-gray-200 dark:group-hover:border-gray-700 transition-colors">
+                    <Mail size={16} className="text-gray-400" />
+                    <a href={`mailto:${user.email}`} className="truncate hover:text-brand-600 transition-colors">{user.email}</a>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 p-2.5 rounded-xl border border-gray-100 dark:border-gray-800 group-hover:border-gray-200 dark:group-hover:border-gray-700 transition-colors">
+                    <Phone size={16} className="text-gray-400" />
+                    {user.phone ? (
+                      <a href={`tel:${user.phone}`} className="truncate hover:text-brand-600 transition-colors">{user.phone}</a>
+                    ) : (
+                      <span className="opacity-50">Not Provided</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Footer Badges */}
+                <div className="w-full mt-5 flex flex-wrap justify-center gap-2">
+                  {user.departmentId && (
+                    <span className="px-3 py-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-xs font-semibold rounded-lg border border-gray-200 dark:border-gray-700 flex items-center gap-1.5">
+                      <Building2 size={12} />
+                      {user.departmentId.departmentName || user.departmentId.name}
+                    </span>
+                  )}
+                  {user.teamId && (
+                    <span className="px-3 py-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-xs font-semibold rounded-lg border border-gray-200 dark:border-gray-700 flex items-center gap-1.5">
+                      <Users size={12} />
+                      {user.teamId.name}
+                    </span>
+                  )}
+                </div>
+
+              </div>
+            </div>
+          ))}
+        </div>
+
+      ) : (
+
+        /* TABLE VIEW */
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-gray-50/80 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-800">
+                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Employee</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Contact Info</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Role & Dept</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {filtered.map(user => (
+                  <tr key={user._id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors group">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-4">
+                        <Avatar user={user} className="h-12 w-12 rounded-xl shadow-sm" />
+                        <div>
+                          <div className="font-bold text-gray-900 dark:text-white text-sm">
+                            {user.firstName} {user.lastName}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-0.5">ID: {user._id.slice(-6).toUpperCase()}</div>
                         </div>
                       </div>
-                      <div className="mt-4">
-                        <h3 className="text-base font-bold text-gray-900 dark:text-white">{user.firstName} {user.lastName}</h3>
-                        <p className="mt-0.5 text-xs font-semibold text-brand-600 dark:text-brand-400">
-                          {user.roleId?.displayName || user.roleId?.name || "Team Member"}
-                        </p>
-                        {user.departmentId && (
-                          <p className="mt-1.5 flex items-center gap-1.5 text-xs text-gray-400">
-                            <Building2 size={11} />{user.departmentId.departmentName || user.departmentId.name}
-                          </p>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                          <Mail size={14} className="text-gray-400" />
+                          <a href={`mailto:${user.email}`} className="hover:text-brand-600 transition-colors">{user.email}</a>
+                        </div>
+                        {user.phone && (
+                          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                            <Phone size={14} className="text-gray-400" />
+                            <a href={`tel:${user.phone}`} className="hover:text-brand-600 transition-colors">{user.phone}</a>
+                          </div>
                         )}
                       </div>
-                      <div className="my-4 h-px bg-gray-100 dark:bg-gray-800" />
-                      <a href={`mailto:${user.email}`} className="mb-4 flex items-center gap-2 text-xs text-gray-500 transition-colors hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400">
-                        <Mail size={12} /><span className="truncate">{user.email}</span>
-                      </a>
-                      <ContactActions user={user} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          ))}
-
-          {/* Grid View */}
-          {viewMode === "grid" && (
-            <div className="space-y-8">
-              {sortedLetters.map(letter => (
-                <section key={letter}>
-                  <div className="mb-4 flex items-center gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-brand-200 bg-brand-50 text-sm font-black text-brand-600 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400">
-                      {letter}
-                    </div>
-                    <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
-                    <span className="text-xs text-gray-400">{grouped[letter].length}</span>
-                  </div>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                    {grouped[letter].map(user => (
-                      <div key={user._id} className="group flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-3.5 transition-all duration-200 hover:border-brand-300 hover:shadow-lg hover:shadow-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-brand-800">
-                        <Avatar user={user} size="md" />
-                        <div className="min-w-0 flex-1">
-                          <h4 className="truncate text-sm font-semibold text-gray-900 dark:text-white">{user.firstName} {user.lastName}</h4>
-                          <p className="truncate text-xs text-gray-500 dark:text-gray-400">{user.roleId?.displayName || user.roleId?.name || "Member"}</p>
-                        </div>
-                        <ContactActions user={user} compact />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col items-start gap-1.5">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400 border border-brand-100 dark:border-brand-500/20">
+                          {user.roleId?.displayName || user.roleId?.name || "Employee"}
+                        </span>
+                        {user.departmentId && (
+                          <span className="text-xs text-gray-500 flex items-center gap-1">
+                            <Building2 size={12} /> {user.departmentId.departmentName || user.departmentId.name}
+                          </span>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </div>
-          )}
-
-          {/* Table View */}
-          {viewMode === "table" && (
-            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-              <div className="overflow-x-auto">
-                <table className="min-w-full">
-                  <thead>
-                    <tr className="border-b border-gray-100 bg-gray-50/80 dark:border-gray-800 dark:bg-gray-800/50">
-                      <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-widest text-gray-400">Contact</th>
-                      <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-widest text-gray-400">Role</th>
-                      <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-widest text-gray-400">Dept / Team</th>
-                      <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-widest text-gray-400">Email</th>
-                      <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-widest text-gray-400">Phone</th>
-                      <th className="px-5 py-4 text-right text-xs font-bold uppercase tracking-widest text-gray-400">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {sortedLetters.map(letter => (
-                      <React.Fragment key={letter}>
-                        <tr>
-                          <td colSpan={6} className="bg-gradient-to-r from-brand-50/80 to-transparent px-5 py-2.5 dark:from-brand-500/5">
-                            <span className="text-xs font-black tracking-widest text-brand-500 dark:text-brand-400">{letter}</span>
-                          </td>
-                        </tr>
-                        {grouped[letter].map(user => (
-                          <tr key={user._id} className="transition-colors hover:bg-gray-50 dark:hover:bg-white/[0.02]">
-                            <td className="whitespace-nowrap px-5 py-4">
-                              <div className="flex items-center gap-3">
-                                <Avatar user={user} size="sm" />
-                                <span className="text-sm font-semibold text-gray-900 dark:text-white">{user.firstName} {user.lastName}</span>
-                              </div>
-                            </td>
-                            <td className="whitespace-nowrap px-5 py-4 text-sm font-semibold text-brand-600 dark:text-brand-400">{user.roleId?.displayName || user.roleId?.name || "—"}</td>
-                            <td className="whitespace-nowrap px-5 py-4">
-                              <div className="flex flex-col gap-0.5 text-xs">
-                                {user.departmentId && <span className="flex items-center gap-1 text-gray-600 dark:text-gray-400"><Building2 size={11} />{user.departmentId.departmentName || user.departmentId.name}</span>}
-                                {user.teamId && <span className="flex items-center gap-1 text-gray-400"><Users size={11} />{user.teamId.name}</span>}
-                              </div>
-                            </td>
-                            <td className="whitespace-nowrap px-5 py-4"><a href={`mailto:${user.email}`} className="text-sm text-gray-600 transition-colors hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400">{user.email}</a></td>
-                            <td className="whitespace-nowrap px-5 py-4">
-                              {user.phone
-                                ? <a href={`tel:${user.phone}`} className="text-sm text-gray-600 transition-colors hover:text-emerald-600 dark:text-gray-400 dark:hover:text-emerald-400">{user.phone}</a>
-                                : <span className="text-sm text-gray-300 dark:text-gray-600">—</span>}
-                            </td>
-                            <td className="whitespace-nowrap px-5 py-4 text-right"><ContactActions user={user} compact /></td>
-                          </tr>
-                        ))}
-                      </React.Fragment>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="border-t border-gray-100 px-5 py-3.5 dark:border-gray-800">
-                <p className="text-xs text-gray-400">
-                  Showing <span className="font-bold text-gray-700 dark:text-gray-200">{filtered.length}</span> of <span className="font-bold text-gray-700 dark:text-gray-200">{users.length}</span> contacts
-                </p>
-              </div>
-            </div>
-          )}
-
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                        user.isActive !== false 
+                          ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-500/10 dark:text-green-400 dark:border-green-500/20" 
+                          : "bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700"
+                      }`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${user.isActive !== false ? "bg-green-500" : "bg-gray-400"}`}></span>
+                        {user.isActive !== false ? "Active" : "Offline"}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <a href={`mailto:${user.email}`} className="h-9 w-9 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:text-brand-600 hover:border-brand-300 dark:hover:border-brand-600 shadow-sm transition-all">
+                          <Mail size={16} />
+                        </a>
+                        {user.phone && (
+                          <a href={`tel:${user.phone}`} className="h-9 w-9 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:text-emerald-600 hover:border-emerald-300 dark:hover:border-emerald-600 shadow-sm transition-all">
+                            <Phone size={16} />
+                          </a>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
+
       )}
     </div>
   );
 }
-
-
