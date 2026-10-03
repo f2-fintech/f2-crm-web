@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
-import { Search, Send, User, MoreVertical, Phone, Video, MessageSquare } from "lucide-react";
+import { Search, Send, User, MoreVertical, Phone, Video, MessageSquare, CheckCheck, Check, Smile, Paperclip, Mic } from "lucide-react";
 import api from "@/lib/axios";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -12,6 +12,9 @@ interface IUser {
   profileImage?: string;
   roleId?: { displayName?: string; name?: string };
   isOnline?: boolean;
+  lastMessage?: string;
+  lastMessageAt?: string;
+  unreadCount?: number;
 }
 
 interface IMessage {
@@ -20,10 +23,31 @@ interface IMessage {
   receiverId: string;
   text: string;
   createdAt: string;
+  isRead?: boolean;
 }
 
 const initials = (f?: string, l?: string) =>
   `${f?.[0] ?? ""}${l?.[0] ?? ""}`.toUpperCase() || "?";
+
+const formatChatDate = (dateString?: string) => {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  const now = new Date();
+  
+  const isToday = date.getDate() === now.getDate() && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+  
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const isYesterday = date.getDate() === yesterday.getDate() && date.getMonth() === yesterday.getMonth() && date.getFullYear() === yesterday.getFullYear();
+  
+  if (isToday) {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } else if (isYesterday) {
+    return 'Yesterday';
+  } else {
+    return date.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+};
 
 export default function ChatPage() {
   const [users, setUsers] = useState<IUser[]>([]);
@@ -40,13 +64,49 @@ export default function ChatPage() {
     const fetchUsers = async () => {
       try {
         setLoading(true);
-        const { data } = await api.get("/users", { params: { limit: 100 } });
-        const list = Array.isArray(data) ? data : data.data || [];
-        // Simulate online status for UI demonstration
-        const withOnlineStatus = list.map((u: any, idx: number) => ({
-          ...u,
-          isOnline: idx % 3 !== 0 // Mock: some are online, some are offline
-        }));
+        const [{ data: usersData }, { data: summaryData }] = await Promise.all([
+          api.get("/users", { params: { limit: 100 } }),
+          api.get("/chat/summary").catch(() => ({ data: {} }))
+        ]);
+        
+        const list = Array.isArray(usersData) ? usersData : usersData.data || [];
+        const summary = summaryData || {};
+        
+        // Simple presence logic: Consider online if lastLogin was within the last 30 minutes
+        const now = Date.now();
+        const thirtyMins = 30 * 60 * 1000;
+        
+        const withOnlineStatus = list.map((u: any) => {
+          let isOnline = false;
+          if (u.lastLogin) {
+            const lastLoginTime = new Date(u.lastLogin).getTime();
+            if (now - lastLoginTime < thirtyMins) {
+              isOnline = true;
+            }
+          }
+          // Fallback to ensuring the current logged-in user isn't marked offline if they just logged in
+          if (user && (u.id === user.id || u._id === user.id)) {
+            isOnline = true;
+          }
+          
+          const chatInfo = summary[u._id] || {};
+          return { 
+            ...u, 
+            isOnline,
+            lastMessage: chatInfo.lastMessage || "",
+            lastMessageAt: chatInfo.lastMessageAt || "",
+            unreadCount: chatInfo.unreadCount || 0
+          };
+        });
+        
+        // Sort users: those with recent messages first
+        withOnlineStatus.sort((a: any, b: any) => {
+          if (!a.lastMessageAt && !b.lastMessageAt) return 0;
+          if (!a.lastMessageAt) return 1;
+          if (!b.lastMessageAt) return -1;
+          return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime();
+        });
+
         setUsers(withOnlineStatus);
       } catch (err) {
         console.error("Failed to load chat users", err);
@@ -55,7 +115,7 @@ export default function ChatPage() {
       }
     };
     fetchUsers();
-  }, []);
+  }, [user?.id, user?._id]);
 
   const fetchMessages = async (targetId: string) => {
     try {
@@ -175,12 +235,26 @@ export default function ChatPage() {
                   )}
                 </div>
                 <div className="flex-1 text-left">
-                  <h4 className="text-sm font-medium text-gray-900 dark:text-white line-clamp-1">
-                    {user.firstName} {user.lastName}
-                  </h4>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
-                    {user.roleId?.displayName || user.roleId?.name || "Member"}
-                  </p>
+                  <div className="flex justify-between items-center mb-0.5">
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white line-clamp-1">
+                      {user.firstName} {user.lastName}
+                    </h4>
+                    {user.lastMessageAt && (
+                      <span className="text-[10px] text-gray-400 shrink-0 ml-2">
+                        {formatChatDate(user.lastMessageAt)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <p className={`text-xs line-clamp-1 pr-2 ${user.unreadCount ? 'text-gray-900 dark:text-white font-medium' : 'text-gray-500 dark:text-gray-400'}`}>
+                      {user.lastMessage ? user.lastMessage : <span className="capitalize">{((user as any).role || user.roleId?.displayName || user.roleId?.name || "Member").toLowerCase().replace('_', ' ')}</span>}
+                    </p>
+                    {!!user.unreadCount && (
+                      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-brand-500 text-[10px] font-bold text-white">
+                        {user.unreadCount > 99 ? '99+' : user.unreadCount}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </button>
             ))
@@ -224,53 +298,95 @@ export default function ChatPage() {
             </div>
 
             {/* Messages */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 bg-gray-50/50 dark:bg-gray-900/50 space-y-4">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 bg-[#efeae2] dark:bg-[#0b141a] space-y-3 relative" style={{ backgroundImage: 'url("https://web.whatsapp.com/img/bg-chat-tile-dark_a4be512e7195b6b733d9110b408f075d.png")', backgroundSize: '400px', backgroundBlendMode: 'overlay' }}>
               {messages.length === 0 ? (
-                <div className="flex h-full items-center justify-center flex-col text-gray-400">
-                  <User size={48} className="mb-4 opacity-20" />
-                  <p className="text-sm">Start a conversation with {activeUser.firstName}</p>
+                <div className="flex h-full items-center justify-center flex-col text-gray-500">
+                  <div className="bg-white/80 dark:bg-gray-800/80 px-4 py-2 rounded-lg text-sm text-center max-w-sm backdrop-blur-sm shadow-sm">
+                    Messages are end-to-end encrypted. No one outside of this chat, not even the CRM, can read or listen to them.
+                  </div>
                 </div>
               ) : (
-                messages.map((msg) => {
+                messages.map((msg, index) => {
                   const isMe = msg.senderId === (user?.id || user?._id);
+                  const msgDate = new Date(msg.createdAt).toLocaleDateString();
+                  const prevMsgDate = index > 0 ? new Date(messages[index - 1].createdAt).toLocaleDateString() : null;
+                  const showDateDivider = msgDate !== prevMsgDate;
+                  
+                  let dateLabel = msgDate;
+                  if (msgDate === new Date().toLocaleDateString()) dateLabel = "TODAY";
+                  else {
+                    const yesterday = new Date();
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    if (msgDate === yesterday.toLocaleDateString()) dateLabel = "YESTERDAY";
+                  }
+                  
                   return (
-                    <div key={msg._id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
-                      <div
-                        className={`max-w-[70%] rounded-2xl px-4 py-2.5 text-sm shadow-sm ${
-                          isMe
-                            ? "bg-brand-500 text-white rounded-tr-sm"
-                            : "bg-white text-gray-800 border border-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 rounded-tl-sm"
-                        }`}
-                      >
-                        {msg.text}
-                        <div className={`text-[10px] mt-1 text-right ${isMe ? "text-brand-100" : "text-gray-400"}`}>
-                          {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    <React.Fragment key={msg._id}>
+                      {showDateDivider && (
+                        <div className="flex justify-center my-4">
+                          <span className="bg-white/90 dark:bg-[#182229]/90 text-gray-500 dark:text-gray-400 text-xs px-3 py-1 rounded-lg shadow-sm backdrop-blur-sm uppercase font-medium">
+                            {dateLabel}
+                          </span>
+                        </div>
+                      )}
+                      <div className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
+                        <div
+                          className={`max-w-[75%] rounded-lg px-2.5 py-1.5 text-[15px] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] relative group ${
+                            isMe
+                              ? "bg-[#d9fdd3] text-[#111b21] dark:bg-[#005c4b] dark:text-[#e9edef] rounded-tr-none"
+                              : "bg-white text-[#111b21] dark:bg-[#202c33] dark:text-[#e9edef] rounded-tl-none"
+                          }`}
+                        >
+                          <div className="pr-14 pb-0.5 whitespace-pre-wrap break-words">{msg.text}</div>
+                          <div className="absolute right-2 bottom-1 flex items-center gap-1">
+                            <span className="text-[10px] text-gray-500 dark:text-gray-400/80">
+                              {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
+                            </span>
+                            {isMe && (
+                              <span className="text-[#53bdeb]">
+                                {msg.isRead !== false ? <CheckCheck size={14} /> : <Check size={14} className="text-gray-400" />}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    </React.Fragment>
                   );
                 })
               )}
             </div>
 
             {/* Input Area */}
-            <div className="border-t border-gray-200 p-4 dark:border-gray-800 bg-white dark:bg-gray-900">
-              <form onSubmit={handleSendMessage} className="flex items-center gap-2 relative">
+            <div className="bg-[#f0f2f5] dark:bg-[#202c33] px-4 py-3 flex items-center gap-3">
+              <button className="text-gray-500 dark:text-gray-400 hover:text-gray-600 transition-colors p-1">
+                <Smile size={24} />
+              </button>
+              <button className="text-gray-500 dark:text-gray-400 hover:text-gray-600 transition-colors p-1">
+                <Paperclip size={24} />
+              </button>
+              
+              <form onSubmit={handleSendMessage} className="flex-1 relative flex items-center">
                 <input
                   type="text"
-                  placeholder="Type your message..."
+                  placeholder="Type a message"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  className="flex-1 rounded-full border border-gray-200 bg-gray-50 py-2.5 pl-4 pr-12 text-sm text-gray-800 outline-none focus:border-brand-500 focus:bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:focus:border-brand-500"
+                  className="w-full rounded-lg bg-white dark:bg-[#2a3942] py-2.5 pl-4 pr-4 text-[15px] text-gray-800 dark:text-white outline-none placeholder:text-gray-500 shadow-sm"
                 />
-                <button
-                  type="submit"
-                  disabled={!input.trim()}
-                  className="absolute right-2 flex h-8 w-8 items-center justify-center rounded-full bg-brand-500 text-white transition-colors hover:bg-brand-600 disabled:opacity-50"
-                >
-                  <Send size={14} className="ml-0.5" />
-                </button>
               </form>
+              
+              {input.trim() ? (
+                <button
+                  onClick={handleSendMessage}
+                  className="text-gray-500 dark:text-gray-400 hover:text-brand-500 p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <Send size={24} className="text-[#00a884]" />
+                </button>
+              ) : (
+                <button className="text-gray-500 dark:text-gray-400 hover:text-gray-600 p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                  <Mic size={24} />
+                </button>
+              )}
             </div>
           </>
         ) : (

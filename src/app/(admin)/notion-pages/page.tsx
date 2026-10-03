@@ -36,6 +36,7 @@ import {
 import {
   Activity,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Clock,
   FileText,
@@ -199,6 +200,7 @@ export default function NotionPagesClientPage() {
   const [loadingPage, setLoadingPage] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [pageMenuAnchor, setPageMenuAnchor] = useState<null | HTMLElement>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   // Pagination
   const [page, setPage] = useState(0);
@@ -408,6 +410,7 @@ export default function NotionPagesClientPage() {
     setSelectedPageId(pageId);
     setSearchQuery("");
     setLoadingPage(true);
+    setIsSidebarOpen(false); // Auto-hide sidebar when a page is selected
     try {
       await fetchPageDetails(pageId);
     } finally {
@@ -759,7 +762,7 @@ export default function NotionPagesClientPage() {
     <Box
       sx={{
         display: "flex",
-        height: "100vh",
+        height: "calc(100vh - 144px)",
         bgcolor: c.bg,
         fontFamily: FONT_SANS,
         color: c.textMain,
@@ -773,11 +776,11 @@ export default function NotionPagesClientPage() {
         id="notion-sidebar"
         component="nav"
         sx={{
-          width: 264,
+          width: { xs: "100%", md: 264 },
           flexShrink: 0,
           bgcolor: c.sidebarBg,
-          borderRight: `1px solid ${c.border}`,
-          display: { xs: "none", md: "flex" },
+          borderRight: { md: `1px solid ${c.border}` },
+          display: isSidebarOpen ? "flex" : "none",
           flexDirection: "column",
         }}
       >
@@ -859,11 +862,9 @@ export default function NotionPagesClientPage() {
           {treeData?.shared?.length ? (
             renderTreeNodes(treeData.shared)
           ) : (
-            <Skeleton
-              variant="rounded"
-              height={22}
-              sx={{ mx: 2, mb: 0.75, bgcolor: c.hover }}
-            />
+            <Typography sx={{ px: 2, fontSize: "12.5px", color: c.textFaint }}>
+              Nothing here yet
+            </Typography>
           )}
 
           <Box sx={{ mt: 2.5 }}>
@@ -925,7 +926,7 @@ export default function NotionPagesClientPage() {
       <Box
         id="notion-main-view"
         onScroll={(e) => setScrolled((e.target as HTMLElement).scrollTop > 4)}
-        sx={{ flexGrow: 1, display: "flex", flexDirection: "column", overflowY: "auto" }}
+        sx={{ flexGrow: 1, display: "flex", flexDirection: "column", overflowY: "auto", width: isSidebarOpen ? { xs: "none", md: "calc(100% - 264px)" } : "100%" }}
       >
         {/* Topbar */}
         <Stack
@@ -946,6 +947,14 @@ export default function NotionPagesClientPage() {
             direction="row"
             sx={{ alignItems: "center", gap: 0.75, color: c.textMuted, minWidth: 0, overflow: "hidden" }}
           >
+            {!isSidebarOpen && (
+              <IconButton
+                sx={{ mr: 1, p: 0.5 }}
+                onClick={() => setIsSidebarOpen(true)}
+              >
+                <ChevronRight size={18} />
+              </IconButton>
+            )}
             {breadcrumbs.length > 0 ? (
               breadcrumbs.map((crumb, idx) => (
                 <React.Fragment key={crumb.id || crumb._id}>
@@ -984,6 +993,7 @@ export default function NotionPagesClientPage() {
                             setSelectedPageId(id);
                             setSearchQuery("");
                             setLoadingPage(true);
+                            setIsSidebarOpen(false);
                             fetchPageDetails(id).finally(() => setLoadingPage(false));
                           }
                         }
@@ -1004,7 +1014,7 @@ export default function NotionPagesClientPage() {
                   )}
                 </React.Fragment>
               ))
-            ) : (
+            ) : selectedPageId ? (
               <>
                 <Typography
                   noWrap
@@ -1022,6 +1032,19 @@ export default function NotionPagesClientPage() {
                   {selectedPageTitle}
                 </Typography>
               </>
+            ) : (
+              <Typography
+                noWrap
+                sx={{
+                  fontSize: "13px",
+                  px: 0.5,
+                  borderRadius: "4px",
+                  color: c.textMain,
+                  fontWeight: 500
+                }}
+              >
+                {workspaceName}
+              </Typography>
             )}
           </Stack>
 

@@ -31,7 +31,7 @@ export default function AdminLayout({
   className={`flex-1 min-w-0 transition-all duration-300 ease-in-out ${mainContentMargin}`}
 >
         <AppHeader />
-        <div className="p-4 pb-16 mx-auto max-w-(--breakpoint-2xl) md:p-6 md:pb-16">
+        <div className="p-2.5 sm:p-4 pb-16 mx-auto max-w-(--breakpoint-2xl) md:p-6 md:pb-16">
           <RoleGuard>
             {children}
           </RoleGuard>

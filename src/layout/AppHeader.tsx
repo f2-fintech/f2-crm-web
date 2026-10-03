@@ -71,7 +71,6 @@ function IconButton({
 }
 
 const AppHeader: React.FC = () => {
-  const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false);
   const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
   const pathname = usePathname();
   const pageTitle = getPageTitle(pathname);
@@ -82,10 +81,6 @@ const AppHeader: React.FC = () => {
     } else {
       toggleMobileSidebar();
     }
-  };
-
-  const toggleApplicationMenu = () => {
-    setApplicationMenuOpen(!isApplicationMenuOpen);
   };
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -136,28 +131,10 @@ const AppHeader: React.FC = () => {
           <h1 className="hidden text-xl font-semibold text-gray-800 sm:block">
             {pageTitle}
           </h1>
-
-          <button
-            onClick={toggleApplicationMenu}
-            className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-700 transition-colors hover:bg-gray-100 lg:hidden"
-            aria-label="Toggle header menu"
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M5.99902 10.4951C6.82745 10.4951 7.49902 11.1667 7.49902 11.9951V12.0051C7.49902 12.8335 6.82745 13.5051 5.99902 13.5051C5.1706 13.5051 4.49902 12.8335 4.49902 12.0051V11.9951C4.49902 11.1667 5.1706 10.4951 5.99902 10.4951ZM17.999 10.4951C18.8275 10.4951 19.499 11.1667 19.499 11.9951V12.0051C19.499 12.8335 18.8275 13.5051 17.999 13.5051C17.1706 13.5051 16.499 12.8335 16.499 12.0051V11.9951C16.499 11.1667 17.1706 10.4951 17.999 10.4951ZM13.499 11.9951C13.499 11.1667 12.8275 10.4951 11.999 10.4951C11.1706 10.4951 10.499 11.1667 10.499 11.9951V12.0051C10.499 12.8335 11.1706 13.5051 11.999 13.5051C12.8275 13.5051 13.499 12.8335 13.499 12.0051V11.9951Z"
-                fill="currentColor"
-              />
-            </svg>
-          </button>
         </div>
 
         {/* Right: search + quick create + utility icons + avatar + apps */}
-        <div
-          className={`${isApplicationMenuOpen ? "flex" : "hidden"
-            } w-full items-center justify-end gap-2 sm:gap-3 lg:flex lg:w-auto`}
-        >
+        <div className="flex items-center justify-end gap-1.5 sm:gap-3 w-auto">
           <div className="relative hidden md:block">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
@@ -185,36 +162,46 @@ const AppHeader: React.FC = () => {
 
           <NotificationDropdown />
 
-          <Link href="/calendar">
-            <IconButton title="Calendar">
-              <Calendar className="h-[18px] w-[18px]" />
+          <div className="hidden sm:block">
+            <Link href="/calendar">
+              <IconButton title="Calendar">
+                <Calendar className="h-[18px] w-[18px]" />
+              </IconButton>
+            </Link>
+          </div>
+
+          <div className="hidden sm:block">
+            <IconButton title="Assistant">
+              <Bot className="h-[18px] w-[18px]" />
             </IconButton>
-          </Link>
+          </div>
 
-          <IconButton title="Assistant">
-            <Bot className="h-[18px] w-[18px]" />
-          </IconButton>
+          <div className="hidden sm:flex">
+            <button
+              id="start-tour-btn"
+              title="Help / Guide"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
+              onClick={() => window.dispatchEvent(new Event('start-guide-tour'))}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            </button>
+          </div>
 
-          <button
-            id="start-tour-btn"
-            title="Help / Guide"
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
-            onClick={() => window.dispatchEvent(new Event('start-guide-tour'))}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-          </button>
-
-          <IconButton title="Settings">
-            <Settings className="h-[18px] w-[18px]" />
-          </IconButton>
+          <div className="hidden sm:block">
+            <IconButton title="Settings">
+              <Settings className="h-[18px] w-[18px]" />
+            </IconButton>
+          </div>
 
           <UserDropdown />
 
           <div className="hidden h-6 w-px bg-gray-200 sm:block" />
 
-          <IconButton title="Apps">
-            <Grid3x3 className="h-[18px] w-[18px]" />
-          </IconButton>
+          <div className="hidden sm:block">
+            <IconButton title="Apps">
+              <Grid3x3 className="h-[18px] w-[18px]" />
+            </IconButton>
+          </div>
         </div>
       </div>
     </header>
