@@ -22,6 +22,7 @@ interface UserProfile {
     _id: string;
     displayName: string;
   };
+  role?: string;
 }
 
 const getInitials = (firstName?: string, lastName?: string) => {
@@ -125,8 +126,8 @@ export default function UserMetaCard() {
         <h2 className="text-xl font-bold text-gray-900 dark:text-white text-center">
           {user.firstName} {user.lastName}
         </h2>
-        <p className="text-sm font-medium text-brand-600 dark:text-brand-400 mt-1 mb-4 text-center">
-          {user.roleId?.displayName || "User"}
+        <p className="text-sm font-medium text-brand-600 dark:text-brand-400 mt-1 mb-4 text-center capitalize">
+          {user.role ? String(user.role).toLowerCase().replace('_', ' ') : (user.roleId?.displayName || "User")}
         </p>
         
         <div className="flex items-center gap-2 mb-6">

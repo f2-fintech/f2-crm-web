@@ -1,6 +1,7 @@
 "use client";
 
 import { GridColDef } from "@mui/x-data-grid";
+import { Box } from "@mui/material";
 import StatusChip from "../chips/StatusChip";
 import PriorityChip from "../chips/PriorityChip";
 import SourceChip from "../chips/SourceChip";
@@ -64,6 +65,21 @@ export const getLeadColumns = (handlers?: {
     width: 130,
     renderCell: ({ value }) => (
       <PriorityChip priority={value} />
+    ),
+  },
+
+  {
+    field: "kycStatus",
+    headerName: "KYC Status",
+    width: 140,
+    renderCell: ({ value }) => (
+      <Box sx={{
+        px: 1, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 600,
+        bgcolor: value === 'VERIFIED' ? '#D1FAE5' : value === 'REJECTED' ? '#FEE2E2' : '#FEF3C7',
+        color: value === 'VERIFIED' ? '#065F46' : value === 'REJECTED' ? '#991B1B' : '#92400E'
+      }}>
+        {value || 'PENDING'}
+      </Box>
     ),
   },
 
