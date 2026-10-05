@@ -168,7 +168,7 @@ export default function NotionPagesClientPage() {
 
   const handleExportData = () => {
     if (!activePage || !activePage.rows || !activePage.columns) return;
-    const headers = ["#", ...activePage.columns.map((c: any) => c.name), "Remarks"];
+    const headers = ["#", ...activePage.columns.map((c: any) => c.name), "Disposition", "Remarks"];
     const csvRows = [headers.join(",")];
     activePage.rows.forEach((row: any, i: number) => {
       const rowData = [
@@ -180,6 +180,7 @@ export default function NotionPagesClientPage() {
           }
           return val;
         }),
+        `"${row.disposition || ""}"`,
         `"${row.feedback_notes || ""}"`
       ];
       csvRows.push(rowData.join(","));
@@ -487,26 +488,72 @@ export default function NotionPagesClientPage() {
     const firstParts = split(lines[0]);
     let startIndex = 0;
 
+    let dispositionIndex = -1;
+    let remarksIndex = -1;
+    const ignoredIndices = new Set<number>();
+
+    let isHeaderRow = false;
     if (finalColumns.length === 0) {
-      finalColumns = firstParts.map((header, idx) => ({
-        key: `col_${idx}`,
-        name: header.trim() || `Column ${idx + 1}`,
-        type: "text",
-      }));
-      startIndex = 1;
+      isHeaderRow = true;
     } else if (
-      firstParts[0]?.trim().toLowerCase() ===
-      finalColumns[0]?.name?.toLowerCase()
+      firstParts[0]?.trim().toLowerCase() === finalColumns[0]?.name?.toLowerCase() ||
+      firstParts[0]?.trim() === "#"
     ) {
+      isHeaderRow = true;
+    }
+
+    if (isHeaderRow) {
       startIndex = 1;
+      if (finalColumns.length === 0) {
+        firstParts.forEach((headerRaw, idx) => {
+          const header = headerRaw.trim();
+          const headerLower = header.toLowerCase();
+          if (headerLower === "disposition") dispositionIndex = idx;
+          else if (headerLower === "remarks" || headerLower === "feedback_notes") remarksIndex = idx;
+          else if (headerLower === "#") ignoredIndices.add(idx);
+          else {
+            finalColumns.push({
+              key: `col_${idx}`,
+              name: header || `Column ${idx + 1}`,
+              type: "text",
+            });
+          }
+        });
+      } else {
+        firstParts.forEach((headerRaw, idx) => {
+          const headerLower = headerRaw.trim().toLowerCase();
+          if (headerLower === "disposition") dispositionIndex = idx;
+          else if (headerLower === "remarks" || headerLower === "feedback_notes") remarksIndex = idx;
+          else if (headerLower === "#") ignoredIndices.add(idx);
+        });
+      }
     }
 
     const newRows = lines.slice(startIndex).map((line, rowIndex) => {
       const parts = split(line);
       const rowObj: any = { id: `row_${Date.now()}_${rowIndex}` };
-      finalColumns.forEach((col, idx) => {
-        rowObj[col.key] = parts[idx]?.trim() || "";
-      });
+      
+      if (isHeaderRow) {
+        // Read data using the mapped indices
+        finalColumns.forEach((col) => {
+          // find the idx in firstParts for this col key
+          const colIdx = parseInt(col.key.split('_')[1]);
+          if (!isNaN(colIdx) && parts[colIdx] !== undefined) {
+            rowObj[col.key] = parts[colIdx]?.trim() || "";
+          }
+        });
+        if (dispositionIndex !== -1 && parts[dispositionIndex] !== undefined) {
+          rowObj.disposition = parts[dispositionIndex]?.trim() || "";
+        }
+        if (remarksIndex !== -1 && parts[remarksIndex] !== undefined) {
+          rowObj.feedback_notes = parts[remarksIndex]?.trim() || "";
+        }
+      } else {
+        // No headers, just map sequentially to finalColumns
+        finalColumns.forEach((col, idx) => {
+          rowObj[col.key] = parts[idx]?.trim() || "";
+        });
+      }
       return rowObj;
     });
 
@@ -585,6 +632,30 @@ export default function NotionPagesClientPage() {
     } finally {
       savingRemarksRef.current.delete(rowIndex);
     }
+  };
+
+  const handleSaveDisposition = async (rowIndex: number, value: string) => {
+    if (!activePage || !selectedPageId) return;
+    
+    const updatedRows = [...activePage.rows];
+    const row = { ...updatedRows[rowIndex] };
+
+    if ((row.disposition || "") === value) return;
+
+    row.disposition = value;
+    updatedRows[rowIndex] = row;
+
+    try {
+      setActivePage({ ...activePage, rows: updatedRows });
+      await api.patch(`/notion-pages/${selectedPageId}`, {
+        rows: updatedRows,
+      });
+      notify("Disposition saved");
+    } catch (e) {
+      console.error(e);
+      notify("Couldn’t save disposition.", "error");
+      await fetchPageDetails(selectedPageId);
+    } 
   };
 
   /* ---------------- derived ---------------- */
@@ -1425,6 +1496,9 @@ export default function NotionPagesClientPage() {
                             )}
                           </TableCell>
                         ))}
+                        <TableCell sx={{ ...headCell, minWidth: 150, textAlign: "left" }}>
+                          Disposition
+                        </TableCell>
                         <TableCell
                           sx={{ ...headCell, minWidth: 200, textAlign: "left" }}
                         >
@@ -1442,6 +1516,9 @@ export default function NotionPagesClientPage() {
                                 <Skeleton variant="text" width={`${Math.random() * 40 + 40}%`} animation="wave" />
                               </TableCell>
                             ))}
+                            <TableCell sx={{ ...bodyCell, minWidth: 150 }}>
+                              <Skeleton variant="rectangular" width="100%" height={28} sx={{ borderRadius: 1 }} />
+                            </TableCell>
                             <TableCell sx={{ ...bodyCell, minWidth: 200 }}>
                               <Skeleton variant="text" width="80%" animation="wave" />
                             </TableCell>
@@ -1484,6 +1561,37 @@ export default function NotionPagesClientPage() {
                                 </TableCell>
                               );
                             })}
+
+                            <TableCell sx={{ ...bodyCell, textAlign: "left", py: 0.4 }}>
+                              <select
+                                value={row.disposition || ""}
+                                onChange={(e) => handleSaveDisposition(i, e.target.value)}
+                                disabled={!editable}
+                                style={{
+                                  width: "100%",
+                                  padding: "6px 8px",
+                                  borderRadius: "6px",
+                                  border: `1px solid ${c.border}`,
+                                  backgroundColor: c.sidebarBg,
+                                  color: c.textMain,
+                                  fontSize: "13px",
+                                  outline: "none",
+                                  cursor: editable ? "pointer" : "default"
+                                }}
+                              >
+                                <option value="" disabled>Select disposition...</option>
+                                <option value="Ringing">Ringing</option>
+                                <option value="Follow up">Follow up</option>
+                                <option value="Call cut">Call cut</option>
+                                <option value="Not interested">Not interested</option>
+                                <option value="Login">Login</option>
+                                <option value="Voice mail">Voice mail</option>
+                                <option value="Call back">Call back</option>
+                                <option value="Interested">Interested</option>
+                                <option value="Switch off">Switch off</option>
+                                <option value="Not connected">Not connected</option>
+                              </select>
+                            </TableCell>
 
                             <TableCell sx={{ ...bodyCell, textAlign: "left", py: 0.4 }}>
                               <InputBase

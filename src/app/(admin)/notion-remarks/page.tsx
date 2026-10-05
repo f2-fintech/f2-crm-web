@@ -64,7 +64,7 @@ export default function NotionAdminDashboard() {
     const teams = new Set<string>();
     let totalLeads = 0, positive = 0, negative = 0, neutral = 0, empty = 0;
     const teamMap: Record<string, { positive: number; negative: number; neutral: number; empty: number; total: number }> = {};
-    const allRemarks: { team: string; sheet: string; assignedTo: string; text: string; sentiment: string; lead: string }[] = [];
+    const allRemarks: { team: string; sheet: string; assignedTo: string; text: string; sentiment: string; lead: string; disposition: string }[] = [];
 
     pages.forEach(page => {
       teams.add(page.teamName);
@@ -79,9 +79,14 @@ export default function NotionAdminDashboard() {
       page.rows.forEach(row => {
         
         // Get the remark value
-        const remarkText = page.remarkColumnNames
+        let remarkText = page.remarkColumnNames
           .map(k => String(row[k] || ""))
           .find(v => v.trim() !== "") || "";
+          
+        const disposition = row.disposition || row.Disposition || "";
+        
+        // If they only have disposition, use it for sentiment calculation
+        const textToAnalyze = remarkText || disposition;
 
         // Get the lead name
         const leadName = Object.entries(row)
@@ -89,13 +94,13 @@ export default function NotionAdminDashboard() {
           .find(([k]) => k.toLowerCase().includes('name'))?.[1] 
           || `Lead #${row._rowId?.slice(-4) || '?'}`;
 
-        const sentiment = classifyRemark(remarkText);
+        const sentiment = classifyRemark(textToAnalyze);
         if (sentiment === "positive") { positive++; teamMap[page.teamName].positive++; }
         else if (sentiment === "negative") { negative++; teamMap[page.teamName].negative++; }
         else if (sentiment === "neutral") { neutral++; teamMap[page.teamName].neutral++; }
 
-        if (remarkText) {
-          allRemarks.push({ team: page.teamName, sheet: page.title, assignedTo: page.assignedTo, text: remarkText, sentiment, lead: String(leadName) });
+        if (remarkText || disposition) {
+          allRemarks.push({ team: page.teamName, sheet: page.title, assignedTo: page.assignedTo, text: remarkText, sentiment, lead: String(leadName), disposition });
         }
       });
     });
@@ -371,8 +376,17 @@ export default function NotionAdminDashboard() {
                       <div className="flex justify-between items-start gap-4">
                         <div className="flex-grow">
                           <div className="font-semibold text-slate-800 text-sm mb-1">{r.lead}</div>
-                          <div className="text-slate-600 text-sm bg-white px-3 py-2 rounded-xl border border-slate-100 font-medium">
-                            "{r.text}"
+                          <div className="flex items-center gap-2 mb-2">
+                            {r.disposition && (
+                              <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-md border border-indigo-200">
+                                {r.disposition}
+                              </span>
+                            )}
+                            {r.text && (
+                              <div className="text-slate-600 text-sm bg-white px-3 py-1.5 rounded-xl border border-slate-100 font-medium">
+                                "{r.text}"
+                              </div>
+                            )}
                           </div>
                           <div className="flex items-center gap-3 mt-2 text-[11px] text-slate-400 font-semibold">
                             <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full border border-blue-100">{r.team}</span>
