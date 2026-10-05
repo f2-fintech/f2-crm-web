@@ -134,6 +134,10 @@ export default function NotionPagesClientPage() {
     setActivePage,
   } = useNotionPages();
 
+  useEffect(() => {
+    fetchTree();
+  }, [fetchTree]);
+
   const { user, role } = useAuth();
   const currentUser = user;
 

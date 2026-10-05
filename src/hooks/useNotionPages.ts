@@ -255,9 +255,8 @@ export default function useNotionPages() {
     }
   };
 
-  useEffect(() => {
-    fetchTree();
-  }, [fetchTree]);
+  // Removed automatic fetchTree on mount to prevent double calls. 
+  // Components should call fetchTree() manually if they need the tree on load.
 
   return {
     loading,
