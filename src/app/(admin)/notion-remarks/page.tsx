@@ -70,9 +70,13 @@ export default function NotionAdminDashboard() {
       teams.add(page.teamName);
       if (!teamMap[page.teamName]) teamMap[page.teamName] = { positive: 0, negative: 0, neutral: 0, empty: 0, total: 0 };
       
+      totalLeads += page.totalRows || 0;
+      teamMap[page.teamName].total += page.totalRows || 0;
+      
+      empty += page.remarksEmpty || 0;
+      teamMap[page.teamName].empty += page.remarksEmpty || 0;
+
       page.rows.forEach(row => {
-        totalLeads++;
-        teamMap[page.teamName].total++;
         
         // Get the remark value
         const remarkText = page.remarkColumnNames
@@ -89,7 +93,6 @@ export default function NotionAdminDashboard() {
         if (sentiment === "positive") { positive++; teamMap[page.teamName].positive++; }
         else if (sentiment === "negative") { negative++; teamMap[page.teamName].negative++; }
         else if (sentiment === "neutral") { neutral++; teamMap[page.teamName].neutral++; }
-        else { empty++; teamMap[page.teamName].empty++; }
 
         if (remarkText) {
           allRemarks.push({ team: page.teamName, sheet: page.title, assignedTo: page.assignedTo, text: remarkText, sentiment, lead: String(leadName) });
