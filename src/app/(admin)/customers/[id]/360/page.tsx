@@ -8,6 +8,7 @@ import {
   Clock, FileText, CheckCircle, AlertCircle, Calendar,
   ExternalLink, FileStack, MessageSquare
 } from 'lucide-react';
+import Client360Insights from './Client360Insights';
 
 export default function Client360Page() {
   const params = useParams();
@@ -186,6 +187,15 @@ export default function Client360Page() {
           ))}
         </div>
       </div>
+
+      {/* Insights Section */}
+      <Client360Insights
+        customer={customer}
+        lifecycleCurrent={lifecycleCurrent}
+        applications={applications}
+        followUps={followUps}
+        omsData={omsData}
+      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* LEFT COLUMN */}

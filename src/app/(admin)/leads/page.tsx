@@ -20,6 +20,8 @@ import LeadJourneyDialog from "@/components/leads/dialogs/LeadJourneyDialog";
 import useLeads from "@/hooks/useLeads";
 import useLeadFilters from "@/hooks/useLeadFilters";
 import useBulkUpload from "@/hooks/useBulkUpload";
+import LeadInsights from "./LeadInsights";
+import { useEffect } from "react";
 
 export default function LeadsPage() {
   const router = useRouter();
@@ -42,7 +44,14 @@ export default function LeadsPage() {
     setSearch,
     setPage,
     refresh,
+    getDashboardStats,
   } = useLeads();
+
+  const [stats, setStats] = useState<any>(null);
+
+  useEffect(() => {
+    getDashboardStats().then(data => setStats(data));
+  }, []);
 
   const filters = useLeadFilters();
 
@@ -55,7 +64,10 @@ export default function LeadsPage() {
       <Stack spacing={3}>
         {/* Dashboard */}
 
-        <DashboardCards />
+        <DashboardCards stats={stats} />
+
+        {/* Lead Insights */}
+        <LeadInsights insights={stats?.insights || []} />
 
         {/* Toolbar */}
 

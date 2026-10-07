@@ -1,4 +1,24 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import api from "@/lib/axios";
+import CustomerInsights from "./CustomerInsights";
+
 export default function CustomersPage() {
+  const [stats, setStats] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const { data } = await api.get("/customers/dashboard/stats");
+        setStats(data.data);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    fetchStats();
+  }, []);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -11,6 +31,8 @@ export default function CustomersPage() {
           </p>
         </div>
       </div>
+
+      <CustomerInsights insights={stats?.insights || []} />
 
       <div className="flex h-64 items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 dark:border-gray-800 dark:bg-white/[0.02]">
         <p className="text-gray-500 dark:text-gray-400">

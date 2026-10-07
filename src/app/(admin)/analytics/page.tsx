@@ -4,18 +4,15 @@ import React, { useState } from "react";
 import dynamic from "next/dynamic";
 import { Sparkles, TrendingUp, Users, Target, Activity, Calendar, Download } from "lucide-react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+import useDashboard from "@/hooks/useDashboard";
+import AgentAnalyticsInsights from "./AgentAnalyticsInsights";
 
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
 export default function AnalyticsPage() {
   const [timeRange, setTimeRange] = useState("This Month");
 
-  // Mock AI Insights
-  const aiInsights = [
-    { title: "Conversion Anomaly", text: "Home loan conversions dropped 12% in the last 48 hours compared to historical averages.", type: "warning" },
-    { title: "Peak Efficiency", text: "Agent processing time has decreased by 2.4 hours per application this week.", type: "success" },
-    { title: "Lead Source Prediction", text: "Organic social leads have a 45% higher probability to convert this quarter.", type: "info" }
-  ];
+  const { agentWorkload, loading } = useDashboard();
 
   // Chart 1: Revenue / Conversion Trend
   const trendOptions = {
@@ -86,26 +83,10 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* AI Insights Bar */}
-      <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-6 shadow-sm">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-md">
-            <Sparkles size={18} />
-          </div>
-          <h2 className="text-lg font-bold text-gray-900">Athena AI Insights</h2>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {aiInsights.map((insight, idx) => (
-            <div key={idx} className="flex gap-3 rounded-xl bg-white p-4 shadow-sm border border-gray-100">
-              <div className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${insight.type === 'warning' ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]' : insight.type === 'success' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]'}`} />
-              <div>
-                <h4 className="text-sm font-bold text-gray-900">{insight.title}</h4>
-                <p className="mt-1 text-xs text-gray-500 leading-relaxed">{insight.text}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* Agent Analytics Insights */}
+      {!loading && agentWorkload && (
+        <AgentAnalyticsInsights agentWorkload={agentWorkload} />
+      )}
 
       {/* Metric Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

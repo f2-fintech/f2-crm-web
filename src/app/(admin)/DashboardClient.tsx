@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import DashboardInsights from "./DashboardInsights";
 
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
@@ -163,6 +164,16 @@ export default function DashboardClient() {
           </div>
         </div>
       </div>
+
+      {/* Dashboard Insights */}
+      <DashboardInsights
+        pipeline={pipeline}
+        movement={movement}
+        stageAging={stageAging}
+        agentWorkload={agentWorkload}
+        slaData={slaData}
+        loading={loading}
+      />
 
       {/* Primary Metrics Grid */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
