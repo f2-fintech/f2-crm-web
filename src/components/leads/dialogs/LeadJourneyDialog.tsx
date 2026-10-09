@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Dialog, DialogContent, Box, Typography, CircularProgress, IconButton, Chip } from "@mui/material";
+import { Dialog, DialogContent, Box, Typography, CircularProgress, IconButton, Chip, Stack } from "@mui/material";
 import { X, UserCheck, MessageSquare, Briefcase, FileText, CheckCircle, Activity, Rocket } from "lucide-react";
 import api from "@/lib/axios";
 
@@ -24,7 +24,10 @@ export default function LeadJourneyDialog({ open, onClose, leadId }: LeadJourney
     setLoading(true);
     try {
       const res = await api.get(`/timeline/lead/${leadId}`);
-      if (res.data) {
+      if (res.data && res.data.success && Array.isArray(res.data.data)) {
+        setTimeline(res.data.data);
+        calculateMetrics(res.data.data);
+      } else if (Array.isArray(res.data)) {
         setTimeline(res.data);
         calculateMetrics(res.data);
       }
@@ -89,11 +92,11 @@ export default function LeadJourneyDialog({ open, onClose, leadId }: LeadJourney
 
       <DialogContent sx={{ p: 0, bgcolor: "#fcfcfd" }}>
         {loading ? (
-          <Box display="flex" justifyContent="center" alignItems="center" height={300}>
+          <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: 300 }}>
             <CircularProgress size={30} />
           </Box>
         ) : timeline.length === 0 ? (
-          <Box display="flex" justifyContent="center" alignItems="center" height={300}>
+          <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: 300 }}>
             <Typography color="text.secondary">No journey data available for this lead.</Typography>
           </Box>
         ) : (

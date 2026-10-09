@@ -36,6 +36,8 @@ interface LeadToolbarProps {
   onExport: () => void;
 
   onBulkUpload: () => void;
+
+  onSyncOms?: () => void;
 }
 
 export default function LeadToolbar({
@@ -46,6 +48,7 @@ export default function LeadToolbar({
   onFilter,
   onExport,
   onBulkUpload,
+  onSyncOms,
 }: LeadToolbarProps) {
   return (
     <Stack
@@ -142,6 +145,18 @@ export default function LeadToolbar({
           }
         >
           Bulk Upload
+        </Button>
+
+        <Button
+          variant="outlined"
+          startIcon={
+            <Refresh />
+          }
+          onClick={
+            onSyncOms
+          }
+        >
+          Sync OMS
         </Button>
 
         <Button

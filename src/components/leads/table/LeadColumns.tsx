@@ -9,6 +9,9 @@ import LeadRowActions from "./LeadRowActions";
 
 export const getLeadColumns = (handlers?: {
   onViewJourney?: (lead: any) => void;
+  onDelete?: (lead: any) => void;
+  onAssign?: (lead: any) => void;
+  onStatusChange?: (lead: any) => void;
 }): GridColDef[] => [
   {
     field: "leadId",
@@ -117,7 +120,13 @@ export const getLeadColumns = (handlers?: {
     sortable: false,
     filterable: false,
     renderCell: ({ row }) => (
-      <LeadRowActions lead={row} onViewJourney={handlers?.onViewJourney} />
+      <LeadRowActions 
+        lead={row} 
+        onViewJourney={handlers?.onViewJourney}
+        onDelete={handlers?.onDelete}
+        onAssign={handlers?.onAssign}
+        onStatusChange={handlers?.onStatusChange}
+      />
     ),
   },
 ];

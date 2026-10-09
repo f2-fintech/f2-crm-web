@@ -16,6 +16,8 @@ import LeadPagination from "@/components/leads/table/LeadPagination";
 import LeadFilters from "@/components/leads/filters/LeadFilters";
 import BulkUploadDialog from "@/components/leads/dialogs/BulkUploadDialog";
 import LeadJourneyDialog from "@/components/leads/dialogs/LeadJourneyDialog";
+import AssignLeadDialog from "@/components/leads/dialogs/AssignLeadDialog";
+import ChangeStatusDialog from "@/components/leads/dialogs/ChangeStatusDialog";
 
 import useLeads from "@/hooks/useLeads";
 import useLeadFilters from "@/hooks/useLeadFilters";
@@ -33,6 +35,9 @@ export default function LeadsPage() {
     useState(false);
 
   const [journeyLeadId, setJourneyLeadId] = useState<string | null>(null);
+  
+  const [assignLeadId, setAssignLeadId] = useState<string | null>(null);
+  const [statusLeadId, setStatusLeadId] = useState<string | null>(null);
 
   const {
     leads,
@@ -45,6 +50,7 @@ export default function LeadsPage() {
     setPage,
     refresh,
     getDashboardStats,
+    deleteLead,
   } = useLeads();
 
   const [stats, setStats] = useState<any>(null);
@@ -84,6 +90,16 @@ export default function LeadsPage() {
             setOpenUpload(true)
           }
           onRefresh={refresh}
+          onSyncOms={async () => {
+            try {
+              // Quick hack to show loading state if possible
+              await fetch('http://localhost:3001/api/leads/sync-oms', { method: 'POST' });
+              alert('OMS Leads synced successfully!');
+              refresh();
+            } catch (err) {
+              alert('Failed to sync OMS leads');
+            }
+          }}
         />
 
         {/* Table */}
@@ -96,6 +112,13 @@ export default function LeadsPage() {
           rowCount={total}
           onPaginationChange={() => {}}
           onViewJourney={(lead) => setJourneyLeadId(lead._id)}
+          onAssign={(lead) => setAssignLeadId(lead._id)}
+          onStatusChange={(lead) => setStatusLeadId(lead._id)}
+          onDelete={async (lead) => {
+            if (confirm(`Are you sure you want to delete lead ${lead.fullName}?`)) {
+              await deleteLead(lead._id);
+            }
+          }}
         />
 
         {/* Pagination */}
@@ -147,6 +170,30 @@ export default function LeadsPage() {
         onClose={() => setJourneyLeadId(null)}
         leadId={journeyLeadId}
       />
+
+      {assignLeadId && (
+        <AssignLeadDialog
+          open={!!assignLeadId}
+          onClose={() => setAssignLeadId(null)}
+          leadId={assignLeadId}
+          onSuccess={() => {
+            setAssignLeadId(null);
+            refresh();
+          }}
+        />
+      )}
+
+      {statusLeadId && (
+        <ChangeStatusDialog
+          open={!!statusLeadId}
+          onClose={() => setStatusLeadId(null)}
+          leadId={statusLeadId}
+          onSuccess={() => {
+            setStatusLeadId(null);
+            refresh();
+          }}
+        />
+      )}
     </>
   );
 }

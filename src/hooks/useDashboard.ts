@@ -16,6 +16,7 @@ export default function useDashboard() {
   const [stageAging, setStageAging] = useState<any>(null);
   const [agentWorkload, setAgentWorkload] = useState<any>(null);
   const [agentActivity, setAgentActivity] = useState<any>(null);
+  const [volumeForecast, setVolumeForecast] = useState<any>(null);
   
   const [slaData, setSlaData] = useState<any>(null);
   
@@ -30,14 +31,15 @@ export default function useDashboard() {
       if (!isBackground) setLoading(true);
       setError("");
 
-      const [dashRes, pipRes, moveRes, stageRes, agentRes, activityRes, slaRes] = await Promise.allSettled([
+      const [dashRes, pipRes, moveRes, stageRes, agentRes, activityRes, slaRes, volRes] = await Promise.allSettled([
         axios.get("/dashboard"),
         axios.get("/dashboard/pipeline"),
         axios.get("/dashboard/movement?timeframe=today"),
         axios.get("/dashboard/stage-aging"),
         axios.get("/dashboard/agent-workload"),
         axios.get("/dashboard/agent-activity?timeframe=today"),
-        axios.get("/dashboard/sla")
+        axios.get("/dashboard/sla"),
+        axios.get("/dashboard/volume-forecast")
       ]);
 
       if (dashRes.status === 'fulfilled') setDashboard(dashRes.value.data.data);
@@ -47,6 +49,7 @@ export default function useDashboard() {
       if (agentRes.status === 'fulfilled') setAgentWorkload(agentRes.value.data.data);
       if (activityRes.status === 'fulfilled') setAgentActivity(activityRes.value.data.data);
       if (slaRes.status === 'fulfilled') setSlaData(slaRes.value.data.data);
+      if (volRes.status === 'fulfilled') setVolumeForecast(volRes.value.data.data);
 
     } catch (err: any) {
       console.error(err);
@@ -74,6 +77,7 @@ export default function useDashboard() {
     agentWorkload,
     agentActivity,
     slaData,
+    volumeForecast,
     loading,
     error,
     refresh: () => loadData(false)

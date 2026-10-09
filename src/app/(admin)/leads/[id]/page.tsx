@@ -8,6 +8,9 @@ import { useState } from "react";
 import {
   Button,
   Stack,
+  Alert,
+  Card,
+  Box,
 } from "@mui/material";
 
 import {
@@ -26,6 +29,7 @@ import AssignLeadDialog from "@/components/leads/dialogs/AssignLeadDialog";
 import ChangeStatusDialog from "@/components/leads/dialogs/ChangeStatusDialog";
 import DeleteLeadDialog from "@/components/leads/dialogs/DeleteLeadDialog";
 
+import AiLeadSummary from "@/components/ai-assistant/AiLeadSummary";
 import useLeadDetails from "@/hooks/useLeadDetails";
 
 export default function LeadDetailsPage() {
@@ -55,115 +59,112 @@ export default function LeadDetailsPage() {
   }
 
   if (!lead) {
-    return <>Lead not found</>;
+    return (
+      <Stack spacing={2}>
+        <PageBreadcrumb pageTitle="Lead Details" />
+        <Alert severity="error">
+          Lead not found or may have been deleted.
+        </Alert>
+        <Button variant="outlined" startIcon={<ArrowBack />} onClick={() => router.push('/leads')} sx={{ alignSelf: 'flex-start' }}>
+          Back to Leads
+        </Button>
+      </Stack>
+    );
   }
 
   return (
     <>
       <PageBreadcrumb pageTitle="Lead Details" />
 
-      <Stack
-        direction="row"
-        spacing={2}
-        justifyContent="space-between"
-        alignItems="center"
-        sx={{ mb: 3 }}
+      <Card 
+        sx={{ 
+          mb: 3, 
+          p: 2, 
+          borderRadius: 3, 
+          background: 'linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%)',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.05)'
+        }}
       >
-        <Button
-          startIcon={<ArrowBack />}
-          variant="outlined"
-          onClick={() => router.back()}
+        <Stack
+          direction={{ xs: 'column', md: 'row' }}
+          spacing={2}
+          justifyContent="space-between"
+          alignItems={{ xs: 'stretch', md: 'center' }}
         >
-          Back
-        </Button>
-
-        <Stack direction="row" spacing={2}>
           <Button
-            startIcon={<Edit />}
-            variant="contained"
-            onClick={() =>
-              router.push(
-                `/leads/${id}/edit`,
-              )
-            }
+            startIcon={<ArrowBack />}
+            variant="text"
+            onClick={() => router.back()}
+            sx={{ fontWeight: 'bold', color: 'text.secondary', '&:hover': { background: 'rgba(0,0,0,0.05)' } }}
           >
-            Edit
+            Back
           </Button>
 
-          <Button
-            startIcon={
-              <AssignmentInd />
-            }
-            variant="outlined"
-            onClick={() =>
-              setAssignOpen(true)
-            }
-          >
-            Assign
-          </Button>
+          <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }} useFlexGap alignItems="center">
+            <AiLeadSummary leadId={id} />
 
-          <Button
-            startIcon={
-              <Autorenew />
-            }
-            variant="outlined"
-            onClick={() =>
-              setStatusOpen(true)
-            }
-          >
-            Change Status
-          </Button>
+            <Button
+              startIcon={<Edit />}
+              variant="contained"
+              onClick={() => router.push(`/leads/${id}/edit`)}
+              sx={{ borderRadius: 2, textTransform: 'none', boxShadow: '0 4px 12px rgba(25, 118, 210, 0.2)' }}
+            >
+              Edit Lead
+            </Button>
 
-          <Button
-            startIcon={<Delete />}
-            color="error"
-            variant="outlined"
-            onClick={() =>
-              setDeleteOpen(true)
-            }
-          >
-            Delete
-          </Button>
+            <Button
+              startIcon={<AssignmentInd />}
+              variant="outlined"
+              onClick={() => setAssignOpen(true)}
+              sx={{ borderRadius: 2, textTransform: 'none', bgcolor: 'white' }}
+            >
+              Assign
+            </Button>
+
+            <Button
+              startIcon={<Autorenew />}
+              variant="outlined"
+              onClick={() => setStatusOpen(true)}
+              sx={{ borderRadius: 2, textTransform: 'none', bgcolor: 'white' }}
+            >
+              Change Status
+            </Button>
+
+            <Button
+              startIcon={<Delete />}
+              color="error"
+              variant="outlined"
+              onClick={() => setDeleteOpen(true)}
+              sx={{ borderRadius: 2, textTransform: 'none', bgcolor: 'error.50', '&:hover': { bgcolor: 'error.100' } }}
+            >
+              Delete
+            </Button>
+          </Stack>
         </Stack>
-      </Stack>
+      </Card>
 
-      <LeadDetails lead={lead} />
+      <Box sx={{ width: '100%' }}>
+        <LeadDetails lead={lead} />
+      </Box>
 
       <AssignLeadDialog
         open={assignOpen}
-        loading={false}
-        users={[]}
-        branches={[]}
-        departments={[]}
-        values={{
-          userId: "",
-          branchId: "",
-          departmentId: "",
-          priority: lead.priority,
-          nextFollowUp: "",
-          assignmentRemark: "",
+        leadId={id}
+        onClose={() => setAssignOpen(false)}
+        onSuccess={() => {
+          setAssignOpen(false);
+          refresh();
         }}
-        onClose={() =>
-          setAssignOpen(false)
-        }
-        onSubmit={() => {}}
-        onChange={() => {}}
       />
 
       <ChangeStatusDialog
         open={statusOpen}
-        loading={false}
-        values={{
-          status: lead.status,
-          remarks: "",
-          lastFollowUp: "",
-          nextFollowUp: "",
+        leadId={id}
+        onClose={() => setStatusOpen(false)}
+        onSuccess={() => {
+          setStatusOpen(false);
+          refresh();
         }}
-        onClose={() =>
-          setStatusOpen(false)
-        }
-        onSubmit={() => {}}
-        onChange={() => {}}
       />
 
       <DeleteLeadDialog

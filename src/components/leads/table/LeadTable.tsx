@@ -25,6 +25,9 @@ interface LeadTableProps {
     model: GridPaginationModel,
   ) => void;
   onViewJourney?: (lead: any) => void;
+  onDelete?: (lead: any) => void;
+  onAssign?: (lead: any) => void;
+  onStatusChange?: (lead: any) => void;
 }
 
 export default function LeadTable({
@@ -37,6 +40,9 @@ export default function LeadTable({
 
   onPaginationChange,
   onViewJourney,
+  onDelete,
+  onAssign,
+  onStatusChange,
 }: LeadTableProps) {
   return (
     <Card
@@ -54,7 +60,7 @@ export default function LeadTable({
         >
           <DataGrid
             rows={rows}
-            columns={getLeadColumns({ onViewJourney })}
+            columns={getLeadColumns({ onViewJourney, onDelete, onAssign, onStatusChange })}
             loading={loading}
             getRowId={(row) => row._id}
             checkboxSelection
