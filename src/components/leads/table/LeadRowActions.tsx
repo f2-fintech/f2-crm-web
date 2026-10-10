@@ -94,7 +94,7 @@ export default function LeadRowActions({
           </ListItemText>
         </MenuItem>
 
-        <MenuItem
+        {/* <MenuItem
           onClick={() => {
             onViewJourney?.(lead);
             handleClose();
@@ -156,7 +156,7 @@ export default function LeadRowActions({
           <ListItemText>
             Change Status
           </ListItemText>
-        </MenuItem>
+        </MenuItem> */}
 
         <Divider />
 

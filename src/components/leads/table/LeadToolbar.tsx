@@ -123,7 +123,7 @@ export default function LeadToolbar({
           </IconButton>
         </Tooltip>
 
-        <Button
+        {/* <Button
           variant="outlined"
           startIcon={
             <Download />
@@ -133,9 +133,9 @@ export default function LeadToolbar({
           }
         >
           Export
-        </Button>
+        </Button> */}
 
-        <Button
+        {/* <Button
           variant="outlined"
           startIcon={
             <FileUpload />
@@ -145,9 +145,9 @@ export default function LeadToolbar({
           }
         >
           Bulk Upload
-        </Button>
+        </Button> */}
 
-        <Button
+        {/* <Button
           variant="outlined"
           startIcon={
             <Refresh />
@@ -157,15 +157,15 @@ export default function LeadToolbar({
           }
         >
           Sync OMS
-        </Button>
+        </Button> */}
 
-        <Button
+        {/* <Button
           variant="contained"
           startIcon={<Add />}
           onClick={onCreate}
         >
           New Lead
-        </Button>
+        </Button> */}
       </Stack>
     </Stack>
   );

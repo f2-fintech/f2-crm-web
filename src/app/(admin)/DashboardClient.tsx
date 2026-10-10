@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import useDashboard from "@/hooks/useDashboard";
 import { useAuth } from "@/hooks/useAuth";
-import { 
-  Users, Building2, UserCircle, Briefcase, 
+import {
+  Users, Building2, UserCircle, Briefcase,
   ShieldCheck, Activity, FileText, Target,
   Sparkles, TrendingUp, Clock, CheckCircle2,
   AlertCircle, ChevronRight, BarChart3,
@@ -14,15 +15,28 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import DashboardInsights from "./DashboardInsights";
 
+import DashboardCards from "@/components/leads/cards/DashboardCards";
+
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
 export default function DashboardClient() {
+  const router = useRouter();
   const { dashboard, pipeline, movement, stageAging, agentWorkload, agentActivity, slaData, volumeForecast, loading, error, refresh } = useDashboard();
   const { user } = useAuth();
   const [mounted, setMounted] = useState(false);
+  const [leadStats, setLeadStats] = useState<any>(null);
 
   useEffect(() => {
     setMounted(true);
+    // Fetch lead stats for DashboardCards
+    import("@/lib/axios").then((module) => {
+      const axios = module.default;
+      axios.get("/leads/dashboard/stats").then((res) => {
+        if (res.data?.success) {
+          setLeadStats(res.data.data);
+        }
+      }).catch(console.error);
+    });
   }, []);
 
   if (loading || !mounted) {
@@ -120,7 +134,7 @@ export default function DashboardClient() {
         stops: [0, 90, 100],
       },
     },
-    tooltip: { 
+    tooltip: {
       theme: "light",
       y: { formatter: (val: number) => `${val} leads` }
     },
@@ -142,7 +156,7 @@ export default function DashboardClient() {
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-800 p-8 text-white shadow-lg">
         <div className="absolute -right-10 -top-10 h-64 w-64 rounded-full bg-white opacity-5 blur-3xl"></div>
         <div className="absolute right-20 bottom-0 h-40 w-40 rounded-full bg-indigo-400 opacity-20 blur-2xl"></div>
-        
+
         <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
           <div>
             <div className="flex items-center gap-2 mb-3">
@@ -165,6 +179,16 @@ export default function DashboardClient() {
         </div>
       </div>
 
+      {/* Leads Metrics (Including Notion & Dialer) */}
+      <DashboardCards 
+        stats={leadStats} 
+        variant="large" 
+        onCardClick={(filter) => {
+          if (filter === 'ALL') router.push('/leads');
+          else router.push(`/leads?status=${filter}`);
+        }} 
+      />
+
       {/* Dashboard Insights */}
       <DashboardInsights
         pipeline={pipeline}
@@ -175,30 +199,8 @@ export default function DashboardClient() {
         loading={loading}
       />
 
-      {/* Primary Metrics Grid */}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        {metrics.map((m, i) => (
-          <div key={i} className="group relative overflow-hidden rounded-2xl border border-gray-100 bg-white p-6 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] transition-all hover:-translate-y-1 hover:shadow-lg">
-            <div className="flex items-center justify-between mb-4">
-              <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${m.bg}`}>
-                <m.icon className={`h-6 w-6 ${m.color}`} />
-              </div>
-              <div className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold bg-emerald-50 text-emerald-600`}>
-                <ArrowUpRight className="h-3 w-3" />
-                {m.trend}
-              </div>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-500 mb-1">{m.title}</p>
-              <h3 className="text-3xl font-extrabold text-gray-900 tracking-tight">{m.val}</h3>
-            </div>
-            <div className={`absolute bottom-0 left-0 h-1 w-full opacity-0 transition-opacity group-hover:opacity-100 ${m.bg.replace('bg-', 'bg-gradient-to-r from-').replace('-50', '-500')} to-transparent`} />
-          </div>
-        ))}
-      </div>
-
       {/* Client Lifecycle Overview */}
-      {pipeline && (
+      {/* {pipeline && (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mt-2">
           <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 flex items-center justify-between">
             <div>
@@ -225,7 +227,7 @@ export default function DashboardClient() {
             </div>
           </div>
         </div>
-      )}
+      )} */}
 
       {/* Volume Forecast & Target Projections Showcase */}
       {volumeForecast && (
@@ -239,49 +241,49 @@ export default function DashboardClient() {
               <p className="text-sm text-gray-500 mt-1">Past performance, current run-rate, and future targets across all modules</p>
             </div>
             <div className="flex items-center gap-4 bg-gray-50 px-4 py-2 rounded-xl border border-gray-100">
-               <span className="flex items-center gap-1.5 text-xs font-bold text-gray-600"><div className="w-2.5 h-2.5 rounded-full bg-gray-300"></div> Previous</span>
-               <span className="flex items-center gap-1.5 text-xs font-bold text-indigo-700"><div className="w-2.5 h-2.5 rounded-full bg-indigo-500"></div> Current</span>
-               <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-700"><div className="w-2.5 h-2.5 rounded-full bg-emerald-400"></div> Future Target</span>
+              <span className="flex items-center gap-1.5 text-xs font-bold text-gray-600"><div className="w-2.5 h-2.5 rounded-full bg-gray-300"></div> Previous</span>
+              <span className="flex items-center gap-1.5 text-xs font-bold text-indigo-700"><div className="w-2.5 h-2.5 rounded-full bg-indigo-500"></div> Current</span>
+              <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-700"><div className="w-2.5 h-2.5 rounded-full bg-emerald-400"></div> Future Target</span>
             </div>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
             {Object.entries(volumeForecast).map(([moduleName, data]: any) => {
               const maxVal = Math.max(data.previous, data.current, data.future) || 1;
               return (
                 <div key={moduleName} className="group relative overflow-hidden rounded-2xl bg-white p-5 border border-gray-200 hover:border-indigo-300 transition-all shadow-[0_4px_20px_-10px_rgba(0,0,0,0.05)] hover:shadow-lg">
                   <div className="flex justify-between items-center mb-5">
-                     <h4 className="text-sm font-black uppercase tracking-widest text-gray-800">{moduleName}</h4>
-                     <TrendingUp className="h-4 w-4 text-emerald-500 opacity-50" />
+                    <h4 className="text-sm font-black uppercase tracking-widest text-gray-800">{moduleName}</h4>
+                    <TrendingUp className="h-4 w-4 text-emerald-500 opacity-50" />
                   </div>
                   <div className="space-y-4">
-                     <div className="flex justify-between items-center">
-                        <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider">Previous</div>
-                        <div className="text-sm font-bold text-gray-700">{data.previous.toLocaleString()}</div>
-                     </div>
-                     <div className="flex justify-between items-center">
-                        <div className="text-xs text-indigo-500 font-bold uppercase tracking-wider">Current</div>
-                        <div className="text-lg font-black text-indigo-600">{data.current.toLocaleString()}</div>
-                     </div>
-                     <div className="flex justify-between items-center pt-2 border-t border-gray-100">
-                        <div className="text-xs text-emerald-600 font-bold uppercase tracking-wider">Target</div>
-                        <div className="text-base font-black text-emerald-600 flex items-center gap-1">
-                           <ArrowUpRight className="h-4 w-4" />
-                           {data.future.toLocaleString()}
-                        </div>
-                     </div>
+                    <div className="flex justify-between items-center">
+                      <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider">Previous</div>
+                      <div className="text-sm font-bold text-gray-700">{data.previous.toLocaleString()}</div>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <div className="text-xs text-indigo-500 font-bold uppercase tracking-wider">Current</div>
+                      <div className="text-lg font-black text-indigo-600">{data.current.toLocaleString()}</div>
+                    </div>
+                    <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+                      <div className="text-xs text-emerald-600 font-bold uppercase tracking-wider">Target</div>
+                      <div className="text-base font-black text-emerald-600 flex items-center gap-1">
+                        <ArrowUpRight className="h-4 w-4" />
+                        {data.future.toLocaleString()}
+                      </div>
+                    </div>
                   </div>
                   {/* Visual Progress Bars */}
                   <div className="mt-6 space-y-2">
-                     <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                        <div className="bg-gray-300 h-full rounded-full transition-all duration-1000" style={{ width: `${(data.previous / maxVal) * 100}%` }}></div>
-                     </div>
-                     <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                        <div className="bg-indigo-500 h-full rounded-full transition-all duration-1000 delay-150" style={{ width: `${(data.current / maxVal) * 100}%` }}></div>
-                     </div>
-                     <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                        <div className="bg-emerald-400 h-full rounded-full transition-all duration-1000 delay-300" style={{ width: `${(data.future / maxVal) * 100}%` }}></div>
-                     </div>
+                    <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                      <div className="bg-gray-300 h-full rounded-full transition-all duration-1000" style={{ width: `${(data.previous / maxVal) * 100}%` }}></div>
+                    </div>
+                    <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                      <div className="bg-indigo-500 h-full rounded-full transition-all duration-1000 delay-150" style={{ width: `${(data.current / maxVal) * 100}%` }}></div>
+                    </div>
+                    <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                      <div className="bg-emerald-400 h-full rounded-full transition-all duration-1000 delay-300" style={{ width: `${(data.future / maxVal) * 100}%` }}></div>
+                    </div>
                   </div>
                 </div>
               );
@@ -341,7 +343,7 @@ export default function DashboardClient() {
               <p className="text-sm text-gray-500">Active cases and SLA performance by lifecycle stage</p>
             </div>
           </div>
-          
+
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm text-gray-500 dark:text-gray-400">
               <thead className="bg-gray-50 text-xs uppercase text-gray-700 dark:bg-gray-800/50 dark:text-gray-400">
@@ -461,7 +463,7 @@ export default function DashboardClient() {
               <p className="text-sm text-gray-500">Current active workload and follow-up discipline</p>
             </div>
           </div>
-          
+
           <div className="overflow-x-auto mb-8">
             <h4 className="text-sm font-semibold text-gray-700 mb-3">Current Pipeline Workload</h4>
             <table className="w-full text-left text-sm text-gray-500 dark:text-gray-400">

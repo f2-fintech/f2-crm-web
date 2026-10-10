@@ -102,7 +102,7 @@ export default function LeadDetailsPage() {
 
           <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }} useFlexGap alignItems="center">
             <AiLeadSummary leadId={id} />
-
+{/* 
             <Button
               startIcon={<Edit />}
               variant="contained"
@@ -128,9 +128,9 @@ export default function LeadDetailsPage() {
               sx={{ borderRadius: 2, textTransform: 'none', bgcolor: 'white' }}
             >
               Change Status
-            </Button>
+            </Button> */}
 
-            <Button
+            {/* <Button
               startIcon={<Delete />}
               color="error"
               variant="outlined"
@@ -138,7 +138,7 @@ export default function LeadDetailsPage() {
               sx={{ borderRadius: 2, textTransform: 'none', bgcolor: 'error.50', '&:hover': { bgcolor: 'error.100' } }}
             >
               Delete
-            </Button>
+            </Button> */}
           </Stack>
         </Stack>
       </Card>
