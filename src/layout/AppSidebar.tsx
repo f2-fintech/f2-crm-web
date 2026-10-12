@@ -69,9 +69,8 @@ const navItems: NavItem[] = [
     icon: <GroupIcon />,
     name: "CRM",
     subItems: [
-      // { name: "Leads", path: "/leads" },
-      // { name: "Customers", path: "/customers" },
-      // { name: "Follow Ups", path: "/followups" },
+      { name: "Leads", path: "/leads" },
+      { name: "Doctor Leads", path: "/doctors", new: true },
       { name: "Notion Workspace", path: "/notion-pages", new: true },
       { name: "Notion Remarks", path: "/notion-remarks", pro: true },
     ],

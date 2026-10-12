@@ -96,9 +96,9 @@ export default function LeadDetails({
           >
             <Tab label="Overview" disableRipple />
             <Tab label="Timeline" disableRipple />
-            <Tab label="Documents" disableRipple />
+            {/* <Tab label="Documents" disableRipple />
             <Tab label="Applications" disableRipple />
-            <Tab label="Follow Ups" disableRipple />
+            <Tab label="Follow Ups" disableRipple /> */}
           </Tabs>
         </Box>
 

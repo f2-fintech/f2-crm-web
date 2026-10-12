@@ -1,158 +1,355 @@
-"use client";
-
+import React, { useEffect, useState } from "react";
 import {
-  Avatar,
   Box,
   Card,
   CardContent,
   Chip,
-  Divider,
+  CircularProgress,
   Stack,
   Typography,
+  Slide,
+  Fade
 } from "@mui/material";
-
-import {
-  Assignment,
-  Edit,
-  PersonAdd,
-  Timeline,
-  CheckCircle,
-} from "@mui/icons-material";
+import { Activity, Briefcase, CheckCircle, FileText, MessageSquare, Rocket, UserCheck } from "lucide-react";
+import api from "@/lib/axios";
 
 interface LeadTimelineProps {
   lead: any;
 }
 
-export default function LeadTimeline({
-  lead,
-}: LeadTimelineProps) {
-  const timeline = [
-    {
-      title: "Lead Created",
-      description: "Lead was created in CRM.",
-      icon: <Timeline />,
-      color: "primary",
-      user: lead.createdBy?.fullName,
-      date: lead.createdAt,
-    },
+export default function LeadTimeline({ lead }: LeadTimelineProps) {
+  const [loading, setLoading] = useState(false);
+  const [timeline, setTimeline] = useState<any[]>([]);
+  const [metrics, setMetrics] = useState({ timeToResponse: "", conversionTime: "" });
+  const [liveOmsData, setLiveOmsData] = useState<any>(null);
 
-    {
-      title: "Assigned",
-      description: lead.assignedTo
-        ? `Assigned to ${lead.assignedTo.fullName}`
-        : "Lead is not assigned yet.",
-      icon: <PersonAdd />,
-      color: "warning",
-      user: lead.updatedBy?.fullName,
-      date: lead.updatedAt,
-    },
+  useEffect(() => {
+    if (lead?._id || lead?.leadId) {
+      fetchTimeline();
+    }
+  }, [lead]);
 
-    {
-      title: "Status Updated",
-      description: `Current Status : ${lead.status}`,
-      icon: <CheckCircle />,
-      color: "success",
-      user: lead.updatedBy?.fullName,
-      date: lead.updatedAt,
-    },
+  const fetchTimeline = async () => {
+    setLoading(true);
+    try {
+      const timelineRes = await api.get(`/timeline/lead/${lead._id || lead.leadId}`);
+      
+      let localTimeline = timelineRes.data.data || timelineRes.data;
+      if (!Array.isArray(localTimeline)) localTimeline = [];
 
-    {
-      title: "Lead Updated",
-      description: "Lead information updated.",
-      icon: <Edit />,
-      color: "info",
-      user: lead.updatedBy?.fullName,
-      date: lead.updatedAt,
-    },
+      // Re-inject synthetic events based on lead state (as they were in the old dummy timeline)
+      const syntheticEvents = [];
+      
+      // Only inject CREATED if not already present from DB
+      if (!localTimeline.some((t: any) => t.action === 'CREATED')) {
+        syntheticEvents.push({
+          _id: 'synth-created',
+          action: 'CREATED',
+          title: 'Lead Created',
+          description: 'Lead was created in CRM.',
+          createdAt: lead.createdAt || new Date(),
+          performedBy: { firstName: lead.createdBy?.firstName || lead.createdBy?.fullName || 'System' }
+        });
+      }
 
-    {
-      title: "Follow Up",
-      description:
-        lead.nextFollowUp
-          ? `Next Follow Up : ${new Date(
-              lead.nextFollowUp,
-            ).toLocaleString()}`
-          : "No follow up scheduled.",
-      icon: <Assignment />,
-      color: "secondary",
-      user: lead.updatedBy?.fullName,
-      date: lead.nextFollowUp,
-    },
-  ];
+      // Inject Assigned event
+      if (lead.assignedTo || lead.omsUserId || lead.omsAppliedByName) {
+        let agentName = lead.omsAppliedByName || (lead.assignedTo ? (lead.assignedTo.firstName || lead.assignedTo.fullName) : `Agent ID: ${lead.omsUserId}`);
+        syntheticEvents.push({
+          _id: 'synth-assigned',
+          action: 'ASSIGNED',
+          title: 'Lead Assigned',
+          description: `Assigned to ${agentName}`,
+          createdAt: lead.updatedAt || new Date(),
+          performedBy: { firstName: lead.updatedBy?.firstName || lead.updatedBy?.fullName || 'System' }
+        });
+      }
+
+      // Inject Follow Up event
+      if (lead.nextFollowUp) {
+        syntheticEvents.push({
+          _id: 'synth-followup',
+          action: 'FOLLOWUP',
+          title: 'Follow Up Scheduled',
+          description: `Next Follow Up: ${new Date(lead.nextFollowUp).toLocaleString()}`,
+          createdAt: lead.updatedAt || lead.nextFollowUp,
+          performedBy: { firstName: lead.updatedBy?.firstName || lead.updatedBy?.fullName || 'System' }
+        });
+      }
+
+      localTimeline = [...localTimeline, ...syntheticEvents];
+
+      const omsTicketId = lead?.omsTicketId || (!isNaN(Number(lead?.leadId)) ? lead.leadId : null);
+
+      if (omsTicketId) {
+        // Fetch Live OMS Data via Proxy
+        api.get(`/leads/oms/detail/${omsTicketId}`)
+          .then(res => {
+            if (res.data?.data) {
+              setLiveOmsData(res.data.data);
+            }
+          })
+          .catch(console.error);
+
+        // Fetch OMS Ticket History via Proxy
+        api.get(`/leads/oms/history/${omsTicketId}`)
+          .then(res => {
+            const data = res.data;
+            if (data?.data && Array.isArray(data.data)) {
+              const omsHistories = data.data.map((h: any) => ({
+                _id: `oms-${h.id}`,
+                action: 'OMS_HISTORY',
+                title: 'OMS Action',
+                description: h.action,
+                createdAt: h.created_at,
+                isOms: true
+              }));
+              
+              const merged = [...localTimeline, ...omsHistories].sort((a, b) => 
+                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+              );
+              setTimeline(merged);
+              calculateMetrics(merged);
+            } else {
+              setTimeline(localTimeline);
+              calculateMetrics(localTimeline);
+            }
+          })
+          .catch(err => {
+            console.error("Failed to fetch OMS history", err);
+            setTimeline(localTimeline);
+            calculateMetrics(localTimeline);
+          });
+      } else {
+        setTimeline(localTimeline);
+        calculateMetrics(localTimeline);
+      }
+    } catch (error) {
+      console.error("Failed to fetch timeline:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const calculateMetrics = (data: any[]) => {
+    if (data.length < 2) return;
+    const firstActivity = new Date(data[data.length - 1]?.createdAt);
+    const lastActivity = new Date(data[0]?.createdAt);
+    const diffHours = Math.round((lastActivity.getTime() - firstActivity.getTime()) / (1000 * 60 * 60));
+    const diffDays = Math.round(diffHours / 24);
+    setMetrics({
+      timeToResponse: diffHours > 0 ? `${diffHours} hours` : "Instant",
+      conversionTime: diffDays > 0 ? `${diffDays} days` : (diffHours > 0 ? `${diffHours} hours` : "In Progress")
+    });
+  };
+
+  const getActionIcon = (action: string) => {
+    switch (action) {
+      case "CREATED": return <Rocket size={20} className="text-blue-500" />;
+      case "ASSIGNED": return <UserCheck size={20} className="text-purple-500" />;
+      case "OMS_HISTORY": return <Activity size={20} className="text-orange-500" />;
+      case "COMMENT":
+      case "FOLLOWUP": return <MessageSquare size={20} className="text-orange-500" />;
+      case "PIPELINE_CHANGED": return <Briefcase size={20} className="text-indigo-500" />;
+      case "STAGE_CHANGED": return <Activity size={20} className="text-brand-500" />;
+      case "STATUS_CHANGED": return <CheckCircle size={20} className="text-green-500" />;
+      default: return <FileText size={20} className="text-gray-500" />;
+    }
+  };
+
+  if (loading) {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: 300 }}>
+        <CircularProgress size={30} />
+      </Box>
+    );
+  }
 
   return (
-    <Stack spacing={3}>
-      {timeline.map((item, index) => (
-        <Card
-          key={index}
-          elevation={0}
-          sx={{
-            borderRadius: 3,
-          }}
-        >
-          <CardContent>
-            <Stack
-              direction="row"
-              spacing={2}
-            >
-              <Avatar
-                color={item.color as any}
-              >
-                {item.icon}
-              </Avatar>
-
-              <Box sx={{ flex: 1 }}>
-                <Stack
-                  direction="row"
-                  justifyContent="space-between"
-                  alignItems="center"
-                >
-                  <Typography
-                    variant="h6"
-                  >
-                    {item.title}
-                  </Typography>
-
-                  <Chip
-                    size="small"
-                    label={
-                      item.date
-                        ? new Date(
-                            item.date,
-                          ).toLocaleDateString()
-                        : "-"
-                    }
-                  />
-                </Stack>
-
-                <Typography
-                  sx={{ mt: 1 }}
-                  color="text.secondary"
-                >
-                  {item.description}
-                </Typography>
-
-                <Divider
-                  sx={{
-                    my: 2,
-                  }}
-                />
-
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                >
-                  Performed By :
-                  <strong>
-                    {" "}
-                    {item.user || "-"}
-                  </strong>
-                </Typography>
+    <Box display="flex" flexDirection="column" height="100%" width="100%" mb={4}>
+      {/* Top Summary Area - Performance Only */}
+      <Box 
+        sx={{ 
+          background: "linear-gradient(to right, #f4f7f9, #ffffff)", 
+          borderBottom: "1px solid rgba(0,0,0,0.05)",
+          borderRadius: 4,
+          mb: 4,
+          p: { xs: 3, md: 4 },
+        }}
+      >
+        <Fade in={!loading} timeout={400}>
+          <Box sx={{ 
+            bgcolor: "rgba(255,255,255,0.7)", backdropFilter: 'blur(20px)', p: 3, borderRadius: 4, 
+            boxShadow: "0 10px 40px rgba(0,0,0,0.03), 0 0 0 1px rgba(255,255,255,0.5) inset",
+            border: "1px solid rgba(0,0,0,0.05)",
+            display: 'flex', flexDirection: { xs: 'column', md: 'row' }, alignItems: 'center', justifyContent: 'space-between', gap: 4,
+            transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            '&:hover': { transform: 'translateY(-4px)', boxShadow: "0 20px 50px rgba(0,0,0,0.05)" }
+          }}>
+            <Box display="flex" alignItems="center" gap={2}>
+              <Box sx={{ p: 1.5, bgcolor: '#f0fdf4', borderRadius: 2, color: '#16a34a' }}>
+                <Activity size={24} />
               </Box>
+              <Box>
+                <Typography variant="overline" fontWeight={800} color="#64748b" letterSpacing="1px" display="block" sx={{ lineHeight: 1 }}>Performance</Typography>
+                <Typography variant="body1" color="#0f172a" fontWeight={800} mt={0.5}>Journey Analytics</Typography>
+              </Box>
+            </Box>
+            
+            <Box sx={{ display: 'flex', gap: { xs: 2, md: 4 }, flex: 1, maxWidth: { md: '600px' }, width: '100%' }}>
+              <Box sx={{ flex: 1, p: 2, bgcolor: 'rgba(255,255,255,0.8)', borderRadius: 3, border: '1px solid rgba(0,0,0,0.04)' }}>
+                <Typography variant="caption" color="#94a3b8" fontWeight={700} display="block" mb={0.5}>RESPONSE</Typography>
+                <Typography variant="h6" color="#059669" fontWeight={900}>{metrics.timeToResponse}</Typography>
+              </Box>
+              <Box sx={{ flex: 1, p: 2, bgcolor: 'rgba(255,255,255,0.8)', borderRadius: 3, border: '1px solid rgba(0,0,0,0.04)' }}>
+                <Typography variant="caption" color="#94a3b8" fontWeight={700} display="block" mb={0.5}>TOUCHPOINTS</Typography>
+                <Typography variant="h6" color="#4f46e5" fontWeight={900}>{timeline.length}</Typography>
+              </Box>
+              <Box sx={{ flex: 1, p: 2, bgcolor: 'rgba(255,255,255,0.8)', borderRadius: 3, border: '1px solid rgba(0,0,0,0.04)' }}>
+                <Typography variant="caption" color="#94a3b8" fontWeight={700} display="block" mb={0.5}>TOTAL TIME</Typography>
+                <Typography variant="h6" color="#0f172a" fontWeight={900}>{metrics.conversionTime}</Typography>
+              </Box>
+            </Box>
+          </Box>
+        </Fade>
+      </Box>
+
+      {/* Main Area: Horizontal Timeline */}
+      <Box flex={1} p={{ xs: 3, md: 5 }} sx={{ overflowY: "auto", overflowX: "hidden", bgcolor: "#f8fafc", position: 'relative', borderRadius: 4 }}>
+        <Box width="100%">
+          <Box mb={5} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+            <Typography variant="h6" fontWeight={900} color="#0f172a" letterSpacing="-0.5px">Action Flow</Typography>
+            <Typography variant="body2" color="#64748b" mt={0.5}>Complete chronological history of events</Typography>
+          </Box>
+        
+        {timeline.length === 0 ? (
+          <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", height: 300 }}>
+            <Activity size={48} className="text-gray-300 mb-4" />
+            <Typography color="#94a3b8" fontWeight={700} variant="h6">No Journey Data</Typography>
+            <Typography color="#94a3b8" variant="body2" mt={1}>Sync with OMS or wait for updates.</Typography>
+          </Box>
+        ) : (
+          <Box position="relative">
+            {/* Dashed Connecting Line (Horizontal) */}
+            <Box position="absolute" top={32} left={40} right={40} height={0} sx={{ borderTop: "2px dashed #cbd5e1" }} zIndex={0} />
+
+            <Stack 
+              direction="row" 
+              spacing={4} 
+              position="relative" 
+              zIndex={1} 
+              sx={{ 
+                overflowX: 'auto', 
+                pb: 4, pt: 1, px: { xs: 1, md: 4 }, 
+                width: '100%',
+                justifyContent: timeline.length < 4 ? 'center' : 'flex-start',
+                '&::-webkit-scrollbar': { height: 8 }, 
+                '&::-webkit-scrollbar-thumb': { bgcolor: '#cbd5e1', borderRadius: 4 } 
+              }}
+            >
+              {timeline.map((item, index) => {
+                const isOms = item.isOms;
+                return (
+                  <Box 
+                    key={item._id || index} 
+                    display="flex" 
+                    flexDirection="column"
+                    gap={3}
+                    sx={{
+                      minWidth: 320,
+                      maxWidth: 320,
+                      animation: `slideRight 0.5s ease-out ${index * 0.1}s both`,
+                      '@keyframes slideRight': {
+                        '0%': { opacity: 0, transform: 'translateX(20px)' },
+                        '100%': { opacity: 1, transform: 'translateX(0)' }
+                      }
+                    }}
+                  >
+                    {/* Node Icon */}
+                    <Box sx={{ position: 'relative', display: 'flex', justifyContent: 'flex-start' }}>
+                        <Box
+                          sx={{
+                            width: 56, height: 56, borderRadius: "50%",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            background: isOms ? 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)' : 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                            color: '#fff', flexShrink: 0,
+                            boxShadow: `0 4px 16px ${isOms ? 'rgba(245,158,11,0.4)' : 'rgba(79,70,229,0.4)'}`,
+                            border: '4px solid #f8fafc',
+                            transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                            '&:hover': { transform: 'scale(1.15) rotate(5deg)' }
+                          }}
+                        >
+                          {getActionIcon(item.action)}
+                        </Box>
+                      </Box>
+
+                        <Box 
+                          flex={1} 
+                          sx={{ 
+                            p: 3, 
+                            bgcolor: "#fff", 
+                            border: "1px solid rgba(0,0,0,0.04)", 
+                            borderRadius: 4, 
+                            boxShadow: "0 4px 20px rgba(0,0,0,0.02)",
+                            position: 'relative',
+                            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                            '&:hover': {
+                              boxShadow: "0 20px 40px rgba(0,0,0,0.08)",
+                              transform: "translateY(-4px)"
+                            }
+                          }}
+                        >
+                          <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1.5} flexWrap="wrap" gap={1}>
+                          <Box>
+                            <Typography variant="h6" fontWeight={800} color="#0f172a" sx={{ fontSize: '1.1rem', letterSpacing: '-0.3px' }}>{item.title}</Typography>
+                            <Typography variant="body2" color="#475569" mt={0.5} sx={{ lineHeight: 1.6, fontWeight: 500 }}>{item.description}</Typography>
+                          </Box>
+                          <Chip 
+                            size="small" 
+                            label={item.action} 
+                            sx={{ 
+                              height: 26, fontSize: "11px", fontWeight: 800, letterSpacing: '0.5px',
+                              bgcolor: isOms ? "rgba(245,158,11,0.1)" : "rgba(79,70,229,0.1)", 
+                              color: isOms ? "#ea580c" : "#4f46e5",
+                              borderRadius: 2
+                            }} 
+                          />
+                        </Box>
+                        
+                        <Box display="flex" justifyContent="space-between" alignItems="center" mt={3} pt={2} borderTop="1px dashed #e2e8f0">
+                          <Typography variant="caption" fontWeight={700} color="#94a3b8">
+                            {new Date(item.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+                          </Typography>
+                          {item.performedBy?.firstName && (
+                            <Chip 
+                              size="small"
+                              icon={<UserCheck size={14} style={{ marginLeft: 6 }} />}
+                              label={item.performedBy.firstName}
+                              sx={{ bgcolor: '#f1f5f9', color: '#475569', fontWeight: 700, fontSize: '11px', borderRadius: 1.5 }}
+                            />
+                          )}
+                        </Box>
+
+                        {/* Display Meta Data if exists */}
+                        {item.metadata && Object.keys(item.metadata).length > 0 && (
+                          <Box mt={2.5} p={2} bgcolor="#f8fafc" borderRadius={3} border="1px solid #f1f5f9">
+                            {Object.entries(item.metadata).map(([key, val]) => (
+                              <Box key={key} display="flex" justifyContent="space-between" alignItems="center" py={0.5}>
+                                <Typography variant="caption" color="#64748b" fontWeight={600} textTransform="uppercase">{key}</Typography>
+                                <Typography variant="caption" color="#0f172a" fontWeight={800}>{String(val)}</Typography>
+                              </Box>
+                            ))}
+                          </Box>
+                        )}
+                      </Box>
+                  </Box>
+                );
+              })}
             </Stack>
-          </CardContent>
-        </Card>
-      ))}
-    </Stack>
+          </Box>
+        )}
+        </Box>
+      </Box>
+    </Box>
   );
 }

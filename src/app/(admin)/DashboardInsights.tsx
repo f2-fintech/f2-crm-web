@@ -111,7 +111,7 @@ export default function DashboardInsights({
 
   return (
     <div className="mb-8">
-      <div className="flex items-center justify-between mb-4">
+      {/* <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-bold text-gray-900">AI Insights</h2>
         <span className="text-xs font-medium text-brand-600 bg-brand-50 px-2.5 py-1 rounded-full border border-brand-100">
           Generated from live CRM data
@@ -127,7 +127,7 @@ export default function DashboardInsights({
             <InsightCard key={idx} {...insight} />
           ))}
         </div>
-      )}
+      )} */}
     </div>
   );
 }
