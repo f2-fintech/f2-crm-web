@@ -127,23 +127,30 @@ export const getLeadColumns = (handlers?: {
     headerName: "Source",
     width: 140,
     renderCell: ({ row, value }) => {
-      // Agent name from either new fields or fallback
-      const agentName = row.omsAppliedByName || row.appliedByName || (row.omsUserId ? `Agent ID: ${row.omsUserId}` : null);
+      const isOms = Boolean(row.omsTicketId || (value || '').toUpperCase() === 'OMS');
+      const agentName = row.omsTicketId ? (row.omsAppliedByName || null) : (row.appliedByName || null);
       
       return (
-        <Box display="flex" flexDirection="column" gap={0.2} justifyContent="center" py={1.5}>
-          <SourceChip source={value} />
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3, justifyContent: 'center', py: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <SourceChip source={isOms ? "OMS" : (value || "WEBSITE")} />
+            {row.omsLeadType && row.omsLeadType.toUpperCase() !== (isOms ? "OMS" : (value || '').toUpperCase()) && (
+              <Box sx={{ fontSize: '0.65rem', fontWeight: 700, bgcolor: '#f1f5f9', color: '#475569', px: 0.6, py: 0.2, borderRadius: 1, textTransform: 'uppercase' }}>
+                {row.omsLeadType}
+              </Box>
+            )}
+          </Box>
           {agentName && (
             <Box 
               sx={{ 
-                fontSize: '0.65rem', 
-                fontWeight: 700, 
-                color: '#6366f1', // Indigo brand color 
+                fontSize: '0.72rem', 
+                fontWeight: 800, 
+                color: '#059669', // Emerald green from OMS style
                 letterSpacing: '0.2px',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
-                maxWidth: '120px'
+                maxWidth: '130px'
               }}
             >
               {agentName}
@@ -161,30 +168,30 @@ export const getLeadColumns = (handlers?: {
     renderCell: ({ row }) => {
       const tooltipContent = row.latestTimelineItem ? (
         <Box sx={{ p: 1, maxWidth: 250 }}>
-          <Typography variant="overline" display="block" color="#94a3b8" fontWeight={800} mb={1} sx={{ letterSpacing: '1px' }}>Latest Action</Typography>
-          <Typography variant="body2" color="#fff" fontWeight={700} sx={{ lineHeight: 1.4 }}>
+          <Typography variant="overline" sx={{ display: 'block', color: '#94a3b8', fontWeight: 800, mb: 1, letterSpacing: '1px' }}>Latest Action</Typography>
+          <Typography variant="body2" sx={{ color: '#fff', fontWeight: 700, lineHeight: 1.4 }}>
             {row.latestTimelineItem.title || row.latestTimelineItem.action}
           </Typography>
           {row.latestTimelineItem.description && (
-            <Typography variant="caption" color="#cbd5e1" display="block" mt={0.5}>
+            <Typography variant="caption" sx={{ color: '#cbd5e1', display: 'block', mt: 0.5 }}>
               {row.latestTimelineItem.description}
             </Typography>
           )}
-          <Typography variant="caption" color="#64748b" display="block" mt={1} fontWeight={600}>
+          <Typography variant="caption" sx={{ color: '#64748b', display: 'block', mt: 1, fontWeight: 600 }}>
             {new Date(row.latestTimelineItem.createdAt).toLocaleString()}
           </Typography>
         </Box>
       ) : (
-        <Typography variant="caption" color="#94a3b8" p={1} display="block">No history available</Typography>
+        <Typography variant="caption" sx={{ color: '#94a3b8', p: 1, display: 'block' }}>No history available</Typography>
       );
 
       return (
-        <Box display="flex" alignItems="center" height="100%">
+        <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
           <Tooltip 
             title={tooltipContent} 
             placement="right" 
             arrow 
-            componentsProps={{
+            slotProps={{
               tooltip: { sx: { bgcolor: '#0f172a', borderRadius: 2, boxShadow: '0 10px 25px rgba(0,0,0,0.2)' } },
               arrow: { sx: { color: '#0f172a' } }
             }}

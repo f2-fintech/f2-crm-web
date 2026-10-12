@@ -20,7 +20,7 @@ import {
   UserCircleIcon,
 } from "../icons/index";
 import SidebarWidget from "./SidebarWidget";
-import { MessageSquare, Contact, Sparkles, Calculator } from "lucide-react";
+import { MessageSquare, Contact, Sparkles, Calculator, Stethoscope } from "lucide-react";
 
 type NavItem = {
   name: string;
@@ -69,11 +69,14 @@ const navItems: NavItem[] = [
     icon: <GroupIcon />,
     name: "CRM",
     subItems: [
-      { name: "Leads", path: "/leads" },
-      { name: "Doctor Leads", path: "/doctors", new: true },
       { name: "Notion Workspace", path: "/notion-pages", new: true },
       { name: "Notion Remarks", path: "/notion-remarks", pro: true },
     ],
+  },
+  {
+    icon: <Stethoscope size={20} className="text-teal-600 dark:text-teal-400" />,
+    name: "Doctor Network",
+    path: "/doctors",
   },
   {
     icon: <UserCircleIcon />,

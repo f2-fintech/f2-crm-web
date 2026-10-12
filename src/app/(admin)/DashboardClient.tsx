@@ -70,25 +70,7 @@ export default function DashboardClient() {
 
   const { stats, recentActivity, monthlyLeads, roleType } = dashboard;
 
-  let metrics = [];
-  if (pipeline) {
-    metrics = [
-      { title: "Active Leads", val: pipeline.leads?.active || 0, trend: "Current", isUp: true, icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
-      { title: "Pending Applications", val: pipeline.applications?.pending || 0, trend: "Pipeline", isUp: true, icon: FileText, color: "text-amber-600", bg: "bg-amber-50" },
-      { title: "Approved Apps", val: pipeline.applications?.approved || 0, trend: "Approved", isUp: true, icon: CheckCircle2, color: "text-purple-600", bg: "bg-purple-50" },
-      { title: "Active Customers", val: pipeline.customers?.active || 0, trend: "Live", isUp: true, icon: Target, color: "text-emerald-600", bg: "bg-emerald-50" }
-    ];
-  } else {
-    // Fallback if Phase 5 API fails or returns null
-    metrics = [
-      { title: "Total Users", val: stats.totalUsers || 0, trend: "+5.2%", isUp: true, icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
-      { title: "Active Teams", val: stats.totalTeams || 0, trend: "+2.1%", isUp: true, icon: Building2, color: "text-purple-600", bg: "bg-purple-50" },
-      { title: "Total Branches", val: stats.totalBranches || 0, trend: "0%", isUp: true, icon: Target, color: "text-emerald-600", bg: "bg-emerald-50" },
-      { title: "Active Roles", val: stats.totalRoles || 0, trend: "+1.0%", isUp: true, icon: ShieldCheck, color: "text-amber-600", bg: "bg-amber-50" }
-    ];
-  }
-
-  // Premium Chart Options
+  // Chart Options & Series
   const chartOptions = {
     chart: {
       type: "area" as const,
@@ -107,7 +89,7 @@ export default function DashboardClient() {
     dataLabels: { enabled: false },
     stroke: { curve: "smooth" as const, width: [3, 3] },
     xaxis: {
-      categories: monthlyLeads?.data?.length ? monthlyLeads.data.map((d) => d.name) : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+      categories: monthlyLeads?.data?.length ? monthlyLeads.data.map((d: any) => d.name) : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
       axisBorder: { show: false },
       axisTicks: { show: false },
       labels: { style: { colors: '#94a3b8', fontSize: '12px' } }
@@ -144,11 +126,206 @@ export default function DashboardClient() {
   const chartSeries = [
     {
       name: "New Leads",
-      data: monthlyLeads?.data?.length ? monthlyLeads.data.map((d) => d.value) : [12, 34, 23, 56, 34, 45, 78],
+      data: monthlyLeads?.data?.length ? monthlyLeads.data.map((d: any) => d.value) : [12, 34, 23, 56, 34, 45, 78],
     }
   ];
 
-  const userName = user?.firstName ? `${user.firstName} ${user.lastName || ''}` : roleType || 'User';
+  const userName = user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : roleType || 'User';
+
+  const isEmployeeRole = roleType === 'EMPLOYEE' || roleType === 'SOURCER' || roleType === 'CHANNEL_PARTNER';
+
+  if (isEmployeeRole) {
+    let employeeMetrics: any[] = [];
+    if (roleType === 'EMPLOYEE') {
+      employeeMetrics = [
+        { title: "My Tasks", val: stats?.myLeads || 0, trend: "+12%", isUp: true, icon: CheckCircle2, color: "text-blue-600", bg: "bg-blue-50" },
+        { title: "Documents Reviewed", val: stats?.assignedPages || 0, trend: "+5%", isUp: true, icon: FileText, color: "text-purple-600", bg: "bg-purple-50" },
+        { title: "Pending Approvals", val: 0, trend: "-1%", isUp: false, icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
+        { title: "Completed Work", val: 0, trend: "+8%", isUp: true, icon: Activity, color: "text-emerald-600", bg: "bg-emerald-50" }
+      ];
+    } else if (roleType === 'SOURCER') {
+      employeeMetrics = [
+        { title: "Sourced Leads", val: stats?.myLeads || 0, trend: "+20%", isUp: true, icon: Target, color: "text-blue-600", bg: "bg-blue-50" },
+        { title: "Conversion Rate", val: "0%", trend: "0%", isUp: true, icon: TrendingUp, color: "text-purple-600", bg: "bg-purple-50" },
+        { title: "Active Campaigns", val: 0, trend: "0%", isUp: true, icon: Activity, color: "text-amber-600", bg: "bg-amber-50" },
+        { title: "Successful Deals", val: 0, trend: "+2%", isUp: true, icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50" }
+      ];
+    } else {
+      employeeMetrics = [
+        { title: "Referred Leads", val: stats?.myLeads || 0, trend: "+15%", isUp: true, icon: Target, color: "text-blue-600", bg: "bg-blue-50" },
+        { title: "Commission Earned", val: "$0", trend: "+0%", isUp: true, icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50" },
+        { title: "Pending Payouts", val: 0, trend: "0%", isUp: true, icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
+        { title: "Partner Rank", val: "New", trend: "-", isUp: true, icon: ShieldCheck, color: "text-purple-600", bg: "bg-purple-50" }
+      ];
+    }
+
+    const employeeName = user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : roleType || 'User';
+
+    return (
+      <div className="space-y-8 pb-12">
+        {/* AI Insights Banner (Welcome Back) */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-800 p-8 text-white shadow-lg">
+          <div className="absolute -right-10 -top-10 h-64 w-64 rounded-full bg-white opacity-5 blur-3xl"></div>
+          <div className="absolute right-20 bottom-0 h-40 w-40 rounded-full bg-indigo-400 opacity-20 blur-2xl"></div>
+          
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <Sparkles className="h-5 w-5 text-amber-300" />
+                <span className="text-xs font-bold uppercase tracking-wider text-indigo-200">Welcome Back</span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-2">
+                Good Morning, {employeeName}!
+              </h2>
+              <p className="text-indigo-100 max-w-2xl text-sm sm:text-base leading-relaxed">
+                Here is your daily snapshot. Your dashboard is tailored for your <strong>{roleType?.replace('_', ' ')}</strong> role.
+                Check out the latest metrics and activity to stay updated.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Primary Metrics Grid */}
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {employeeMetrics.map((m, i) => (
+            <div key={i} className="group relative overflow-hidden rounded-2xl border border-gray-100 bg-white p-6 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] transition-all hover:-translate-y-1 hover:shadow-lg">
+              <div className="flex items-center justify-between mb-4">
+                <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${m.bg}`}>
+                  <m.icon className={`h-6 w-6 ${m.color}`} />
+                </div>
+                <div className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold ${m.isUp ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+                  {m.isUp ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                  {m.trend}
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-500 mb-1">{m.title}</p>
+                <h3 className="text-3xl font-extrabold text-gray-900 tracking-tight">{m.val}</h3>
+              </div>
+              <div className={`absolute bottom-0 left-0 h-1 w-full opacity-0 transition-opacity group-hover:opacity-100 ${m.bg.replace('bg-', 'bg-gradient-to-r from-').replace('-50', '-500')} to-transparent`} />
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+          {/* Main Chart */}
+          <div className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm lg:col-span-2">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Lead Trends</h3>
+                <p className="text-sm text-gray-500">Monthly breakdown of leads</p>
+              </div>
+            </div>
+            <div className="h-[320px] w-full">
+              <Chart options={chartOptions} series={chartSeries} type="area" height="100%" width="100%" />
+            </div>
+          </div>
+
+          {/* Actionable Workqueue (Onboarding Funnel) */}
+          <div className="flex flex-col rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Pipeline Focus</h3>
+                <p className="text-sm text-gray-500">Stages overview</p>
+              </div>
+              <button className="rounded-full bg-gray-50 p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-5">
+              {dashboard?.pipelineData ? (
+                dashboard.pipelineData.map((stage: any, idx: number) => {
+                  const colors = ["bg-blue-500", "bg-amber-500", "bg-purple-500", "bg-emerald-500"];
+                  const max = Math.max(...dashboard.pipelineData.map((s: any) => s.count), 1);
+                  return (
+                    <div key={idx} className="group">
+                      <div className="flex justify-between text-sm font-semibold mb-2">
+                        <span className="text-gray-700 group-hover:text-indigo-600 transition-colors">{stage.stage}</span>
+                        <span className="text-gray-900">{stage.count}</span>
+                      </div>
+                      <div className="h-2.5 w-full overflow-hidden rounded-full bg-gray-100">
+                        <div className={`h-full rounded-full ${colors[idx % colors.length]} transition-all duration-1000 ease-out`} style={{ width: `${Math.min((stage.count / max) * 100, 100)}%` }}></div>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                [
+                  { stage: "New Leads", count: (stats?.totalLeads || stats?.myLeads || 0) > 0 ? (stats?.totalLeads || stats?.myLeads) : 10, color: "bg-blue-500", max: 100 },
+                  { stage: "Document Verification", count: (stats?.totalLeads || stats?.myLeads || 0) > 0 ? Math.floor((stats?.totalLeads || stats?.myLeads) * 0.4) : 4, color: "bg-amber-500", max: 100 },
+                  { stage: "Underwriting / Credit", count: (stats?.totalLeads || stats?.myLeads || 0) > 0 ? Math.floor((stats?.totalLeads || stats?.myLeads) * 0.2) : 2, color: "bg-purple-500", max: 100 },
+                  { stage: "Approved / Disbursed", count: (stats?.totalLeads || stats?.myLeads || 0) > 0 ? Math.floor((stats?.totalLeads || stats?.myLeads) * 0.1) : 1, color: "bg-emerald-500", max: 100 },
+                ].map((stage, idx) => (
+                  <div key={idx} className="group">
+                    <div className="flex justify-between text-sm font-semibold mb-2">
+                      <span className="text-gray-700 group-hover:text-indigo-600 transition-colors">{stage.stage}</span>
+                      <span className="text-gray-900">{stage.count}</span>
+                    </div>
+                    <div className="h-2.5 w-full overflow-hidden rounded-full bg-gray-100">
+                      <div className={`h-full rounded-full ${stage.color} transition-all duration-1000 ease-out`} style={{ width: `${Math.min((stage.count / (stage.max || 1)) * 100, 100)}%` }}></div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Activity Timeline */}
+        <div className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
+          <h3 className="mb-6 text-lg font-bold text-gray-900">Recent Activity</h3>
+          {recentActivity && recentActivity.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {recentActivity.map((activity: any, idx: number) => {
+                const Icon = UserCircle;
+                return (
+                  <div key={activity._id || idx} className="flex gap-4 rounded-2xl border border-gray-50 p-4 transition-all hover:bg-gray-50 hover:border-gray-100">
+                    <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600`}>
+                      <Icon size={20} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">{activity.title}</p>
+                      <p className="mt-0.5 text-xs font-medium text-gray-500 line-clamp-2">{activity.description}</p>
+                      <p className="mt-2 text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                        {new Date(activity.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="mb-4 rounded-full bg-gray-50 p-4">
+                <Activity className="h-8 w-8 text-gray-400" />
+              </div>
+              <h4 className="text-sm font-bold text-gray-900">No Recent Activity</h4>
+              <p className="mt-1 text-sm text-gray-500">There are no recent activities to show for your role.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  let metrics = [];
+  if (pipeline) {
+    metrics = [
+      { title: "Active Leads", val: pipeline.leads?.active || 0, trend: "Current", isUp: true, icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
+      { title: "Pending Applications", val: pipeline.applications?.pending || 0, trend: "Pipeline", isUp: true, icon: FileText, color: "text-amber-600", bg: "bg-amber-50" },
+      { title: "Approved Apps", val: pipeline.applications?.approved || 0, trend: "Approved", isUp: true, icon: CheckCircle2, color: "text-purple-600", bg: "bg-purple-50" },
+      { title: "Active Customers", val: pipeline.customers?.active || 0, trend: "Live", isUp: true, icon: Target, color: "text-emerald-600", bg: "bg-emerald-50" }
+    ];
+  } else {
+    // Fallback if Phase 5 API fails or returns null
+    metrics = [
+      { title: "Total Users", val: stats.totalUsers || 0, trend: "+5.2%", isUp: true, icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
+      { title: "Active Teams", val: stats.totalTeams || 0, trend: "+2.1%", isUp: true, icon: Building2, color: "text-purple-600", bg: "bg-purple-50" },
+      { title: "Total Branches", val: stats.totalBranches || 0, trend: "0%", isUp: true, icon: Target, color: "text-emerald-600", bg: "bg-emerald-50" },
+      { title: "Active Roles", val: stats.totalRoles || 0, trend: "+1.0%", isUp: true, icon: ShieldCheck, color: "text-amber-600", bg: "bg-amber-50" }
+    ];
+  }
 
   return (
     <div className="space-y-8 pb-12">

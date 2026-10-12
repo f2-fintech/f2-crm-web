@@ -78,9 +78,13 @@ export default function LeadTable({
               </tr>
             ) : (
               rows.map((row) => {
-                const initial = row.fullName ? row.fullName.charAt(0).toUpperCase() : "?";
-                const avatarColor = getAvatarColor(row.fullName || "");
+                const displayName = row.fullName || row.clientName || `${row.firstName || ''} ${row.lastName || ''}`.trim() || `Lead #${row.leadId || row.omsTicketId || ''}`;
+                const initial = displayName ? displayName.charAt(0).toUpperCase() : "?";
+                const avatarColor = getAvatarColor(displayName);
                 
+                const isOms = Boolean(row.omsTicketId || (row.leadSource || '').toUpperCase() === 'OMS');
+                const agentName = row.omsTicketId ? (row.omsAppliedByName || null) : (row.appliedByName || null);
+
                 return (
                   <tr key={row._id} className="hover:bg-indigo-50/40 transition-colors group">
                     <td className="px-6 py-4">
@@ -89,7 +93,7 @@ export default function LeadTable({
                           {initial}
                         </div>
                         <div>
-                          <div className="font-extrabold text-gray-900 mb-0.5">{row.fullName}</div>
+                          <div className="font-extrabold text-gray-900 mb-0.5">{displayName}</div>
                           <div className="flex items-center gap-2 text-xs font-semibold text-gray-500">
                             <span className="flex items-center gap-1"><Phone size={12}/> {row.phone}</span>
                             {row.assignedTo?.firstName && (
@@ -104,10 +108,41 @@ export default function LeadTable({
                     
                     <td className="px-6 py-4">
                       <div className="flex flex-col items-start gap-1">
-                        <span className="inline-flex text-[10px] font-black uppercase tracking-wider text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
-                          {row.leadSource || "Website"}
-                        </span>
-                        <span className="text-xs font-semibold text-gray-500 flex items-center gap-1 mt-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {(() => {
+                            const src = (row.leadSource || 'WEBSITE').toUpperCase();
+                            if (src === 'LENDGRID') {
+                              return (
+                                <span className="inline-flex text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border bg-purple-50 text-purple-700 border-purple-200">
+                                  LENDGRID
+                                </span>
+                              );
+                            } else if (src === 'OMS') {
+                              return (
+                                <span className="inline-flex text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border bg-emerald-50 text-emerald-700 border-emerald-200">
+                                  OMS
+                                </span>
+                              );
+                            } else {
+                              return (
+                                <span className="inline-flex text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border bg-blue-50 text-blue-700 border-blue-200">
+                                  WEBSITE
+                                </span>
+                              );
+                            }
+                          })()}
+                        </div>
+
+                        {/* Agent / Submitter Name styled matching OMS */}
+                        {agentName && (
+                          <span className={`text-xs font-black tracking-tight ${
+                            (row.leadSource || '').toUpperCase() === 'LENDGRID' ? 'text-purple-700' : 'text-emerald-700'
+                          }`}>
+                            {agentName}
+                          </span>
+                        )}
+
+                        <span className="text-xs font-semibold text-gray-500 flex items-center gap-1 mt-0.5">
                           <Building size={12} className="text-gray-400" />
                           {row.city || "Unknown City"}
                         </span>

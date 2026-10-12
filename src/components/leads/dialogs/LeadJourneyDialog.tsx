@@ -1,6 +1,22 @@
 import React, { useEffect, useState } from "react";
-import { Dialog, DialogContent, Box, Typography, CircularProgress, IconButton, Chip, Stack, Slide, Fade } from "@mui/material";
-import { X, UserCheck, MessageSquare, Briefcase, FileText, CheckCircle, Activity, Rocket, Building } from "lucide-react";
+import { Dialog, DialogContent, Box, Typography, CircularProgress, Tooltip } from "@mui/material";
+import {
+  X,
+  UserCheck,
+  MessageSquare,
+  Briefcase,
+  FileText,
+  CheckCircle,
+  Activity,
+  Rocket,
+  Clock,
+  ArrowUpDown,
+  LayoutGrid,
+  GitCommit,
+  Share2,
+  Stethoscope,
+  Gift
+} from "lucide-react";
 import api from "@/lib/axios";
 
 interface LeadJourneyDialogProps {
@@ -12,9 +28,12 @@ interface LeadJourneyDialogProps {
 export default function LeadJourneyDialog({ open, onClose, leadId }: LeadJourneyDialogProps) {
   const [loading, setLoading] = useState(false);
   const [timeline, setTimeline] = useState<any[]>([]);
-  const [metrics, setMetrics] = useState({ timeToResponse: "", conversionTime: "" });
   const [lead, setLead] = useState<any>(null);
   const [liveOmsData, setLiveOmsData] = useState<any>(null);
+
+  // View & Filter States
+  const [viewMode, setViewMode] = useState<'grid' | 'timeline'>('grid');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc'); // asc = chronological Step 1 -> N
 
   useEffect(() => {
     if (open && leadId) {
@@ -25,58 +44,9 @@ export default function LeadJourneyDialog({ open, onClose, leadId }: LeadJourney
   const fetchTimeline = async () => {
     setLoading(true);
     try {
-      const [timelineRes, leadRes] = await Promise.all([
-        api.get(`/timeline/lead/${leadId}`),
-        api.get(`/leads/${leadId}`)
-      ]);
-
+      const leadRes = await api.get(`/leads/${leadId}`);
       const leadData = leadRes.data.data || leadRes.data;
       setLead(leadData);
-
-      let localTimeline = timelineRes.data.data || timelineRes.data;
-      if (!Array.isArray(localTimeline)) localTimeline = [];
-
-      // Re-inject synthetic events based on lead state (as they were in the old dummy timeline)
-      const syntheticEvents = [];
-
-      // Only inject CREATED if not already present from DB
-      if (!localTimeline.some((t: any) => t.action === 'CREATED')) {
-        syntheticEvents.push({
-          _id: 'synth-created',
-          action: 'CREATED',
-          title: 'Lead Created',
-          description: 'Lead was created in CRM.',
-          createdAt: leadData.createdAt || new Date(),
-          performedBy: { firstName: leadData.createdBy?.firstName || leadData.createdBy?.fullName || 'System' }
-        });
-      }
-
-      // Inject Assigned event
-      if (leadData.assignedTo || leadData.omsUserId || leadData.omsAppliedByName) {
-        let agentName = leadData.omsAppliedByName || (leadData.assignedTo ? (leadData.assignedTo.firstName || leadData.assignedTo.fullName) : `Agent ID: ${leadData.omsUserId}`);
-        syntheticEvents.push({
-          _id: 'synth-assigned',
-          action: 'ASSIGNED',
-          title: 'Lead Assigned',
-          description: `Assigned to ${agentName}`,
-          createdAt: leadData.updatedAt || new Date(),
-          performedBy: { firstName: leadData.updatedBy?.firstName || leadData.updatedBy?.fullName || 'System' }
-        });
-      }
-
-      // Inject Follow Up event
-      if (leadData.nextFollowUp) {
-        syntheticEvents.push({
-          _id: 'synth-followup',
-          action: 'FOLLOWUP',
-          title: 'Follow Up Scheduled',
-          description: `Next Follow Up: ${new Date(leadData.nextFollowUp).toLocaleString()}`,
-          createdAt: leadData.updatedAt || leadData.nextFollowUp,
-          performedBy: { firstName: leadData.updatedBy?.firstName || leadData.updatedBy?.fullName || 'System' }
-        });
-      }
-
-      localTimeline = [...localTimeline, ...syntheticEvents];
 
       const omsTicketId = leadData?.omsTicketId || (!isNaN(Number(leadData?.leadId)) ? leadData.leadId : null);
 
@@ -91,117 +61,104 @@ export default function LeadJourneyDialog({ open, onClose, leadId }: LeadJourney
           .catch(console.error);
 
         // Fetch OMS Ticket History via Proxy
-        api.get(`/leads/oms/history/${omsTicketId}`)
-          .then(res => {
-            const data = res.data;
-            if (data?.data && Array.isArray(data.data)) {
-              const omsHistories = data.data.map((h: any) => ({
-                _id: `oms-${h.id}`,
-                action: 'OMS_HISTORY',
-                title: 'OMS Action',
-                description: h.action,
-                createdAt: h.created_at,
-                isOms: true
-              }));
-
-              // Merge and sort
-              const merged = [...localTimeline, ...omsHistories].sort((a, b) =>
-                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-              );
-              setTimeline(merged);
-              calculateMetrics(merged);
-            } else {
-              setTimeline(localTimeline);
-              calculateMetrics(localTimeline);
-            }
-          })
-          .catch(err => {
-            console.error("Failed to fetch OMS history", err);
-            setTimeline(localTimeline);
-            calculateMetrics(localTimeline);
-          });
+        try {
+          const histRes = await api.get(`/leads/oms/history/${omsTicketId}`);
+          const histData = histRes.data;
+          if (histData?.data && Array.isArray(histData.data)) {
+            const omsHistories = histData.data.map((h: any) => ({
+              _id: `oms-${h.id}`,
+              action: 'OMS_ACTION',
+              title: 'OMS Action',
+              description: h.action,
+              createdAt: h.created_at,
+              isOms: true,
+              performedBy: {
+                firstName: h.user_name || (typeof h.action === 'string' ? h.action.split(' ')[0] : '')
+              }
+            }));
+            setTimeline(omsHistories);
+          } else {
+            setTimeline([]);
+          }
+        } catch (err) {
+          console.error("Failed to fetch OMS history", err);
+          setTimeline([]);
+        }
       } else {
-        setTimeline(localTimeline);
-        calculateMetrics(localTimeline);
+        setTimeline([]);
       }
     } catch (error) {
-      console.error("Failed to fetch timeline or lead data:", error);
+      console.error("Failed to fetch lead data:", error);
+      setTimeline([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const calculateMetrics = (data: any[]) => {
-    if (data.length < 2) return;
-
-    // Calculate simple metrics based on timestamps (ascending order logic)
-    const firstActivity = new Date(data[data.length - 1]?.createdAt);
-    const lastActivity = new Date(data[0]?.createdAt);
-
-    const diffHours = Math.round((lastActivity.getTime() - firstActivity.getTime()) / (1000 * 60 * 60));
-    const diffDays = Math.round(diffHours / 24);
-
-    setMetrics({
-      timeToResponse: diffHours > 0 ? `${diffHours} hours` : "Instant",
-      conversionTime: diffDays > 0 ? `${diffDays} days` : (diffHours > 0 ? `${diffHours} hours` : "In Progress")
-    });
+  const getActionIcon = (description: string) => {
+    const text = (description || '').toLowerCase();
+    if (text.includes('created') || text.includes('submit')) return <Rocket size={16} />;
+    if (text.includes('assign') || text.includes('allocated')) return <UserCheck size={16} />;
+    if (text.includes('status') || text.includes('rejected') || text.includes('approved') || text.includes('operations')) return <CheckCircle size={16} />;
+    if (text.includes('follow') || text.includes('comment') || text.includes('note')) return <MessageSquare size={16} />;
+    return <Activity size={16} />;
   };
 
-  const getActionIcon = (action: string) => {
-    switch (action) {
-      case "CREATED": return <Rocket size={20} className="text-blue-500" />;
-      case "ASSIGNED": return <UserCheck size={20} className="text-purple-500" />;
-      case "OMS_HISTORY": return <Activity size={20} className="text-orange-500" />;
-      case "COMMENT":
-      case "FOLLOWUP": return <MessageSquare size={20} className="text-orange-500" />;
-      case "PIPELINE_CHANGED": return <Briefcase size={20} className="text-indigo-500" />;
-      case "STAGE_CHANGED": return <Activity size={20} className="text-brand-500" />;
-      case "STATUS_CHANGED": return <CheckCircle size={20} className="text-green-500" />;
-      default: return <FileText size={20} className="text-gray-500" />;
-    }
-  };
+  const displayTimeline = [...timeline].sort((a, b) => {
+    const timeA = new Date(a.createdAt).getTime();
+    const timeB = new Date(b.createdAt).getTime();
+    return sortOrder === 'asc' ? timeA - timeB : timeB - timeA;
+  });
 
   return (
     <Dialog
       open={open}
       onClose={onClose}
-      maxWidth="lg"
+      maxWidth="xl"
       fullWidth
       scroll="paper"
       slotProps={{
         backdrop: {
           sx: {
-            backgroundColor: 'rgba(15, 23, 42, 0.4)',
+            backgroundColor: 'rgba(15, 23, 42, 0.55)',
             backdropFilter: 'blur(8px)',
           }
         },
         paper: {
           sx: {
             borderRadius: "24px",
-            boxShadow: "0 40px 100px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.1) inset",
-            maxHeight: "85vh",
+            boxShadow: "0 30px 90px rgba(0,0,0,0.4)",
+            width: { xs: "96vw", lg: "92vw" },
+            maxWidth: "1440px",
+            height: { xs: "94vh", md: "88vh" },
+            maxHeight: "94vh",
             display: "flex",
             flexDirection: "column",
             overflow: "hidden",
-            background: "#f4f7f9",
+            background: "#f8fafc",
             position: 'relative'
           }
         }
       }}
     >
-      {/* Dynamic Header */}
+      {/* Top Banner Header */}
       <div className="bg-[#0f172a] border-b border-slate-800 flex items-center justify-between px-6 py-4 shrink-0 relative overflow-hidden">
-        {/* Glow blobs */}
-        <div className="absolute top-[-50px] left-[-50px] w-32 h-32 bg-blue-500 blur-[80px] opacity-40 rounded-full"></div>
-        <div className="absolute bottom-[-50px] right-[10%] w-40 h-40 bg-purple-500 blur-[80px] opacity-30 rounded-full"></div>
+        {/* Ambient Glows */}
+        <div className="absolute top-[-50px] left-[-30px] w-48 h-48 bg-indigo-500 blur-[80px] opacity-40 rounded-full pointer-events-none" />
+        <div className="absolute bottom-[-50px] right-[10%] w-56 h-56 bg-amber-500 blur-[90px] opacity-25 rounded-full pointer-events-none" />
 
-        <div className="flex items-center gap-3 relative z-10">
-          <div className="p-2 bg-white/5 border border-white/10 rounded-xl shadow-lg backdrop-blur-md">
-            <Activity className="text-white" size={20} strokeWidth={2.5} />
+        <div className="flex items-center gap-3.5 relative z-10">
+          <div className="p-2.5 bg-gradient-to-tr from-amber-500 to-orange-500 text-white rounded-xl shadow-lg shadow-orange-500/20">
+            <Activity size={20} strokeWidth={2.5} />
           </div>
           <div>
-            <h2 className="text-lg font-extrabold text-white tracking-wide">Customer Journey</h2>
-            <p className="text-xs font-semibold text-slate-400 mt-0.5">End-to-End Onboarding & Lifecycle Timeline</p>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-black text-white tracking-wide">OMS Action Journey</h2>
+              <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-400/30">
+                Verified OMS Flow
+              </span>
+            </div>
+            <p className="text-xs font-medium text-slate-400 mt-0.5">Live verified chronological history of OMS events</p>
           </div>
         </div>
 
@@ -213,189 +170,328 @@ export default function LeadJourneyDialog({ open, onClose, leadId }: LeadJourney
         </button>
       </div>
 
-      <DialogContent sx={{ p: 0, display: "flex", flex: 1, overflow: "hidden", position: 'relative' }}>
+      <DialogContent
+        sx={{
+          p: 0,
+          display: "flex",
+          flexDirection: "column",
+          flex: 1,
+          minHeight: 0,
+          overflowY: "auto",
+          overflowX: "hidden",
+          bgcolor: "#f8fafc",
+          position: 'relative',
+          '&::-webkit-scrollbar': {
+            width: '8px',
+          },
+          '&::-webkit-scrollbar-track': {
+            background: '#f1f5f9',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            background: '#94a3b8',
+            borderRadius: '4px',
+          },
+          '&::-webkit-scrollbar-thumb:hover': {
+            background: '#64748b',
+          }
+        }}
+      >
         {loading ? (
-          <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%", width: "100%" }}>
-            <CircularProgress size={40} thickness={4} sx={{ color: '#4f46e5' }} />
-          </Box>
+          <div className="flex flex-col justify-center items-center h-full w-full min-h-[380px] gap-2">
+            <CircularProgress size={42} thickness={4} sx={{ color: '#6366f1' }} />
+            <Typography variant="body2" sx={{ color: '#64748b', fontWeight: 600 }}>Loading journey records...</Typography>
+          </div>
         ) : (
-          <Box display="flex" flexDirection="column" height="100%" width="100%">
-
-            {/* Top Summary Area: Compact */}
-            <div className="bg-white border-b border-gray-100 p-4 px-6 flex flex-wrap items-center justify-between gap-4 shrink-0 shadow-sm relative z-10">
-              <div className="flex items-center gap-4">
-                <div className="bg-blue-50 text-blue-600 p-2.5 rounded-xl border border-blue-100">
+          <>
+            {/* Customer Details Strip - Sticky */}
+            <div className="sticky top-0 z-30 bg-white border-b border-slate-200/80 px-6 py-3.5 flex flex-wrap items-center justify-between gap-4 shrink-0 shadow-sm">
+              <div className="flex items-center gap-3.5">
+                <div className="bg-indigo-50 text-indigo-600 p-2.5 rounded-xl border border-indigo-100 shadow-sm">
                   <UserCheck size={20} />
                 </div>
                 <div>
-                  <h3 className="text-base font-extrabold text-gray-900">{liveOmsData?.customerName || lead?.fullName || 'N/A'}</h3>
-                  <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 mt-0.5">
+                  <h3 className="text-base font-extrabold text-slate-900 leading-tight">
+                    {liveOmsData?.customerName || lead?.fullName || 'N/A'}
+                  </h3>
+                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 mt-0.5">
                     <span>{liveOmsData?.customerContact || lead?.phone || 'N/A'}</span>
-                    <span className="text-gray-300">•</span>
+                    <span className="text-slate-300">•</span>
                     <span>{liveOmsData?.customerEmail || lead?.email || 'N/A'}</span>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-8">
+              <div className="flex items-center gap-6 md:gap-8 flex-wrap">
                 <div>
-                  <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Amount</div>
-                  <div className="text-sm font-extrabold text-gray-900">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Amount</div>
+                  <div className="text-sm font-black text-slate-900">
                     {liveOmsData?.applicationAmount ? `₹${Number(liveOmsData.applicationAmount).toLocaleString('en-IN')}` : (lead?.loanAmount ? `₹${Number(lead.loanAmount).toLocaleString('en-IN')}` : 'N/A')}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Provider</div>
-                  <div className="text-sm font-extrabold text-gray-900">{liveOmsData?.provider || lead?.omsProvider || 'N/A'}</div>
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Provider</div>
+                  <div className="text-sm font-black text-slate-900">{liveOmsData?.provider || lead?.omsProvider || 'N/A'}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Status</div>
-                  <div className="text-xs font-black text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-lg uppercase tracking-wide">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Ticket Status</div>
+                  <div className="text-xs font-black text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-3 py-1 rounded-lg uppercase tracking-wide">
                     {liveOmsData?.ticketStatus || lead?.omsTicketStatus || lead?.status || 'Unknown'}
                   </div>
+                </div>
+
+                {/* Share Live Tracking With Customer */}
+                <div className="flex items-center gap-1.5 pl-2 border-l border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const ticketId = liveOmsData?.ticketId || lead?.omsTicketId || lead?.leadId || '';
+                      const url = `${window.location.origin}/track-loan?ticket=${ticketId}`;
+                      navigator.clipboard.writeText(url);
+                      alert('Tracking link copied to clipboard:\n' + url);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-all cursor-pointer shadow-2xs"
+                    title="Copy Live Tracker Link to Clipboard"
+                  >
+                    <Share2 size={13} />
+                    Copy Tracker Link
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const ticketId = liveOmsData?.ticketId || lead?.omsTicketId || lead?.leadId || '';
+                      const url = `${window.location.origin}/track-loan?ticket=${ticketId}`;
+                      const phone = (liveOmsData?.customerContact || lead?.phone || '').replace(/\D/g, '');
+                      const name = liveOmsData?.customerName || lead?.fullName || 'Customer';
+                      const st = liveOmsData?.ticketStatus || lead?.omsTicketStatus || lead?.status || 'In Process';
+                      const msg = `Namaste ${name}! Aapki F2 Fintech Loan Application (Ticket #${ticketId}) ka live status yahan track karein: ${url}\nCurrent Status: ${st}`;
+                      window.open(`https://wa.me/${phone.length === 10 ? '91' + phone : phone}?text=${encodeURIComponent(msg)}`, '_blank');
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-all cursor-pointer shadow-sm"
+                    title="Send Live Status to Customer on WhatsApp"
+                  >
+                    <MessageSquare size={13} />
+                    WhatsApp Customer
+                  </button>
+                  {((lead?.loanType || '').toLowerCase().includes('doctor') ||
+                    (lead?.fullName || '').toLowerCase().startsWith('dr') ||
+                    (liveOmsData?.leadType || '').toLowerCase().includes('doctor')) && (
+                    <button
+                      type="button"
+                      onClick={() => window.open('/doctors', '_blank')}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg transition-all cursor-pointer shadow-sm"
+                      title="Open Doctor Privilege Network & Offers"
+                    >
+                      <Stethoscope size={13} />
+                      Doctor Offers
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Main Area: Horizontal Timeline */}
-            <Box flex={1} p={{ xs: 3, md: 3 }} sx={{ overflowY: "auto", overflowX: "hidden", bgcolor: "#f8fafc", position: 'relative' }}>
-              <Box width="100%">
-                <Box mb={5} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-                  <Typography variant="h6" fontWeight={900} color="#0f172a" letterSpacing="-0.5px">Action Flow</Typography>
-                  <Typography variant="body2" color="#64748b" mt={0.5}>Complete chronological history of events</Typography>
-                </Box>
+            {/* Toolbar - Sticky underneath customer bar */}
+            <div className="sticky top-[69px] z-20 bg-slate-50/95 backdrop-blur-md border-b border-slate-200/60 px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 shrink-0 shadow-xs">
+              <div className="flex items-center gap-2">
+                <span className="flex items-center gap-1.5 px-3 py-1 bg-orange-50 border border-orange-200 text-orange-700 text-xs font-black rounded-lg shadow-2xs">
+                  <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                  OMS Actions ({timeline.length})
+                </span>
+                <span className="text-xs text-slate-500 font-semibold hidden sm:inline">
+                  Live verified OMS action audit trail
+                </span>
+              </div>
 
-                {timeline.length === 0 ? (
-                  <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", height: 300 }}>
-                    <Activity size={48} className="text-gray-300 mb-4" />
-                    <Typography color="#94a3b8" fontWeight={700} variant="h6">No Journey Data</Typography>
-                    <Typography color="#94a3b8" variant="body2" mt={1}>Sync with OMS or wait for updates.</Typography>
-                  </Box>
-                ) : (
-                  <Box position="relative">
-                    {/* Dashed Connecting Line (Horizontal) */}
-                    <Box position="absolute" top={32} left={40} right={40} height={0} sx={{ borderTop: "2px dashed #cbd5e1" }} zIndex={0} />
+              {/* View Mode & Sort Switches */}
+              <div className="flex items-center gap-2">
+                {/* Sort Order Toggle */}
+                <button
+                  type="button"
+                  onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all cursor-pointer shadow-sm"
+                  title="Toggle Chronological Order"
+                >
+                  <ArrowUpDown size={13} className="text-slate-500" />
+                  <span>{sortOrder === 'asc' ? 'Oldest First (Step 1→N)' : 'Latest First'}</span>
+                </button>
 
-                    <Stack
-                      direction="row"
-                      spacing={4}
-                      position="relative"
-                      zIndex={1}
-                      sx={{
-                        overflowX: 'auto',
-                        pb: 4, pt: 1, px: { xs: 1, md: 4 },
-                        width: '100%',
-                        justifyContent: timeline.length < 4 ? 'center' : 'flex-start',
-                        '&::-webkit-scrollbar': { height: 8 },
-                        '&::-webkit-scrollbar-thumb': { bgcolor: '#cbd5e1', borderRadius: 4 }
-                      }}
-                    >
-                      {timeline.map((item, index) => {
-                        const isOms = item.isOms;
-                        return (
-                          <Box
-                            key={item._id || index}
-                            display="flex"
-                            flexDirection="column"
-                            gap={3}
-                            sx={{
-                              minWidth: 320,
-                              maxWidth: 320,
-                              animation: `slideRight 0.5s ease-out ${index * 0.1}s both`,
-                              '@keyframes slideRight': {
-                                '0%': { opacity: 0, transform: 'translateX(20px)' },
-                                '100%': { opacity: 1, transform: 'translateX(0)' }
-                              }
-                            }}
-                          >
-                            {/* Node Icon */}
-                            <Box sx={{ position: 'relative', display: 'flex', justifyContent: 'flex-start' }}>
-                              <Box
-                                sx={{
-                                  width: 56, height: 56, borderRadius: "50%",
-                                  display: "flex", alignItems: "center", justifyContent: "center",
-                                  background: isOms ? 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)' : 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
-                                  color: '#fff', flexShrink: 0,
-                                  boxShadow: `0 4px 16px ${isOms ? 'rgba(245,158,11,0.4)' : 'rgba(79,70,229,0.4)'}`,
-                                  border: '4px solid #f8fafc',
-                                  transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                  '&:hover': { transform: 'scale(1.15) rotate(5deg)' }
-                                }}
-                              >
-                                {getActionIcon(item.action)}
-                              </Box>
-                            </Box>
+                {/* View Mode (Grid vs Timeline) */}
+                <div className="flex items-center bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('grid')}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+                      viewMode === 'grid' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                    }`}
+                  >
+                    <LayoutGrid size={13} />
+                    Grid Cards
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('timeline')}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+                      viewMode === 'timeline' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                    }`}
+                  >
+                    <GitCommit size={13} />
+                    Timeline Stream
+                  </button>
+                </div>
+              </div>
+            </div>
 
-                            <Box
-                              flex={1}
-                              sx={{
-                                p: 3,
-                                bgcolor: "#fff",
-                                border: "1px solid rgba(0,0,0,0.04)",
-                                borderRadius: 4,
-                                boxShadow: "0 4px 20px rgba(0,0,0,0.02)",
-                                position: 'relative',
-                                transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                                '&:hover': {
-                                  boxShadow: "0 20px 40px rgba(0,0,0,0.08)",
-                                  transform: "translateY(-4px)"
-                                }
-                              }}
-                            >
-                              <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1.5} flexWrap="wrap" gap={1}>
-                                <Box>
-                                  <Typography variant="h6" fontWeight={800} color="#0f172a" sx={{ fontSize: '1.1rem', letterSpacing: '-0.3px' }}>{item.title}</Typography>
-                                  <Typography variant="body2" color="#475569" mt={0.5} sx={{ lineHeight: 1.6, fontWeight: 500 }}>{item.description}</Typography>
-                                </Box>
-                                <Chip
-                                  size="small"
-                                  label={item.action}
-                                  sx={{
-                                    height: 26, fontSize: "11px", fontWeight: 800, letterSpacing: '0.5px',
-                                    bgcolor: isOms ? "rgba(245,158,11,0.1)" : "rgba(79,70,229,0.1)",
-                                    color: isOms ? "#ea580c" : "#4f46e5",
-                                    borderRadius: 2
-                                  }}
-                                />
-                              </Box>
+            {/* Main Content Area */}
+            <div className="p-4 md:p-6 bg-[#f8fafc] pb-24">
+              {displayTimeline.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-500 mb-3 border border-amber-200">
+                    <Activity size={32} />
+                  </div>
+                  <h4 className="text-base font-bold text-slate-800">No OMS Actions Found</h4>
+                  <p className="text-xs text-slate-500 mt-1 max-w-sm">There are no recorded OMS actions for this ticket yet.</p>
+                </div>
+              ) : viewMode === 'grid' ? (
+                /* 1. ULTRA-CLEAN RESPONSIVE GRID (SAB EK SATH DIKHEGA, ZERO CUT-OFF!) */
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {displayTimeline.map((item, index) => {
+                    const isOms = item.isOms;
+                    return (
+                      <div
+                        key={item._id || index}
+                        className="group relative bg-white rounded-2xl border border-slate-200/90 p-4 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all duration-200 flex flex-col justify-between"
+                      >
+                        {/* Top Step Counter & Action Pill */}
+                        <div>
+                          <div className="flex items-center justify-between gap-2 mb-3">
+                            <div className="flex items-center gap-2">
+                              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-slate-700 text-[11px] font-black border border-slate-200">
+                                #{index + 1}
+                              </span>
+                              <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md uppercase tracking-wide ${
+                                isOms
+                                  ? 'bg-orange-50 text-orange-600 border border-orange-200'
+                                  : 'bg-indigo-50 text-indigo-600 border border-indigo-200'
+                              }`}>
+                                {isOms ? 'OMS Action' : item.action}
+                              </span>
+                            </div>
 
-                              <Box display="flex" justifyContent="space-between" alignItems="center" mt={3} pt={2} borderTop="1px dashed #e2e8f0">
-                                <Typography variant="caption" fontWeight={700} color="#94a3b8">
-                                  {new Date(item.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
-                                </Typography>
-                                {item.performedBy?.firstName && (
-                                  <Chip
-                                    size="small"
-                                    icon={<UserCheck size={14} style={{ marginLeft: 6 }} />}
-                                    label={item.performedBy.firstName}
-                                    sx={{ bgcolor: '#f1f5f9', color: '#475569', fontWeight: 700, fontSize: '11px', borderRadius: 1.5 }}
-                                  />
-                                )}
-                              </Box>
+                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-white shadow-sm ${
+                              isOms
+                                ? 'bg-gradient-to-tr from-amber-500 to-orange-500'
+                                : 'bg-gradient-to-tr from-indigo-500 to-purple-600'
+                            }`}>
+                              {getActionIcon(item.action)}
+                            </div>
+                          </div>
 
-                              {/* Display Meta Data if exists */}
-                              {item.metadata && Object.keys(item.metadata).length > 0 && (
-                                <Box mt={2.5} p={2} bgcolor="#f8fafc" borderRadius={3} border="1px solid #f1f5f9">
-                                  {Object.entries(item.metadata).map(([key, val]) => (
-                                    <Box key={key} display="flex" justifyContent="space-between" alignItems="center" py={0.5}>
-                                      <Typography variant="caption" color="#64748b" fontWeight={600} textTransform="uppercase">{key}</Typography>
-                                      <Typography variant="caption" color="#0f172a" fontWeight={800}>{String(val)}</Typography>
-                                    </Box>
-                                  ))}
-                                </Box>
-                              )}
-                            </Box>
-                          </Box>
-                        );
-                      })}
-                    </Stack>
-                  </Box>
-                )}
-              </Box>
-            </Box>
-          </Box>
+                          {/* Action Title */}
+                          <h4 className="text-sm font-extrabold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                            {item.title}
+                          </h4>
+
+                          {/* Description */}
+                          <p className="text-xs text-slate-600 mt-1.5 leading-relaxed font-medium">
+                            {item.description}
+                          </p>
+
+                          {/* Metadata (if any) */}
+                          {item.metadata && Object.keys(item.metadata).length > 0 && (
+                            <div className="mt-2.5 p-2 bg-slate-50 rounded-xl border border-slate-100 text-[10px] space-y-1">
+                              {Object.entries(item.metadata).map(([k, v]) => (
+                                <div key={k} className="flex justify-between items-center">
+                                  <span className="text-slate-400 font-semibold uppercase">{k}:</span>
+                                  <span className="text-slate-800 font-bold">{String(v)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Bottom Row: Performer & Exact Date */}
+                        <div className="mt-4 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                          <span className="text-slate-400 font-semibold flex items-center gap-1.5">
+                            <Clock size={12} className="text-slate-400" />
+                            {new Date(item.createdAt).toLocaleString('en-IN', {
+                              dateStyle: 'medium',
+                              timeStyle: 'short'
+                            })}
+                          </span>
+
+                          {item.performedBy?.firstName && (
+                            <span className="inline-flex items-center gap-1 text-slate-700 font-bold bg-slate-100 px-2 py-0.5 rounded-md text-[10px]">
+                              <UserCheck size={11} className="text-indigo-600" />
+                              {item.performedBy.firstName}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                /* 2. CLASSIC VERTICAL TIMELINE STREAM */
+                <div className="max-w-3xl mx-auto py-2">
+                  <div className="relative pl-6 space-y-6 before:absolute before:left-[17px] before:top-3 before:bottom-3 before:w-[2px] before:bg-slate-200">
+                    {displayTimeline.map((item, index) => {
+                      const isOms = item.isOms;
+                      return (
+                        <div key={item._id || index} className="relative flex items-start gap-4 group">
+                          {/* Timeline Node Dot */}
+                          <div className={`relative z-10 w-9 h-9 -ml-6 rounded-xl flex items-center justify-center text-white shadow-md border-2 border-white shrink-0 ${
+                            isOms
+                              ? 'bg-gradient-to-tr from-amber-500 to-orange-500 shadow-orange-500/20'
+                              : 'bg-gradient-to-tr from-indigo-500 to-purple-600 shadow-indigo-500/20'
+                          }`}>
+                            {getActionIcon(item.action)}
+                          </div>
+
+                          {/* Timeline Card */}
+                          <div className="flex-1 bg-white rounded-2xl border border-slate-200/90 p-4 shadow-sm hover:shadow-md transition-all">
+                            <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-black text-slate-400">Step #{index + 1}</span>
+                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md uppercase tracking-wide ${
+                                  isOms
+                                    ? 'bg-orange-50 text-orange-600 border border-orange-200'
+                                    : 'bg-indigo-50 text-indigo-600 border border-indigo-200'
+                                }`}>
+                                  {isOms ? 'OMS Action' : item.action}
+                                </span>
+                              </div>
+
+                              <span className="text-xs font-semibold text-slate-400 flex items-center gap-1">
+                                <Clock size={12} />
+                                {new Date(item.createdAt).toLocaleString('en-IN', {
+                                  dateStyle: 'medium',
+                                  timeStyle: 'short'
+                                })}
+                              </span>
+                            </div>
+
+                            <h4 className="text-sm font-extrabold text-slate-900 mt-1">{item.title}</h4>
+                            <p className="text-xs text-slate-600 mt-1 leading-relaxed font-medium">{item.description}</p>
+
+                            {item.performedBy?.firstName && (
+                              <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-end">
+                                <span className="inline-flex items-center gap-1 text-slate-700 font-bold bg-slate-100 px-2 py-0.5 rounded-md text-[10px]">
+                                  <UserCheck size={11} className="text-indigo-600" />
+                                  Performed by {item.performedBy.firstName}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
         )}
       </DialogContent>
     </Dialog>
   );
 }
+

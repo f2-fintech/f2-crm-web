@@ -64,7 +64,12 @@ const sourceConfig: Record<
 
   OMS: {
     label: "OMS",
-    color: "error",
+    color: "success",
+  },
+
+  LENDGRID: {
+    label: "Lendgrid",
+    color: "secondary",
   },
 };
 
