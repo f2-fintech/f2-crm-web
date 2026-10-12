@@ -301,8 +301,8 @@ export default function LeadTimeline({ lead }: LeadTimelineProps) {
                         >
                           <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1.5} flexWrap="wrap" gap={1}>
                           <Box>
-                            <Typography variant="h6" fontWeight={800} color="#0f172a" sx={{ fontSize: '1.1rem', letterSpacing: '-0.3px' }}>{item.title}</Typography>
-                            <Typography variant="body2" color="#475569" mt={0.5} sx={{ lineHeight: 1.6, fontWeight: 500 }}>{item.description}</Typography>
+                            <Typography variant="h6" sx={{ fontWeight: 800, color: "#0f172a", fontSize: '1.1rem', letterSpacing: '-0.3px' }}>{item.title}</Typography>
+                            <Typography variant="body2" sx={{ color: "#475569", mt: 0.5, lineHeight: 1.6, fontWeight: 500 }}>{item.description}</Typography>
                           </Box>
                           <Chip 
                             size="small" 
@@ -310,14 +310,14 @@ export default function LeadTimeline({ lead }: LeadTimelineProps) {
                             sx={{ 
                               height: 26, fontSize: "11px", fontWeight: 800, letterSpacing: '0.5px',
                               bgcolor: isOms ? "rgba(245,158,11,0.1)" : "rgba(79,70,229,0.1)", 
-                              color: isOms ? "#ea580c" : "#4f46e5",
+                              color: isOms ? "#ea580c" : "#4f46e5", 
                               borderRadius: 2
                             }} 
                           />
                         </Box>
                         
                         <Box display="flex" justifyContent="space-between" alignItems="center" mt={3} pt={2} borderTop="1px dashed #e2e8f0">
-                          <Typography variant="caption" fontWeight={700} color="#94a3b8">
+                          <Typography variant="caption" sx={{ fontWeight: 700, color: "#94a3b8" }}>
                             {new Date(item.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
                           </Typography>
                           {item.performedBy?.firstName && (
@@ -332,11 +332,11 @@ export default function LeadTimeline({ lead }: LeadTimelineProps) {
 
                         {/* Display Meta Data if exists */}
                         {item.metadata && Object.keys(item.metadata).length > 0 && (
-                          <Box mt={2.5} p={2} bgcolor="#f8fafc" borderRadius={3} border="1px solid #f1f5f9">
+                          <Box sx={{ mt: 2.5, p: 2, bgcolor: "#f8fafc", borderRadius: 3, border: "1px solid #f1f5f9" }}>
                             {Object.entries(item.metadata).map(([key, val]) => (
-                              <Box key={key} display="flex" justifyContent="space-between" alignItems="center" py={0.5}>
-                                <Typography variant="caption" color="#64748b" fontWeight={600} textTransform="uppercase">{key}</Typography>
-                                <Typography variant="caption" color="#0f172a" fontWeight={800}>{String(val)}</Typography>
+                              <Box key={key} sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", py: 0.5 }}>
+                                <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 600, textTransform: "uppercase" }}>{key}</Typography>
+                                <Typography variant="caption" sx={{ color: "#0f172a", fontWeight: 800 }}>{String(val)}</Typography>
                               </Box>
                             ))}
                           </Box>
