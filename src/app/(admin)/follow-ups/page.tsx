@@ -3,6 +3,9 @@
 import React, { useState } from "react";
 import { Calendar, Clock, CheckCircle2, AlertCircle, Phone, Mail, MoreHorizontal, Check } from "lucide-react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+import FollowUpInsights from "./FollowUpInsights";
+import api from "@/lib/axios";
+import { useEffect } from "react";
 
 const mockTasks = [
   { id: 1, title: "Call regarding pending KYC", type: "Call", lead: "Rahul Sharma", time: "10:30 AM", status: "Overdue", priority: "High" },
@@ -14,6 +17,19 @@ const mockTasks = [
 export default function FollowUpsPage() {
   const [filter, setFilter] = useState("All");
   const [tasks, setTasks] = useState(mockTasks);
+  const [stats, setStats] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const { data } = await api.get("/follow-ups/dashboard/stats");
+        setStats(data.data);
+      } catch (err) {
+        console.error("Failed to fetch follow-up stats", err);
+      }
+    };
+    fetchStats();
+  }, []);
 
   const completeTask = (id: number) => {
     setTasks(tasks.filter(t => t.id !== id));
@@ -29,6 +45,8 @@ export default function FollowUpsPage() {
           <p className="mt-1 text-sm text-gray-500">Manage your daily calls, emails, and meetings.</p>
         </div>
       </div>
+
+      <FollowUpInsights insights={stats?.insights || []} />
 
       <div className="flex gap-4 border-b border-gray-200">
         {["All", "Overdue", "Today", "Upcoming"].map(f => (

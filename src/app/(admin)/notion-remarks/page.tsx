@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { 
   LayoutDashboard, Users, FileSpreadsheet, MessageSquare,
   TrendingUp, CheckCircle2, XCircle, Clock, Search,
-  ChevronDown, ChevronRight, BarChart2, RefreshCw
+  ChevronDown, ChevronRight, BarChart2, RefreshCw, AlertCircle
 } from "lucide-react";
 import api from "@/lib/axios";
 
@@ -40,6 +40,7 @@ function classifyRemark(text: string): "positive" | "negative" | "neutral" | "em
 export default function NotionAdminDashboard() {
   const [pages, setPages] = useState<SheetPage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [selectedTeam, setSelectedTeam] = useState("All");
   const [expandedPage, setExpandedPage] = useState<string | null>(null);
@@ -48,10 +49,13 @@ export default function NotionAdminDashboard() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await api.get("/notion-pages/admin/remarks");
-      setPages(res.data);
-    } catch (err) {
-      console.error("Failed to fetch", err);
+      setError(null);
+      const res = await api.get("/notion-pages/admin/remarks", { timeout: 60000 });
+      setPages(Array.isArray(res.data) ? res.data : []);
+    } catch (err: any) {
+      console.error("Failed to fetch notion remarks", err);
+      const msg = err?.response?.data?.message || err?.message || "Failed to connect to backend server";
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -168,6 +172,24 @@ export default function NotionAdminDashboard() {
     );
   }
 
+  if (error && pages.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 text-center">
+        <div className="bg-red-50 p-4 rounded-2xl mb-4 border border-red-200">
+          <AlertCircle size={36} className="text-red-500" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-800 mb-2">Unable to load Notion Remarks</h2>
+        <p className="text-sm text-slate-500 max-w-md mb-6">{error}</p>
+        <button
+          onClick={fetchData}
+          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2.5 rounded-xl transition-all shadow-sm"
+        >
+          <RefreshCw size={16} /> Try Again
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
       {/* ── Top Header ── */}
@@ -187,6 +209,18 @@ export default function NotionAdminDashboard() {
       </div>
 
       <div className="px-6 lg:px-10 py-6 space-y-6">
+        {error && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl flex items-center justify-between text-sm shadow-sm">
+            <div className="flex items-center gap-2">
+              <AlertCircle size={18} className="text-amber-600 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+            <button onClick={fetchData} className="underline font-bold hover:text-amber-900 ml-4">
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* ── KPI Strip ── */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <KPI icon={<FileSpreadsheet size={20} className="text-indigo-500" />} label="Total Sheets" value={pages.length} bg="bg-indigo-50" />

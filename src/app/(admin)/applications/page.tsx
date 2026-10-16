@@ -5,6 +5,7 @@ import api from "@/lib/axios";
 import { Plus, Search, Eye, MoreHorizontal, User, Calendar, CreditCard, ChevronRight } from "lucide-react";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import Link from "next/link";
+import ApplicationInsights from "./ApplicationInsights";
 
 interface Application {
   _id: string;
@@ -28,6 +29,16 @@ export default function ApplicationsKanbanPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [draggedAppId, setDraggedAppId] = useState<string | null>(null);
+  const [stats, setStats] = useState<any>(null);
+
+  const fetchStats = async () => {
+    try {
+      const { data } = await api.get("/applications/dashboard/stats");
+      setStats(data.data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
   const fetchApplications = async () => {
     try {
@@ -43,6 +54,7 @@ export default function ApplicationsKanbanPage() {
 
   useEffect(() => {
     fetchApplications();
+    fetchStats();
   }, []);
 
   const updateApplicationStatus = async (appId: string, newStatus: string) => {
@@ -89,6 +101,7 @@ export default function ApplicationsKanbanPage() {
           <PageBreadcrumb pageTitle="Application Pipeline" />
           <p className="mt-1 text-sm text-gray-500">Drag and drop applications to move them through the underwriting pipeline.</p>
         </div>
+
         <div className="flex gap-3">
           <div className="relative">
             <Search size={18} className="absolute left-3 top-2.5 text-gray-400" />
@@ -105,6 +118,9 @@ export default function ApplicationsKanbanPage() {
           </button>
         </div>
       </div>
+
+      <ApplicationInsights insights={stats?.insights || []} />
+
 
       {loading ? (
         <div className="flex-1 flex items-center justify-center">
