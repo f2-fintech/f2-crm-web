@@ -51,21 +51,54 @@ export default function LeadJourneyDialog({ open, onClose, leadId }: LeadJourney
       const omsTicketId = leadData?.omsTicketId || (!isNaN(Number(leadData?.leadId)) ? leadData.leadId : null);
 
       if (omsTicketId) {
-        // Fetch Live OMS Data via Proxy
+        // Fetch Live OMS Data via Proxy with direct fallback
         api.get(`/leads/oms/detail/${omsTicketId}`)
-          .then(res => {
+          .then(async (res) => {
             if (res.data?.data) {
               setLiveOmsData(res.data.data);
+            } else {
+              const directOmsBase = process.env.NEXT_PUBLIC_OMS_BASE_URL || 'https://admin.f2fintech.in';
+              const companyId = process.env.NEXT_PUBLIC_OMS_COMPANY_ID || '101';
+              const dRes = await fetch(`${directOmsBase}/api/v1/get-ticket-with-detail/${omsTicketId}`, {
+                headers: { companyid: companyId }
+              });
+              if (dRes.ok) {
+                const dData = await dRes.json();
+                if (dData?.data) setLiveOmsData(dData.data);
+              }
             }
           })
           .catch(console.error);
 
-        // Fetch OMS Ticket History via Proxy
+        // Fetch OMS Ticket History via Proxy with direct fallback
         try {
+          let historyList: any[] = [];
           const histRes = await api.get(`/leads/oms/history/${omsTicketId}`);
           const histData = histRes.data;
           if (histData?.data && Array.isArray(histData.data)) {
-            const omsHistories = histData.data.map((h: any) => ({
+            historyList = histData.data;
+          }
+
+          if (historyList.length === 0) {
+            try {
+              const directOmsBase = process.env.NEXT_PUBLIC_OMS_BASE_URL || 'https://admin.f2fintech.in';
+              const companyId = process.env.NEXT_PUBLIC_OMS_COMPANY_ID || '101';
+              const directRes = await fetch(`${directOmsBase}/api/v1/get-ticket-histories/${omsTicketId}`, {
+                headers: { companyid: companyId }
+              });
+              if (directRes.ok) {
+                const dJson = await directRes.json();
+                if (Array.isArray(dJson?.data)) {
+                  historyList = dJson.data;
+                }
+              }
+            } catch (dErr) {
+              console.warn("Direct history fallback error:", dErr);
+            }
+          }
+
+          if (historyList.length > 0) {
+            const omsHistories = historyList.map((h: any) => ({
               _id: `oms-${h.id}`,
               action: 'OMS_ACTION',
               title: 'OMS Action',
@@ -231,6 +264,12 @@ export default function LeadJourneyDialog({ open, onClose, leadId }: LeadJourney
                 <div>
                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Provider</div>
                   <div className="text-sm font-black text-slate-900">{liveOmsData?.provider || lead?.omsProvider || 'N/A'}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Lead Type</div>
+                  <div className="text-xs font-black text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-lg uppercase tracking-wide">
+                    {liveOmsData?.leadType || lead?.omsLeadType || 'N/A'}
+                  </div>
                 </div>
                 <div>
                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Ticket Status</div>

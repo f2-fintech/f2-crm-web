@@ -17,9 +17,9 @@ export default function useDashboard() {
   const [agentWorkload, setAgentWorkload] = useState<any>(null);
   const [agentActivity, setAgentActivity] = useState<any>(null);
   const [volumeForecast, setVolumeForecast] = useState<any>(null);
-  
+
   const [slaData, setSlaData] = useState<any>(null);
-  
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -42,7 +42,16 @@ export default function useDashboard() {
         axios.get("/dashboard/volume-forecast")
       ]);
 
-      if (dashRes.status === 'fulfilled') setDashboard(dashRes.value.data.data);
+      if (dashRes.status === 'fulfilled') {
+        setDashboard(dashRes.value.data.data);
+      } else if (!isBackground) {
+        setDashboard((prev) => prev || {
+          roleType: 'TEAM_LEADER',
+          stats: { teamSize: 0, activeMembers: 0, teamPages: 0, totalLeads: 0 },
+          recentActivity: [],
+          monthlyLeads: { data: [] }
+        });
+      }
       if (pipRes.status === 'fulfilled') setPipeline(pipRes.value.data.data);
       if (moveRes.status === 'fulfilled') setMovement(moveRes.value.data.data);
       if (stageRes.status === 'fulfilled') setStageAging(stageRes.value.data.data);

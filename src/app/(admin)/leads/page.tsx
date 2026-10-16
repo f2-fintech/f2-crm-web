@@ -59,11 +59,11 @@ export default function LeadsPage() {
 
   useEffect(() => {
     getDashboardStats().then(data => setStats(data));
-    
+
     // Check if we navigated here with a status filter from the Dashboard
     const params = new URLSearchParams(window.location.search);
     const statusParam = params.get("status");
-    if (statusParam) {
+    if (statusParam && statusParam !== "ALL") {
       applyFilters({ status: statusParam });
       filters.updateFilter("status", statusParam);
     }
@@ -82,9 +82,16 @@ export default function LeadsPage() {
 
         <DashboardCards
           stats={stats}
-          activeStatus={filters.filters.status}
+          activeStatus={filters.filters.status || "ALL"}
           onCardClick={(status) => {
-            const updatedFilters = { ...filters.filters, status };
+            const updatedFilters = { ...filters.filters };
+            if (!status || status === "ALL") {
+              delete updatedFilters.status;
+              filters.updateFilter("status", "");
+            } else {
+              updatedFilters.status = status;
+              filters.updateFilter("status", status);
+            }
             applyFilters(updatedFilters);
           }}
         />

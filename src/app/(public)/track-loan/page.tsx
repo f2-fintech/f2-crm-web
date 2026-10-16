@@ -53,6 +53,7 @@ function TrackLoanContent() {
     const isTicket = isNumericOnly && query.trim().length <= 7;
 
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
+    const OMS_BASE = process.env.NEXT_PUBLIC_OMS_BASE_URL || "https://admin.f2fintech.in";
 
     try {
       let ticketIdToFetch = query.trim();
@@ -93,7 +94,7 @@ function TrackLoanContent() {
 
       if (!detailData) {
         try {
-          const directRes = await fetch(`https://admin.f2fintech.in/api/v1/get-ticket-with-detail/${ticketIdToFetch}`);
+          const directRes = await fetch(`${OMS_BASE}/api/v1/get-ticket-with-detail/${ticketIdToFetch}`);
           if (directRes.ok) {
             const dJson = await directRes.json();
             if (dJson?.data) detailData = dJson.data;
@@ -103,15 +104,27 @@ function TrackLoanContent() {
         }
       }
 
-      // 3. Fetch OMS History Timeline (Try direct OMS API)
+      // 3. Fetch OMS History Timeline (Try backend proxy first, fallback to direct OMS API)
       try {
-        const hRes = await fetch(`https://admin.f2fintech.in/api/v1/get-ticket-histories/${ticketIdToFetch}`);
-        if (hRes.ok) {
-          const hJson = await hRes.json();
+        const hBackendRes = await fetch(`${API_BASE}/leads/oms/history/${ticketIdToFetch}`);
+        if (hBackendRes.ok) {
+          const hJson = await hBackendRes.json();
           if (Array.isArray(hJson?.data)) historyData = hJson.data;
         }
       } catch (e) {
-        console.warn("History fetch failed:", e);
+        // Fallback to direct OMS API
+      }
+
+      if (!historyData || historyData.length === 0) {
+        try {
+          const hRes = await fetch(`${OMS_BASE}/api/v1/get-ticket-histories/${ticketIdToFetch}`);
+          if (hRes.ok) {
+            const hJson = await hRes.json();
+            if (Array.isArray(hJson?.data)) historyData = hJson.data;
+          }
+        } catch (e) {
+          console.warn("History fetch failed:", e);
+        }
       }
 
       if (detailData) {

@@ -33,8 +33,8 @@ interface DashboardCardsProps {
 }
 
 export default function DashboardCards({ stats, onCardClick, activeStatus, variant = 'compact' }: DashboardCardsProps) {
-  const notionInsight = stats?.insights?.find(i => i.title === 'Notion Leads');
-  const dialerInsight = stats?.insights?.find(i => i.title === 'Dialer Leads');
+  const notionCount = stats?.overview?.notionLeads ?? stats?.insights?.find((i: any) => i.title === 'Notion Leads')?.metric ?? 0;
+  const dialerCount = stats?.overview?.dialerLeads ?? stats?.insights?.find((i: any) => i.title === 'Dialer Leads')?.metric ?? 0;
 
   const statConfigs = [
     { label: "Total Leads", value: stats?.overview?.totalLeads ?? 0, Icon: GroupsIcon, bg: "bg-blue-50", color: "text-blue-600", colorHex: "#2563EB", bgHex: "#EFF6FF", trend: "Current", filter: "ALL" },
@@ -42,22 +42,22 @@ export default function DashboardCards({ stats, onCardClick, activeStatus, varia
     { label: "Rejected", value: stats?.overview?.rejectedLeads ?? 0, Icon: CancelIcon, bg: "bg-red-50", color: "text-red-600", colorHex: "#DC2626", bgHex: "#FEE2E2", trend: "Rejected", filter: "REJECTED" },
     { label: "Disbursed", value: stats?.overview?.disbursedLeads ?? 0, Icon: AccountBalanceWalletIcon, bg: "bg-purple-50", color: "text-purple-600", colorHex: "#7C3AED", bgHex: "#F3E8FF", trend: "Disbursed", filter: "DISBURSED" },
     { label: "Follow Up", value: stats?.overview?.followUpLeads ?? 0, Icon: AccessTimeIcon, bg: "bg-amber-50", color: "text-amber-600", colorHex: "#D97706", bgHex: "#FEF3C7", trend: "Active", filter: "FOLLOW_UP" },
-    { label: "Notion", value: notionInsight?.metric ?? 0, Icon: DescriptionIcon, bg: "bg-teal-50", color: "text-teal-600", colorHex: "#0D9488", bgHex: "#CCFBF1", trend: "Source", filter: "" },
-    { label: "Dialer", value: dialerInsight?.metric ?? 0, Icon: CallIcon, bg: "bg-pink-50", color: "text-pink-600", colorHex: "#DB2777", bgHex: "#FCE7F3", trend: "Source", filter: "" },
+    { label: "Notion", value: notionCount, Icon: DescriptionIcon, bg: "bg-teal-50", color: "text-teal-600", colorHex: "#0D9488", bgHex: "#CCFBF1", trend: "Source", filter: "NOTION" },
+    { label: "Dialer", value: dialerCount, Icon: CallIcon, bg: "bg-pink-50", color: "text-pink-600", colorHex: "#DB2777", bgHex: "#FCE7F3", trend: "Source", filter: "DIALER" },
   ];
 
   if (variant === 'compact') {
     return (
       <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 1, '&::-webkit-scrollbar': { height: 6 }, '&::-webkit-scrollbar-thumb': { bgcolor: '#cbd5e1', borderRadius: 3 } }}>
         {statConfigs.map((item, idx) => {
-          const isActive = activeStatus === item.filter && item.filter !== "";
+          const isActive = activeStatus === item.filter || (!activeStatus && item.filter === "ALL");
           return (
             <Card
               key={idx}
               elevation={0}
               onClick={() => {
                 if (item.filter && onCardClick) {
-                  onCardClick(isActive ? "" : item.filter);
+                  onCardClick(isActive && item.filter !== "ALL" ? "ALL" : item.filter);
                 }
               }}
               sx={{
@@ -112,15 +112,15 @@ export default function DashboardCards({ stats, onCardClick, activeStatus, varia
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 pb-4 pt-1 px-1">
       {statConfigs.map((item, idx) => {
-        const isActive = activeStatus === item.filter && item.filter !== "";
-        const isDimmed = activeStatus && !isActive && item.filter !== "";
+        const isActive = activeStatus === item.filter || (!activeStatus && item.filter === "ALL");
+        const isDimmed = activeStatus && !isActive && activeStatus !== "ALL";
 
         return (
           <div
             key={idx}
             onClick={() => {
               if (item.filter && onCardClick) {
-                onCardClick(isActive ? "" : item.filter);
+                onCardClick(isActive && item.filter !== "ALL" ? "ALL" : item.filter);
               }
             }}
             className={`group relative overflow-hidden rounded-2xl bg-white p-6 transition-all 
