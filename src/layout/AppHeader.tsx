@@ -36,6 +36,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/departments": "Departments",
   "/branches": "Branches",
   "/integrations": "Integrations",
+  "/drive-allocation": "Drive Data Allocation",
   "/settings": "Settings",
 };
 
