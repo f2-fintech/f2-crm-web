@@ -20,6 +20,7 @@ const PROTECTED_ROUTES = [
   "/settings",
   "/notion-pages",
   "/teams",
+  "/mis-search",
 ];
 
 export function middleware(request: NextRequest) {
@@ -79,5 +80,6 @@ export const config = {
     "/reset-password",
     "/notion-pages/:path*",
     "/teams/:path*",
+    "/mis-search/:path*",
   ],
 };

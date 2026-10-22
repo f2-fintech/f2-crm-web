@@ -20,7 +20,7 @@ import {
   UserCircleIcon,
 } from "../icons/index";
 import SidebarWidget from "./SidebarWidget";
-import { MessageSquare, Contact, Sparkles, Calculator, Stethoscope, FolderGit2 } from "lucide-react";
+import { MessageSquare, Contact, Sparkles, Calculator, Stethoscope, FolderGit2, Search } from "lucide-react";
 
 type NavItem = {
   name: string;
@@ -92,6 +92,11 @@ const othersItems: NavItem[] = [
     path: "/drive-allocation",
   },
   {
+    icon: <Search size={20} className="text-cyan-500" />,
+    name: "MIS Search Book",
+    path: "/mis-search",
+  },
+  {
     icon: <BoxCubeIcon />,
     name: "Administration",
     subItems: [
@@ -140,11 +145,17 @@ const AppSidebar: React.FC = () => {
   const renderMenuItems = (
     navItems: NavItem[],
     menuType: "main" | "others"
-  ) => (
-    <ul className="flex flex-col gap-1">
-      {navItems.map((nav, index) => {
-        const groupOpen =
-          openSubmenu?.type === menuType && openSubmenu?.index === index;
+  ) => {
+    const visibleItems = navItems.filter((nav) => {
+      if (nav.path && !hasPermission(nav.path, role)) return false;
+      return true;
+    });
+
+    return (
+      <ul className="flex flex-col gap-1">
+        {visibleItems.map((nav, index) => {
+          const groupOpen =
+            openSubmenu?.type === menuType && openSubmenu?.index === index;
 
         return (
           <li key={nav.name} className="relative">
@@ -153,14 +164,14 @@ const AppSidebar: React.FC = () => {
                 id={`sidebar-item-${nav.name.toLowerCase().replace(/\s+/g, '-')}`}
                 onClick={() => handleSubmenuToggle(index, menuType)}
                 className={`group relative flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${groupOpen
-                    ? "bg-white/5 text-white ring-1 ring-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
-                    : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+                  ? "bg-white/5 text-white ring-1 ring-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+                  : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
                   } ${!showLabels ? "lg:justify-center" : "justify-start"}`}
               >
                 <span
                   className={`flex h-5 w-5 shrink-0 items-center justify-center transition-colors duration-200 ${groupOpen
-                      ? "text-indigo-400"
-                      : "text-slate-500 group-hover:text-slate-300"
+                    ? "text-indigo-400"
+                    : "text-slate-500 group-hover:text-slate-300"
                     }`}
                 >
                   {nav.icon}
@@ -180,8 +191,8 @@ const AppSidebar: React.FC = () => {
                   href={nav.path}
                   onClick={handleLinkClick}
                   className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${isActive(nav.path)
-                      ? "bg-gradient-to-r from-indigo-500/10 to-transparent text-indigo-200 ring-1 ring-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
-                      : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+                    ? "bg-gradient-to-r from-indigo-500/10 to-transparent text-indigo-200 ring-1 ring-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+                    : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
                     } ${!showLabels ? "lg:justify-center" : "justify-start"}`}
                 >
                   {isActive(nav.path) && (
@@ -189,8 +200,8 @@ const AppSidebar: React.FC = () => {
                   )}
                   <span
                     className={`flex h-5 w-5 shrink-0 items-center justify-center transition-colors duration-200 ${isActive(nav.path)
-                        ? "text-indigo-400"
-                        : "text-slate-500 group-hover:text-slate-300"
+                      ? "text-indigo-400"
+                      : "text-slate-500 group-hover:text-slate-300"
                       }`}
                   >
                     {nav.icon}
@@ -220,8 +231,8 @@ const AppSidebar: React.FC = () => {
                         href={subItem.path}
                         onClick={handleLinkClick}
                         className={`group flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm transition-all duration-200 ${isActive(subItem.path)
-                            ? "bg-white/5 font-medium text-indigo-300 ring-1 ring-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
-                            : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+                          ? "bg-white/5 font-medium text-indigo-300 ring-1 ring-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+                          : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
                           }`}
                       >
                         <span className={`h-1.5 w-1.5 rounded-full transition-colors duration-200 ${isActive(subItem.path) ? "bg-indigo-400 shadow-[0_0_6px_rgba(99,102,241,0.6)]" : "bg-slate-600 group-hover:bg-slate-400"}`} />
@@ -248,7 +259,8 @@ const AppSidebar: React.FC = () => {
         );
       })}
     </ul>
-  );
+    );
+  };
 
   useEffect(() => {
     let submenuMatched = false;
@@ -362,7 +374,7 @@ const AppSidebar: React.FC = () => {
             </div>
           )}
         </div>
-        
+
         {/* Mobile Close Button */}
         {isMobileOpen && (
           <button
