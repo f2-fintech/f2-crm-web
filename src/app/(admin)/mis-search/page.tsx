@@ -21,7 +21,7 @@ export default function MisSearchPage() {
   const [authToken, setAuthToken] = useState<string | null>(null);
 
   const misSearchUrl =
-    process.env.NEXT_PUBLIC_MIS_SEARCH_URL || "http://3.110.108.187";
+    process.env.NEXT_PUBLIC_MIS_SEARCH_URL || "https://mis.f2fintech.in";
 
   useEffect(() => {
     if (typeof window !== "undefined") {
