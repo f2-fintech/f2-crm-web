@@ -27,6 +27,7 @@ export const ROUTE_PERMISSIONS: Record<string, string[]> = {
   "/teams": [ROLES.SUPER_ADMIN, ROLES.ADMIN],
   "/settings": [ROLES.SUPER_ADMIN, ROLES.ADMIN],
   "/integrations": [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+  "/drive-allocation": [ROLES.SUPER_ADMIN, ROLES.ADMIN],
   "/agents": [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER, ROLES.TEAM_LEADER],
   "/notion-remarks": [ROLES.SUPER_ADMIN, ROLES.ADMIN],
 };
