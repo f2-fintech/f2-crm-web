@@ -77,6 +77,7 @@ export interface FileFilterOptions {
   minAmount: number;
   maxAmount: number;
   totalAvailable: number;
+  columnUniqueValues?: Record<string, string[]>;
 }
 
 export interface DriveStats {

@@ -86,8 +86,10 @@ export default function LeadTable({
                 const initial = displayName ? displayName.charAt(0).toUpperCase() : "?";
                 const avatarColor = getAvatarColor(displayName);
                 
-                const isOms = Boolean(row.omsTicketId || (row.leadSource || '').toUpperCase() === 'OMS');
-                const agentName = row.omsTicketId ? (row.omsAppliedByName || null) : (row.appliedByName || null);
+                const assignedUserName = row.assignedTo && typeof row.assignedTo === 'object'
+                  ? `${row.assignedTo.firstName || ''} ${row.assignedTo.lastName || ''}`.trim()
+                  : null;
+                const agentName = row.omsAppliedByName || row.appliedByName || assignedUserName || null;
 
                 return (
                   <tr key={row._id} className="hover:bg-indigo-50/40 transition-colors group">

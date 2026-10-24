@@ -129,15 +129,97 @@ export default function AvailableRecordsTable({
     ];
   }, [fileHeaders, filterOptions?.headers, records]);
 
+  // Map of unique values per column from filterOptions and records
+  const columnOptionsMap = useMemo(() => {
+    const map: Record<string, string[]> = {};
+
+    // 1. If backend provided columnUniqueValues, use them
+    if (filterOptions?.columnUniqueValues) {
+      Object.entries(filterOptions.columnUniqueValues).forEach(([k, vals]) => {
+        map[k] = vals;
+      });
+    }
+
+    // 2. Incorporate known normalized filterOptions lists as helpers
+    if (filterOptions?.states && filterOptions.states.length > 0) {
+      map["State"] = map["State"] || filterOptions.states;
+      map["STATE"] = map["STATE"] || filterOptions.states;
+    }
+    if (filterOptions?.cities && filterOptions.cities.length > 0) {
+      map["City"] = map["City"] || filterOptions.cities;
+      map["CITY"] = map["CITY"] || filterOptions.cities;
+      map["Branch"] = map["Branch"] || filterOptions.cities;
+      map["Branch / City"] = map["Branch / City"] || filterOptions.cities;
+      map["DISTRICT"] = map["DISTRICT"] || filterOptions.cities;
+      map["District"] = map["District"] || filterOptions.cities;
+    }
+    if (filterOptions?.categories && filterOptions.categories.length > 0) {
+      map["Category"] = map["Category"] || filterOptions.categories;
+      map["CATEGORY"] = map["CATEGORY"] || filterOptions.categories;
+    }
+    if (filterOptions?.lenders && filterOptions.lenders.length > 0) {
+      map["Lender"] = map["Lender"] || filterOptions.lenders;
+      map["Partner_Name"] = map["Partner_Name"] || filterOptions.lenders;
+    }
+    if (filterOptions?.years && filterOptions.years.length > 0) {
+      map["Year"] = map["Year"] || filterOptions.years;
+      map["YEAR"] = map["YEAR"] || filterOptions.years;
+    }
+
+    // 3. Fallback: extract unique values from currently loaded records' rawData
+    if (records && records.length > 0) {
+      records.forEach((rec) => {
+        if (!rec.rawData) return;
+        Object.entries(rec.rawData).forEach(([k, v]) => {
+          if (!map[k]) map[k] = [];
+          const s = String(v ?? "").trim();
+          if (
+            s &&
+            s !== "--" &&
+            s.length <= 60 &&
+            !map[k].includes(s) &&
+            map[k].length < 200
+          ) {
+            map[k].push(s);
+          }
+        });
+      });
+    }
+
+    return map;
+  }, [filterOptions, records]);
+
+  // Unique values for the currently selected column
+  const activeColumnValues = useMemo(() => {
+    if (!customColumn) return [];
+    if (columnOptionsMap[customColumn] && columnOptionsMap[customColumn].length > 0) {
+      return columnOptionsMap[customColumn];
+    }
+
+    // Case-insensitive fallback match
+    const lowerKey = customColumn.toLowerCase();
+    const found = Object.keys(columnOptionsMap).find(
+      (k) => k.toLowerCase() === lowerKey
+    );
+    if (found && columnOptionsMap[found] && columnOptionsMap[found].length > 0) {
+      return columnOptionsMap[found];
+    }
+    return [];
+  }, [customColumn, columnOptionsMap]);
+
+  const isAmountColumn = Boolean(
+    customColumn && /(amount|eligib|loan|limit|salary|income)/i.test(customColumn)
+  );
+
   const hasActiveFilters = Boolean(
     search ||
+      (customColumn && customValue) ||
       city ||
       state ||
       year ||
       category ||
       cibilMin !== undefined ||
       lender ||
-      (customColumn && customValue) ||
       minAmount !== undefined ||
       maxAmount !== undefined
   );
@@ -472,255 +554,209 @@ export default function AvailableRecordsTable({
             )}
           </div>
 
-          {/* Responsive Filter Grid: Shows relevant filters for this file */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {/* 1. City / Branch / District Filter (Searchable with Auto-complete Datalist + Quick Badges) */}
-            <div>
-              <label className="block text-[11px] font-bold text-gray-700 mb-1 flex items-center justify-between">
-                <span className="flex items-center gap-1">
-                  <Building size={12} className="text-blue-500" />
-                  City / Branch / District {filterOptions?.cities ? `(${filterOptions.cities.length})` : ""}
-                </span>
-                {city && (
-                  <button
-                    type="button"
-                    onClick={() => onCityChange("")}
-                    className="text-[10px] text-rose-500 hover:underline font-semibold"
-                  >
-                    Clear
-                  </button>
-                )}
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  list="available-city-datalist"
-                  placeholder="Type city (e.g. Mumbai, Delhi, Surat)..."
-                  value={city}
-                  onChange={(e) => onCityChange(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-800 shadow-sm focus:border-blue-500 focus:outline-none"
-                />
-                <datalist id="available-city-datalist">
-                  {filterOptions?.cities?.map((c) => (
-                    <option key={c} value={c} />
+          {/* Unified Dynamic Filter: Filter by Any Excel Column */}
+          <div className="bg-white/95 rounded-2xl border border-indigo-100 shadow-sm p-4">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
+              {/* Step 1: Choose Column */}
+              <div className="w-full sm:w-1/2">
+                <label className="block text-xs font-bold text-gray-700 mb-1.5 flex items-center gap-1.5">
+                  <SlidersHorizontal size={14} className="text-indigo-600" />
+                  Filter by Any Column:
+                </label>
+                <select
+                  value={customColumn || ""}
+                  onChange={(e) => {
+                    const newCol = e.target.value;
+                    onCustomColumnChange && onCustomColumnChange(newCol);
+                    onCustomValueChange && onCustomValueChange("");
+                    if (minAmount !== undefined) onMinAmountChange(undefined);
+                    if (maxAmount !== undefined) onMaxAmountChange(undefined);
+                  }}
+                  className="w-full rounded-xl border border-indigo-200 bg-indigo-50/40 px-3.5 py-2.5 text-xs font-bold text-gray-800 shadow-sm focus:border-indigo-500 focus:bg-white focus:outline-none transition"
+                >
+                  <option value="">-- Choose Column from Excel --</option>
+                  {dynamicColumns.map((col) => (
+                    <option key={col} value={col}>
+                      {col}
+                    </option>
                   ))}
-                </datalist>
+                </select>
               </div>
-              {/* Quick Popular City Badges */}
-              {filterOptions && filterOptions.cities.length > 0 && !city && (
-                <div className="flex flex-wrap gap-1 mt-1.5">
-                  {["MUMBAI", "DELHI", "JAIPUR", "AHMEDABAD", "SURAT", "PUNE", "BANGALORE"]
-                    .filter((topCity) =>
-                      filterOptions.cities.some(
-                        (c) => c.toUpperCase() === topCity || c.toUpperCase().includes(topCity)
-                      )
-                    )
-                    .slice(0, 4)
-                    .map((topCity) => (
-                      <button
-                        key={topCity}
-                        type="button"
-                        onClick={() => onCityChange(topCity)}
-                        className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium border border-blue-200 transition"
-                      >
-                        +{topCity}
-                      </button>
-                    ))}
+
+              {/* Step 2: Choose or Type Match Value */}
+              <div className="w-full sm:w-1/2">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-gray-700 flex items-center gap-1.5">
+                    <Tag size={14} className="text-purple-600" />
+                    {isAmountColumn ? "Amount Range (Itna se Itna Amount):" : "Match Value:"}
+                  </label>
+                  {customColumn && (
+                    <span className="text-[11px] font-semibold text-indigo-600">
+                      Column: <span className="underline font-bold">{customColumn}</span>
+                    </span>
+                  )}
                 </div>
-              )}
+
+                {!customColumn ? (
+                  <div className="w-full rounded-xl border border-dashed border-gray-300 bg-gray-50/70 px-3.5 py-2.5 text-xs font-medium text-gray-400">
+                    👈 Pehle column choose kijiye...
+                  </div>
+                ) : isAmountColumn ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 relative">
+                        <span className="absolute left-3 top-2 text-xs font-bold text-emerald-600">₹</span>
+                        <input
+                          type="number"
+                          placeholder="Min Amount (e.g. 50000)"
+                          value={minAmount ?? ""}
+                          onChange={(e) => {
+                            const val = e.target.value ? Number(e.target.value) : undefined;
+                            onMinAmountChange(val);
+                          }}
+                          className="w-full rounded-xl border border-emerald-300 bg-white pl-7 pr-3 py-2 text-xs font-bold text-gray-800 placeholder-gray-400 shadow-sm focus:border-emerald-500 focus:outline-none transition"
+                        />
+                      </div>
+
+                      <span className="text-xs font-bold text-gray-500">to</span>
+
+                      <div className="flex-1 relative">
+                        <span className="absolute left-3 top-2 text-xs font-bold text-emerald-600">₹</span>
+                        <input
+                          type="number"
+                          placeholder="Max Amount (e.g. 500000)"
+                          value={maxAmount ?? ""}
+                          onChange={(e) => {
+                            const val = e.target.value ? Number(e.target.value) : undefined;
+                            onMaxAmountChange(val);
+                          }}
+                          className="w-full rounded-xl border border-emerald-300 bg-white pl-7 pr-3 py-2 text-xs font-bold text-gray-800 placeholder-gray-400 shadow-sm focus:border-emerald-500 focus:outline-none transition"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Quick Range Presets */}
+                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                      <span className="text-[10px] font-bold text-emerald-800">Quick Ranges:</span>
+                      {[
+                        { label: "₹50k - ₹1L", min: 50000, max: 100000 },
+                        { label: "₹1L - ₹2.5L", min: 100000, max: 250000 },
+                        { label: "₹2.5L - ₹5L", min: 250000, max: 500000 },
+                        { label: "₹5L - ₹10L", min: 500000, max: 1000000 },
+                        { label: "₹10L+", min: 1000000, max: undefined },
+                      ].map((preset) => {
+                        const isSelected = minAmount === preset.min && maxAmount === preset.max;
+                        return (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => {
+                              if (isSelected) {
+                                onMinAmountChange(undefined);
+                                onMaxAmountChange(undefined);
+                              } else {
+                                onMinAmountChange(preset.min);
+                                onMaxAmountChange(preset.max);
+                              }
+                            }}
+                            className={`text-[10px] px-2 py-0.5 rounded-lg font-bold border transition ${
+                              isSelected
+                                ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                                : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                            }`}
+                          >
+                            {isSelected ? "✓ " : ""}{preset.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    {activeColumnValues.length > 0 && activeColumnValues.length <= 60 ? (
+                      <select
+                        value={customValue || ""}
+                        onChange={(e) =>
+                          onCustomValueChange && onCustomValueChange(e.target.value)
+                        }
+                        className="w-full rounded-xl border border-purple-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-gray-800 shadow-sm focus:border-purple-500 focus:outline-none transition"
+                      >
+                        <option value="">
+                          -- All / Choose {customColumn} ({activeColumnValues.length} available) --
+                        </option>
+                        {activeColumnValues.map((val) => (
+                          <option key={val} value={val}>
+                            {val}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="relative">
+                        <input
+                          type="text"
+                          list="custom-column-datalist"
+                          placeholder={`Type or choose value for ${customColumn}...`}
+                          value={customValue || ""}
+                          onChange={(e) =>
+                            onCustomValueChange && onCustomValueChange(e.target.value)
+                          }
+                          className="w-full rounded-xl border border-purple-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-gray-800 placeholder-gray-400 shadow-sm focus:border-purple-500 focus:outline-none transition"
+                        />
+                        <datalist id="custom-column-datalist">
+                          {activeColumnValues.map((val) => (
+                            <option key={val} value={val} />
+                          ))}
+                        </datalist>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* 2. State Filter (Normalized Indian states) */}
-            {filterOptions && filterOptions.states.length > 0 && (
-              <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1 flex items-center gap-1">
-                  <MapPin size={12} className="text-purple-500" />
-                  State ({filterOptions.states.length})
-                </label>
-                <select
-                  value={state}
-                  onChange={(e) => onStateChange(e.target.value)}
-                  disabled={loadingFilterOptions}
-                  className="w-full rounded-xl border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-800 shadow-sm focus:border-purple-500 focus:outline-none"
-                >
-                  <option value="">All States</option>
-                  {filterOptions.states.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* 3. CIBIL Score Filter */}
-            {(filterOptions?.hasCibil || onCibilMinChange) && (
-              <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1 flex items-center gap-1">
-                  <Award size={12} className="text-emerald-500" />
-                  Min CIBIL Score
-                </label>
-                <select
-                  value={cibilMin ?? ""}
-                  onChange={(e) =>
-                    onCibilMinChange &&
-                    onCibilMinChange(e.target.value ? Number(e.target.value) : undefined)
-                  }
-                  className="w-full rounded-xl border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-800 shadow-sm focus:border-emerald-500 focus:outline-none"
-                >
-                  <option value="">Any CIBIL Score</option>
-                  <option value="700">700 & Above (Standard)</option>
-                  <option value="750">750 & Above (Prime)</option>
-                  <option value="800">800 & Above (Super Prime)</option>
-                  <option value="650">650 & Above</option>
-                </select>
-              </div>
-            )}
-
-            {/* 4. Lender / Bank / Employer / Partner Filter */}
-            {filterOptions &&
-              filterOptions.lenders &&
-              filterOptions.lenders.length > 0 &&
-              onLenderChange && (
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1 flex items-center gap-1">
-                    <Building2 size={12} className="text-cyan-500" />
-                    Lender / Company ({filterOptions.lenders.length})
-                  </label>
-                  <select
-                    value={lender || ""}
-                    onChange={(e) => onLenderChange(e.target.value)}
-                    className="w-full rounded-xl border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-800 shadow-sm focus:border-cyan-500 focus:outline-none"
-                  >
-                    <option value="">All Lenders / Companies</option>
-                    {filterOptions.lenders.map((l) => (
-                      <option key={l} value={l}>
-                        {l}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-            {/* 5. Category Filter */}
-            {filterOptions &&
-              filterOptions.categories &&
-              filterOptions.categories.length > 0 &&
-              onCategoryChange && (
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1 flex items-center gap-1">
-                    <Tag size={12} className="text-purple-500" />
-                    Category ({filterOptions.categories.length})
-                  </label>
-                  <select
-                    value={category}
-                    onChange={(e) => onCategoryChange(e.target.value)}
-                    disabled={loadingFilterOptions}
-                    className="w-full rounded-xl border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-800 shadow-sm focus:border-purple-500 focus:outline-none"
-                  >
-                    <option value="">All Categories</option>
-                    {filterOptions.categories.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-            {/* 6. Year / Period Filter */}
-            {filterOptions && filterOptions.years.length > 0 && (
-              <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1 flex items-center gap-1">
-                  <Calendar size={12} className="text-amber-500" />
-                  Year / Period ({filterOptions.years.length})
-                </label>
-                <select
-                  value={year}
-                  onChange={(e) => onYearChange(e.target.value)}
-                  disabled={loadingFilterOptions}
-                  className="w-full rounded-xl border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-800 shadow-sm focus:border-amber-500 focus:outline-none"
-                >
-                  <option value="">All Years / Periods</option>
-                  {filterOptions.years.map((y) => (
-                    <option key={y} value={y}>
-                      {y}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* 7. Eligibility Amount Range Filter */}
-            {filterOptions && filterOptions.maxAmount > 0 && (
-              <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1 flex items-center gap-1">
-                  <IndianRupee size={12} className="text-emerald-500" />
-                  Min Eligible Amount
-                </label>
-                <select
-                  value={minAmount ?? ""}
-                  onChange={(e) =>
-                    onMinAmountChange(
-                      e.target.value ? Number(e.target.value) : undefined
-                    )
-                  }
-                  className="w-full rounded-xl border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-800 shadow-sm focus:border-emerald-500 focus:outline-none"
-                >
-                  <option value="">Any Amount</option>
-                  <option value="50000">₹50,000 & above</option>
-                  <option value="100000">₹1,00,000 & above</option>
-                  <option value="250000">₹2,50,000 & above</option>
-                  <option value="500000">₹5,00,000 & above</option>
-                  <option value="1000000">₹10,00,000 & above</option>
-                  <option value="2500000">₹25,00,000 & above</option>
-                </select>
-              </div>
-            )}
-
-            {/* 8. Filter by Any Excel Column (Dynamic Filter) */}
-            {dynamicColumns && dynamicColumns.length > 0 && onCustomColumnChange && onCustomValueChange && (
-              <div className="col-span-1 sm:col-span-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-white/90 p-2 rounded-xl border border-blue-100 shadow-sm">
-                <div className="w-full sm:w-1/2">
-                  <label className="block text-[10px] font-bold text-gray-600 mb-0.5">
-                    Filter by Any Column:
-                  </label>
-                  <select
-                    value={customColumn || ""}
-                    onChange={(e) => onCustomColumnChange(e.target.value)}
-                    className="w-full rounded-lg border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-semibold text-gray-800 focus:outline-none focus:border-blue-500"
-                  >
-                    <option value="">Choose Column...</option>
-                    {dynamicColumns.map((col) => (
-                      <option key={col} value={col}>
-                        {col}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="w-full sm:w-1/2">
-                  <label className="block text-[10px] font-bold text-gray-600 mb-0.5">
-                    Match Value:
-                  </label>
-                  <input
-                    type="text"
-                    placeholder={customColumn ? `Search in ${customColumn}...` : "Pick column first"}
-                    disabled={!customColumn}
-                    value={customValue || ""}
-                    onChange={(e) => onCustomValueChange(e.target.value)}
-                    className="w-full rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs font-semibold text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-500 disabled:opacity-50"
-                  />
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Active Filter Badges */}
           {hasActiveFilters && (
             <div className="mt-3 flex flex-wrap items-center gap-2 pt-2 border-t border-gray-200/60">
               <span className="text-[11px] text-gray-500 font-bold">
-                Active Filter Badges:
+                Active Filter:
               </span>
+              {(minAmount !== undefined || maxAmount !== undefined) && (
+                <span className="inline-flex items-center gap-1.5 bg-emerald-100/90 text-emerald-900 px-2.5 py-1 rounded-xl text-xs font-bold border border-emerald-200 shadow-2xs">
+                  <span className="text-gray-600">{customColumn || "Eligibility Amount"}:</span>
+                  <span className="text-emerald-700 font-extrabold">
+                    {minAmount !== undefined && maxAmount !== undefined
+                      ? `₹${minAmount.toLocaleString("en-IN")} - ₹${maxAmount.toLocaleString("en-IN")}`
+                      : minAmount !== undefined
+                      ? `Min ₹${minAmount.toLocaleString("en-IN")}`
+                      : `Max ₹${maxAmount?.toLocaleString("en-IN")}`}
+                  </span>
+                  <button
+                    onClick={() => {
+                      onMinAmountChange(undefined);
+                      onMaxAmountChange(undefined);
+                    }}
+                    className="hover:text-rose-600 text-emerald-600 ml-1 transition"
+                    title="Remove amount filter"
+                  >
+                    <X size={13} />
+                  </button>
+                </span>
+              )}
+              {customColumn && customValue && onCustomValueChange && (
+                <span className="inline-flex items-center gap-1.5 bg-indigo-100/90 text-indigo-900 px-2.5 py-1 rounded-xl text-xs font-bold border border-indigo-200 shadow-2xs">
+                  <span className="text-gray-600">{customColumn}:</span>
+                  <span className="text-purple-700 font-extrabold">&quot;{customValue}&quot;</span>
+                  <button
+                    onClick={() => onCustomValueChange("")}
+                    className="hover:text-rose-600 text-indigo-500 ml-1 transition"
+                    title="Remove filter"
+                  >
+                    <X size={13} />
+                  </button>
+                </span>
+              )}
               {city && (
                 <span className="inline-flex items-center gap-1 bg-blue-100/90 text-blue-800 px-2 py-0.5 rounded-lg text-[11px] font-semibold border border-blue-200">
                   Location: {city}
@@ -760,17 +796,6 @@ export default function AvailableRecordsTable({
                   <button
                     onClick={() => onLenderChange("")}
                     className="hover:text-cyan-950 text-cyan-600 ml-0.5"
-                  >
-                    <X size={12} />
-                  </button>
-                </span>
-              )}
-              {customColumn && customValue && onCustomValueChange && (
-                <span className="inline-flex items-center gap-1 bg-indigo-100/90 text-indigo-800 px-2 py-0.5 rounded-lg text-[11px] font-semibold border border-indigo-200">
-                  {customColumn}: &quot;{customValue}&quot;
-                  <button
-                    onClick={() => onCustomValueChange("")}
-                    className="hover:text-indigo-950 text-indigo-600 ml-0.5"
                   >
                     <X size={12} />
                   </button>
