@@ -45,6 +45,8 @@ export default function NotionAdminDashboard() {
   const [selectedTeam, setSelectedTeam] = useState("All");
   const [expandedPage, setExpandedPage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "sheets" | "remarks">("overview");
+  const [visibleRemarksCount, setVisibleRemarksCount] = useState(100);
+  const [remarkFilter, setRemarkFilter] = useState<"all" | "positive" | "negative" | "neutral">("all");
 
   const fetchData = async () => {
     try {
@@ -387,60 +389,108 @@ export default function NotionAdminDashboard() {
         )}
 
         {/* ══════════════════ REMARKS FEED TAB ══════════════════ */}
-        {activeTab === "remarks" && (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="font-bold text-slate-800 flex items-center gap-2"><MessageSquare size={18} className="text-indigo-500" /> All Remarks — {analytics.allRemarks.length} entries</h3>
-              <div className="flex gap-2 text-xs font-bold">
-                <span className="px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">{analytics.positive} Positive</span>
-                <span className="px-2 py-1 rounded-full bg-red-50 text-red-700 border border-red-200">{analytics.negative} Negative</span>
+        {activeTab === "remarks" && (() => {
+          const filteredRemarks = analytics.allRemarks.filter(r => {
+            if (remarkFilter !== "all" && r.sentiment !== remarkFilter) return false;
+            return true;
+          });
+          const displayedRemarks = filteredRemarks.slice(0, visibleRemarksCount);
+
+          return (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                  <MessageSquare size={18} className="text-indigo-500" />
+                  All Remarks — {filteredRemarks.length} {remarkFilter !== "all" ? `(${remarkFilter})` : ""} of {analytics.allRemarks.length}
+                </h3>
+                <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
+                  <button
+                    onClick={() => { setRemarkFilter("all"); setVisibleRemarksCount(100); }}
+                    className={`px-3 py-1 rounded-full border transition ${remarkFilter === "all" ? "bg-slate-800 text-white border-slate-800" : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"}`}
+                  >
+                    All ({analytics.allRemarks.length})
+                  </button>
+                  <button
+                    onClick={() => { setRemarkFilter("positive"); setVisibleRemarksCount(100); }}
+                    className={`px-3 py-1 rounded-full border transition ${remarkFilter === "positive" ? "bg-emerald-600 text-white border-emerald-600" : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"}`}
+                  >
+                    {analytics.positive} Positive
+                  </button>
+                  <button
+                    onClick={() => { setRemarkFilter("negative"); setVisibleRemarksCount(100); }}
+                    className={`px-3 py-1 rounded-full border transition ${remarkFilter === "negative" ? "bg-rose-600 text-white border-rose-600" : "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"}`}
+                  >
+                    {analytics.negative} Negative
+                  </button>
+                  <button
+                    onClick={() => { setRemarkFilter("neutral"); setVisibleRemarksCount(100); }}
+                    className={`px-3 py-1 rounded-full border transition ${remarkFilter === "neutral" ? "bg-amber-600 text-white border-amber-600" : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"}`}
+                  >
+                    {analytics.neutral} Neutral
+                  </button>
+                </div>
               </div>
-            </div>
-            <div className="overflow-y-auto max-h-[600px] divide-y divide-slate-100">
-              {analytics.allRemarks.length === 0 ? <EmptyState /> :
-                analytics.allRemarks.map((r, i) => {
-                  const sentimentColor: Record<string, string> = {
-                    positive: "border-l-4 border-emerald-400 bg-emerald-50/30",
-                    negative: "border-l-4 border-red-400 bg-red-50/30",
-                    neutral: "border-l-4 border-amber-400 bg-amber-50/20",
-                    empty: "border-l-4 border-slate-200"
-                  };
-                  return (
-                    <div key={i} className={`px-6 py-4 hover:bg-slate-50/50 transition-colors ${sentimentColor[r.sentiment]}`}>
-                      <div className="flex justify-between items-start gap-4">
-                        <div className="flex-grow">
-                          <div className="font-semibold text-slate-800 text-sm mb-1">{r.lead}</div>
-                          <div className="flex items-center gap-2 mb-2">
-                            {r.disposition && (
-                              <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-md border border-indigo-200">
-                                {r.disposition}
-                              </span>
-                            )}
-                            {r.text && (
-                              <div className="text-slate-600 text-sm bg-white px-3 py-1.5 rounded-xl border border-slate-100 font-medium">
-                                "{r.text}"
-                              </div>
-                            )}
+              <div className="overflow-y-auto max-h-[600px] divide-y divide-slate-100">
+                {displayedRemarks.length === 0 ? (
+                  <EmptyState />
+                ) : (
+                  displayedRemarks.map((r, i) => {
+                    const sentimentColor: Record<string, string> = {
+                      positive: "border-l-4 border-emerald-400 bg-emerald-50/30",
+                      negative: "border-l-4 border-red-400 bg-red-50/30",
+                      neutral: "border-l-4 border-amber-400 bg-amber-50/20",
+                      empty: "border-l-4 border-slate-200",
+                    };
+                    return (
+                      <div key={i} className={`px-6 py-4 hover:bg-slate-50/50 transition-colors ${sentimentColor[r.sentiment]}`}>
+                        <div className="flex justify-between items-start gap-4">
+                          <div className="flex-grow">
+                            <div className="font-semibold text-slate-800 text-sm mb-1">{r.lead}</div>
+                            <div className="flex items-center gap-2 mb-2">
+                              {r.disposition && (
+                                <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-md border border-indigo-200">
+                                  {r.disposition}
+                                </span>
+                              )}
+                              {r.text && (
+                                <div className="text-slate-600 text-sm bg-white px-3 py-1.5 rounded-xl border border-slate-100 font-medium">
+                                  &quot;{r.text}&quot;
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3 mt-2 text-[11px] text-slate-400 font-semibold">
+                              <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full border border-blue-100">{r.team}</span>
+                              <span>Sheet: {r.sheet}</span>
+                              <span>· {r.assignedTo}</span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-3 mt-2 text-[11px] text-slate-400 font-semibold">
-                            <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full border border-blue-100">{r.team}</span>
-                            <span>Sheet: {r.sheet}</span>
-                            <span>· {r.assignedTo}</span>
+                          <div className="flex-shrink-0">
+                            {r.sentiment === "positive" && <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center gap-1"><CheckCircle2 size={12} /> Positive</span>}
+                            {r.sentiment === "negative" && <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-100 text-red-700 border border-red-200 flex items-center gap-1"><XCircle size={12} /> Negative</span>}
+                            {r.sentiment === "neutral" && <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200 flex items-center gap-1"><Clock size={12} /> Neutral</span>}
                           </div>
-                        </div>
-                        <div className="flex-shrink-0">
-                          {r.sentiment === "positive" && <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center gap-1"><CheckCircle2 size={12} /> Positive</span>}
-                          {r.sentiment === "negative" && <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-100 text-red-700 border border-red-200 flex items-center gap-1"><XCircle size={12} /> Negative</span>}
-                          {r.sentiment === "neutral" && <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200 flex items-center gap-1"><Clock size={12} /> Neutral</span>}
                         </div>
                       </div>
-                    </div>
-                  );
-                })
-              }
+                    );
+                  })
+                )}
+
+                {/* Progressive Load More button */}
+                {visibleRemarksCount < filteredRemarks.length && (
+                  <div className="p-4 text-center bg-slate-50 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setVisibleRemarksCount((prev) => prev + 100)}
+                      className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-sm"
+                    >
+                      Load 100 More (Showing {Math.min(visibleRemarksCount, filteredRemarks.length)} of {filteredRemarks.length})
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );

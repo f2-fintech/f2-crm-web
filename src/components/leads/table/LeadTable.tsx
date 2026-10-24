@@ -86,10 +86,8 @@ export default function LeadTable({
                 const initial = displayName ? displayName.charAt(0).toUpperCase() : "?";
                 const avatarColor = getAvatarColor(displayName);
                 
-                const assignedUserName = row.assignedTo && typeof row.assignedTo === 'object'
-                  ? `${row.assignedTo.firstName || ''} ${row.assignedTo.lastName || ''}`.trim()
-                  : null;
-                const agentName = row.omsAppliedByName || row.appliedByName || assignedUserName || null;
+                const isDrive = Boolean((row.leadSource || '').toUpperCase().includes('DRIVE'));
+                const agentName = !isDrive ? (row.omsAppliedByName || row.appliedByName || null) : null;
 
                 return (
                   <tr key={row._id} className="hover:bg-indigo-50/40 transition-colors group">
@@ -121,11 +119,14 @@ export default function LeadTable({
                             badgeLabel = 'OMS';
                             badgeStyle = 'bg-teal-50 text-teal-700 border-teal-200';
                             agentColor = 'text-teal-700';
+                          } else if (rawSrc.includes('DRIVE')) {
+                            badgeLabel = rawSrc;
+                            badgeStyle = 'bg-sky-50 text-sky-700 border-sky-200';
                           } else if (rawSrc) {
                             badgeLabel = rawSrc;
                           }
 
-                          const cleanAgent = (agentName && agentName !== 'N/A' && agentName !== 'null' && agentName.trim().length > 0) ? agentName.trim() : null;
+                          const cleanAgent = (!isDrive && agentName && agentName !== 'N/A' && agentName !== 'null' && agentName.trim().length > 0) ? agentName.trim() : null;
                           const formattedAgent = cleanAgent ? cleanAgent.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') : null;
 
                           return (
