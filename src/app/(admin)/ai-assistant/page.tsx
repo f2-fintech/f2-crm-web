@@ -106,7 +106,7 @@ export default function AiAssistantPage() {
             <div className="space-y-3">
               <div className="flex items-center gap-3 bg-black/10 px-4 py-2.5 rounded-xl backdrop-blur-sm">
                 <Users size={16} className="text-brand-200" />
-                <span className="text-sm font-medium text-brand-50">Lead Scoring</span>
+                {/* <span className="text-sm font-medium text-brand-50">Lead Scoring</span> */}
               </div>
               <div className="flex items-center gap-3 bg-black/10 px-4 py-2.5 rounded-xl backdrop-blur-sm">
                 <BarChart size={16} className="text-brand-200" />

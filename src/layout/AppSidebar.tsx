@@ -87,6 +87,11 @@ const navItems: NavItem[] = [
 
 const othersItems: NavItem[] = [
   {
+    icon: <Sparkles size={20} className="text-amber-500" />,
+    name: "Lead Scoring",
+    path: "/lead-scoring",
+  },
+  {
     icon: <FolderGit2 size={20} className="text-blue-500" />,
     name: "Drive Allocation",
     path: "/drive-allocation",
