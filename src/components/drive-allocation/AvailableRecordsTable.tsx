@@ -22,10 +22,13 @@ import {
   FileSpreadsheet,
   Award,
   Building2,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import {
   DriveRecordItem,
   FileFilterOptions,
+  CustomFilterItem,
 } from "@/services/driveAllocationService";
 
 interface AvailableRecordsTableProps {
@@ -64,6 +67,8 @@ interface AvailableRecordsTableProps {
   loading: boolean;
   onOpenAllocateModal: (selectedIds: string[], count?: number) => void;
   fileHeaders?: string[];
+  customFilters?: CustomFilterItem[];
+  onCustomFiltersChange?: (filters: CustomFilterItem[]) => void;
 }
 
 export default function AvailableRecordsTable({
@@ -102,6 +107,8 @@ export default function AvailableRecordsTable({
   loading,
   onOpenAllocateModal,
   fileHeaders,
+  customFilters,
+  onCustomFiltersChange,
 }: AvailableRecordsTableProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [quickCount, setQuickCount] = useState<number>(100);
@@ -190,14 +197,12 @@ export default function AvailableRecordsTable({
   }, [filterOptions, records]);
 
   // Unique values for the currently selected column
-  const activeColumnValues = useMemo(() => {
-    if (!customColumn) return [];
-    if (columnOptionsMap[customColumn] && columnOptionsMap[customColumn].length > 0) {
-      return columnOptionsMap[customColumn];
+  const getOptionsForColumn = (colName: string) => {
+    if (!colName) return [];
+    if (columnOptionsMap[colName] && columnOptionsMap[colName].length > 0) {
+      return columnOptionsMap[colName];
     }
-
-    // Case-insensitive fallback match
-    const lowerKey = customColumn.toLowerCase();
+    const lowerKey = colName.toLowerCase();
     const found = Object.keys(columnOptionsMap).find(
       (k) => k.toLowerCase() === lowerKey
     );
@@ -205,14 +210,91 @@ export default function AvailableRecordsTable({
       return columnOptionsMap[found];
     }
     return [];
-  }, [customColumn, columnOptionsMap]);
+  };
 
-  const isAmountColumn = Boolean(
-    customColumn && /(amount|eligib|loan|limit|salary|income)/i.test(customColumn)
+  const isColAmount = (colName: string) => {
+    return Boolean(
+      colName && /(amount|eligib|loan|limit|salary|income)/i.test(colName)
+    );
+  };
+
+  // If customFilters prop is passed, use it; otherwise fallback to single customColumn
+  const activeFiltersList = useMemo<CustomFilterItem[]>(() => {
+    if (customFilters !== undefined && customFilters.length > 0) {
+      return customFilters;
+    }
+    if (customColumn || customValue || minAmount !== undefined || maxAmount !== undefined) {
+      return [
+        {
+          id: "flt-single",
+          column: customColumn || "",
+          value: customValue || "",
+          minAmount,
+          maxAmount,
+        },
+      ];
+    }
+    return [{ id: "flt-init", column: "", value: "" }];
+  }, [customFilters, customColumn, customValue, minAmount, maxAmount]);
+
+  const handleAddFilterRow = () => {
+    const newFilter: CustomFilterItem = {
+      id: `flt-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      column: "",
+      value: "",
+    };
+    const current = activeFiltersList.map((f) => ({ ...f }));
+    const updated = [...current, newFilter];
+    onCustomFiltersChange?.(updated);
+  };
+
+  const handleUpdateFilterRow = (index: number, updates: Partial<CustomFilterItem>) => {
+    const list = [...activeFiltersList];
+    if (!list[index]) {
+      list[index] = { id: `flt-${Date.now()}`, column: "", value: "" };
+    }
+    const existing = list[index];
+    const updatedItem = { ...existing, ...updates };
+
+    if (updates.column !== undefined && updates.column !== existing.column) {
+      updatedItem.value = "";
+      updatedItem.minAmount = undefined;
+      updatedItem.maxAmount = undefined;
+    }
+
+    list[index] = updatedItem;
+    onCustomFiltersChange?.(list);
+
+    if (index === 0) {
+      if (updates.column !== undefined) onCustomColumnChange?.(updates.column);
+      if (updates.value !== undefined) onCustomValueChange?.(updates.value);
+      if (updates.minAmount !== undefined) onMinAmountChange?.(updates.minAmount);
+      if (updates.maxAmount !== undefined) onMaxAmountChange?.(updates.maxAmount);
+    }
+  };
+
+  const handleRemoveFilterRow = (index: number) => {
+    const list = activeFiltersList.filter((_, i) => i !== index);
+    onCustomFiltersChange?.(list);
+    if (index === 0) {
+      onCustomColumnChange?.("");
+      onCustomValueChange?.("");
+      onMinAmountChange?.(undefined);
+      onMaxAmountChange?.(undefined);
+    }
+  };
+
+  const hasActiveCustomFilters = Boolean(
+    activeFiltersList.some(
+      (f) =>
+        f.column &&
+        (f.value || f.minAmount !== undefined || f.maxAmount !== undefined)
+    )
   );
 
   const hasActiveFilters = Boolean(
     search ||
+      hasActiveCustomFilters ||
       (customColumn && customValue) ||
       city ||
       state ||
@@ -554,174 +636,294 @@ export default function AvailableRecordsTable({
             )}
           </div>
 
-          {/* Unified Dynamic Filter: Filter by Any Excel Column */}
-          <div className="bg-white/95 rounded-2xl border border-indigo-100 shadow-sm p-4">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
-              {/* Step 1: Choose Column */}
-              <div className="w-full sm:w-1/2">
-                <label className="block text-xs font-bold text-gray-700 mb-1.5 flex items-center gap-1.5">
-                  <SlidersHorizontal size={14} className="text-indigo-600" />
-                  Filter by Any Column:
-                </label>
-                <select
-                  value={customColumn || ""}
-                  onChange={(e) => {
-                    const newCol = e.target.value;
-                    onCustomColumnChange && onCustomColumnChange(newCol);
-                    onCustomValueChange && onCustomValueChange("");
-                    if (minAmount !== undefined) onMinAmountChange(undefined);
-                    if (maxAmount !== undefined) onMaxAmountChange(undefined);
-                  }}
-                  className="w-full rounded-xl border border-indigo-200 bg-indigo-50/40 px-3.5 py-2.5 text-xs font-bold text-gray-800 shadow-sm focus:border-indigo-500 focus:bg-white focus:outline-none transition"
+          {/* Multi-Column Dynamic Filter Box */}
+          <div className="bg-white/95 rounded-2xl border border-indigo-100 shadow-sm p-4 space-y-3">
+            {activeFiltersList.map((flt, idx) => {
+              const filterCol = flt.column || "";
+              const isAmount = isColAmount(filterCol);
+              const colOptions = getOptionsForColumn(filterCol);
+
+              return (
+                <div
+                  key={flt.id || `filter-${idx}`}
+                  className="rounded-xl border border-indigo-100/90 bg-slate-50/60 p-3 relative transition hover:border-indigo-300"
                 >
-                  <option value="">-- Choose Column from Excel --</option>
-                  {dynamicColumns.map((col) => (
-                    <option key={col} value={col}>
-                      {col}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Step 2: Choose or Type Match Value */}
-              <div className="w-full sm:w-1/2">
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold text-gray-700 flex items-center gap-1.5">
-                    <Tag size={14} className="text-purple-600" />
-                    {isAmountColumn ? "Amount Range (Itna se Itna Amount):" : "Match Value:"}
-                  </label>
-                  {customColumn && (
-                    <span className="text-[11px] font-semibold text-indigo-600">
-                      Column: <span className="underline font-bold">{customColumn}</span>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-700">
+                      <SlidersHorizontal size={11} /> Filter #{idx + 1}
                     </span>
-                  )}
-                </div>
-
-                {!customColumn ? (
-                  <div className="w-full rounded-xl border border-dashed border-gray-300 bg-gray-50/70 px-3.5 py-2.5 text-xs font-medium text-gray-400">
-                    👈 Pehle column choose kijiye...
-                  </div>
-                ) : isAmountColumn ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 relative">
-                        <span className="absolute left-3 top-2 text-xs font-bold text-emerald-600">₹</span>
-                        <input
-                          type="number"
-                          placeholder="Min Amount (e.g. 50000)"
-                          value={minAmount ?? ""}
-                          onChange={(e) => {
-                            const val = e.target.value ? Number(e.target.value) : undefined;
-                            onMinAmountChange(val);
-                          }}
-                          className="w-full rounded-xl border border-emerald-300 bg-white pl-7 pr-3 py-2 text-xs font-bold text-gray-800 placeholder-gray-400 shadow-sm focus:border-emerald-500 focus:outline-none transition"
-                        />
-                      </div>
-
-                      <span className="text-xs font-bold text-gray-500">to</span>
-
-                      <div className="flex-1 relative">
-                        <span className="absolute left-3 top-2 text-xs font-bold text-emerald-600">₹</span>
-                        <input
-                          type="number"
-                          placeholder="Max Amount (e.g. 500000)"
-                          value={maxAmount ?? ""}
-                          onChange={(e) => {
-                            const val = e.target.value ? Number(e.target.value) : undefined;
-                            onMaxAmountChange(val);
-                          }}
-                          className="w-full rounded-xl border border-emerald-300 bg-white pl-7 pr-3 py-2 text-xs font-bold text-gray-800 placeholder-gray-400 shadow-sm focus:border-emerald-500 focus:outline-none transition"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Quick Range Presets */}
-                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                      <span className="text-[10px] font-bold text-emerald-800">Quick Ranges:</span>
-                      {[
-                        { label: "₹50k - ₹1L", min: 50000, max: 100000 },
-                        { label: "₹1L - ₹2.5L", min: 100000, max: 250000 },
-                        { label: "₹2.5L - ₹5L", min: 250000, max: 500000 },
-                        { label: "₹5L - ₹10L", min: 500000, max: 1000000 },
-                        { label: "₹10L+", min: 1000000, max: undefined },
-                      ].map((preset) => {
-                        const isSelected = minAmount === preset.min && maxAmount === preset.max;
-                        return (
-                          <button
-                            key={preset.label}
-                            type="button"
-                            onClick={() => {
-                              if (isSelected) {
-                                onMinAmountChange(undefined);
-                                onMaxAmountChange(undefined);
-                              } else {
-                                onMinAmountChange(preset.min);
-                                onMaxAmountChange(preset.max);
-                              }
-                            }}
-                            className={`text-[10px] px-2 py-0.5 rounded-lg font-bold border transition ${
-                              isSelected
-                                ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
-                                : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-                            }`}
-                          >
-                            {isSelected ? "✓ " : ""}{preset.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    {activeColumnValues.length > 0 && activeColumnValues.length <= 60 ? (
-                      <select
-                        value={customValue || ""}
-                        onChange={(e) =>
-                          onCustomValueChange && onCustomValueChange(e.target.value)
-                        }
-                        className="w-full rounded-xl border border-purple-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-gray-800 shadow-sm focus:border-purple-500 focus:outline-none transition"
+                    {(activeFiltersList.length > 1 || flt.column) && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveFilterRow(idx)}
+                        className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-rose-600 font-semibold transition cursor-pointer"
+                        title="Remove this filter"
                       >
-                        <option value="">
-                          -- All / Choose {customColumn} ({activeColumnValues.length} available) --
-                        </option>
-                        {activeColumnValues.map((val) => (
-                          <option key={val} value={val}>
-                            {val}
+                        <Trash2 size={12} />
+                        <span>Hatao</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
+                    {/* Step 1: Choose Column */}
+                    <div className="w-full sm:w-1/2">
+                      <label className="block text-[11px] font-bold text-gray-600 mb-1">
+                        Column:
+                      </label>
+                      <select
+                        value={filterCol}
+                        onChange={(e) => {
+                          handleUpdateFilterRow(idx, {
+                            column: e.target.value,
+                            value: "",
+                            minAmount: undefined,
+                            maxAmount: undefined,
+                          });
+                        }}
+                        className="w-full rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs font-bold text-gray-800 shadow-2xs focus:border-indigo-500 focus:outline-none transition"
+                      >
+                        <option value="">-- Choose Column from Excel --</option>
+                        {dynamicColumns.map((col) => (
+                          <option key={col} value={col}>
+                            {col}
                           </option>
                         ))}
                       </select>
-                    ) : (
-                      <div className="relative">
-                        <input
-                          type="text"
-                          list="custom-column-datalist"
-                          placeholder={`Type or choose value for ${customColumn}...`}
-                          value={customValue || ""}
-                          onChange={(e) =>
-                            onCustomValueChange && onCustomValueChange(e.target.value)
-                          }
-                          className="w-full rounded-xl border border-purple-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-gray-800 placeholder-gray-400 shadow-sm focus:border-purple-500 focus:outline-none transition"
-                        />
-                        <datalist id="custom-column-datalist">
-                          {activeColumnValues.map((val) => (
-                            <option key={val} value={val} />
-                          ))}
-                        </datalist>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
+                    </div>
 
+                    {/* Step 2: Choose or Type Match Value / Amount */}
+                    <div className="w-full sm:w-1/2">
+                      <label className="block text-[11px] font-bold text-gray-600 mb-1 flex items-center gap-1">
+                        <Tag size={12} className="text-purple-600" />
+                        {isAmount
+                          ? "Amount Range (Itna se Itna Amount):"
+                          : "Match Value:"}
+                      </label>
+
+                      {!filterCol ? (
+                        <div className="w-full rounded-xl border border-dashed border-gray-300 bg-white/70 px-3 py-2 text-xs font-medium text-gray-400">
+                          👈 Pehle column choose kijiye...
+                        </div>
+                      ) : isAmount ? (
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 relative">
+                              <span className="absolute left-2.5 top-2 text-xs font-bold text-emerald-600">
+                                ₹
+                              </span>
+                              <input
+                                type="number"
+                                placeholder="Min Amount"
+                                value={flt.minAmount ?? ""}
+                                onChange={(e) => {
+                                  const val = e.target.value
+                                    ? Number(e.target.value)
+                                    : undefined;
+                                  handleUpdateFilterRow(idx, {
+                                    minAmount: val,
+                                  });
+                                }}
+                                className="w-full rounded-xl border border-emerald-300 bg-white pl-6 pr-2.5 py-1.5 text-xs font-bold text-gray-800 placeholder-gray-400 shadow-2xs focus:border-emerald-500 focus:outline-none transition"
+                              />
+                            </div>
+                            <span className="text-xs font-bold text-gray-400">
+                              to
+                            </span>
+                            <div className="flex-1 relative">
+                              <span className="absolute left-2.5 top-2 text-xs font-bold text-emerald-600">
+                                ₹
+                              </span>
+                              <input
+                                type="number"
+                                placeholder="Max Amount"
+                                value={flt.maxAmount ?? ""}
+                                onChange={(e) => {
+                                  const val = e.target.value
+                                    ? Number(e.target.value)
+                                    : undefined;
+                                  handleUpdateFilterRow(idx, {
+                                    maxAmount: val,
+                                  });
+                                }}
+                                className="w-full rounded-xl border border-emerald-300 bg-white pl-6 pr-2.5 py-1.5 text-xs font-bold text-gray-800 placeholder-gray-400 shadow-2xs focus:border-emerald-500 focus:outline-none transition"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Quick Ranges */}
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span className="text-[10px] font-bold text-emerald-800">
+                              Quick:
+                            </span>
+                            {[
+                              { label: "50k-1L", min: 50000, max: 100000 },
+                              { label: "1L-2.5L", min: 100000, max: 250000 },
+                              { label: "2.5L-5L", min: 250000, max: 500000 },
+                              { label: "5L-10L", min: 500000, max: 1000000 },
+                              { label: "10L+", min: 1000000, max: undefined },
+                            ].map((preset) => {
+                              const isSelected =
+                                flt.minAmount === preset.min &&
+                                flt.maxAmount === preset.max;
+                              return (
+                                <button
+                                  key={preset.label}
+                                  type="button"
+                                  onClick={() => {
+                                    if (isSelected) {
+                                      handleUpdateFilterRow(idx, {
+                                        minAmount: undefined,
+                                        maxAmount: undefined,
+                                      });
+                                    } else {
+                                      handleUpdateFilterRow(idx, {
+                                        minAmount: preset.min,
+                                        maxAmount: preset.max,
+                                      });
+                                    }
+                                  }}
+                                  className={`text-[10px] px-2 py-0.5 rounded-lg font-bold border transition cursor-pointer ${
+                                    isSelected
+                                      ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                                      : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                                  }`}
+                                >
+                                  {isSelected ? "✓ " : ""}
+                                  {preset.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          {colOptions.length > 0 && colOptions.length <= 60 ? (
+                            <select
+                              value={flt.value || ""}
+                              onChange={(e) =>
+                                handleUpdateFilterRow(idx, {
+                                  value: e.target.value,
+                                })
+                              }
+                              className="w-full rounded-xl border border-purple-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800 shadow-2xs focus:border-purple-500 focus:outline-none transition"
+                            >
+                              <option value="">
+                                -- All / Choose {filterCol} (
+                                {colOptions.length} available) --
+                              </option>
+                              {colOptions.map((val) => (
+                                <option key={val} value={val}>
+                                  {val}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <div className="relative">
+                              <input
+                                type="text"
+                                list={`datalist-filter-${idx}`}
+                                placeholder={`Type or choose value for ${filterCol}...`}
+                                value={flt.value || ""}
+                                onChange={(e) =>
+                                  handleUpdateFilterRow(idx, {
+                                    value: e.target.value,
+                                  })
+                                }
+                                className="w-full rounded-xl border border-purple-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800 placeholder-gray-400 shadow-2xs focus:border-purple-500 focus:outline-none transition"
+                              />
+                              <datalist id={`datalist-filter-${idx}`}>
+                                {colOptions.map((val) => (
+                                  <option key={val} value={val} />
+                                ))}
+                              </datalist>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* + Add Another Filter Button */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+              <button
+                type="button"
+                onClick={handleAddFilterRow}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-dashed border-indigo-300 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition active:scale-95 shadow-2xs cursor-pointer"
+              >
+                <Plus size={14} className="text-indigo-600" />
+                <span>+ Aur Filter Lagayein (Add Another Filter)</span>
+              </button>
+
+              <span className="text-[11px] text-gray-400 font-medium">
+                (Sabhi active filters par <span className="font-bold text-indigo-600">AND</span> match hoga)
+              </span>
+            </div>
           </div>
 
           {/* Active Filter Badges */}
           {hasActiveFilters && (
             <div className="mt-3 flex flex-wrap items-center gap-2 pt-2 border-t border-gray-200/60">
               <span className="text-[11px] text-gray-500 font-bold">
-                Active Filter:
+                Active Filters:
               </span>
+              {activeFiltersList.map((flt, idx) => {
+                if (!flt.column) return null;
+                const isAmount = isColAmount(flt.column);
+                if (
+                  isAmount &&
+                  (flt.minAmount !== undefined || flt.maxAmount !== undefined)
+                ) {
+                  return (
+                    <span
+                      key={flt.id || `badge-amt-${idx}`}
+                      className="inline-flex items-center gap-1.5 bg-emerald-100/90 text-emerald-900 px-2.5 py-1 rounded-xl text-xs font-bold border border-emerald-200 shadow-2xs"
+                    >
+                      <span className="text-gray-600">{flt.column}:</span>
+                      <span className="text-emerald-700 font-extrabold">
+                        {flt.minAmount !== undefined && flt.maxAmount !== undefined
+                          ? `₹${flt.minAmount.toLocaleString("en-IN")} - ₹${flt.maxAmount.toLocaleString("en-IN")}`
+                          : flt.minAmount !== undefined
+                          ? `Min ₹${flt.minAmount.toLocaleString("en-IN")}`
+                          : `Max ₹${flt.maxAmount?.toLocaleString("en-IN")}`}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveFilterRow(idx)}
+                        className="hover:text-rose-600 text-emerald-600 ml-1 transition cursor-pointer"
+                        title="Remove filter"
+                      >
+                        <X size={13} />
+                      </button>
+                    </span>
+                  );
+                }
+                if (flt.value && flt.value.trim()) {
+                  return (
+                    <span
+                      key={flt.id || `badge-val-${idx}`}
+                      className="inline-flex items-center gap-1.5 bg-indigo-100/90 text-indigo-900 px-2.5 py-1 rounded-xl text-xs font-bold border border-indigo-200 shadow-2xs"
+                    >
+                      <span className="text-gray-600">{flt.column}:</span>
+                      <span className="text-purple-700 font-extrabold">
+                        &quot;{flt.value}&quot;
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveFilterRow(idx)}
+                        className="hover:text-rose-600 text-indigo-500 ml-1 transition cursor-pointer"
+                        title="Remove filter"
+                      >
+                        <X size={13} />
+                      </button>
+                    </span>
+                  );
+                }
+                return null;
+              })}
               {(minAmount !== undefined || maxAmount !== undefined) && (
                 <span className="inline-flex items-center gap-1.5 bg-emerald-100/90 text-emerald-900 px-2.5 py-1 rounded-xl text-xs font-bold border border-emerald-200 shadow-2xs">
                   <span className="text-gray-600">{customColumn || "Eligibility Amount"}:</span>

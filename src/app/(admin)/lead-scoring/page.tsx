@@ -14,8 +14,8 @@ import {
 } from "lucide-react";
 
 export default function LeadScoringPage() {
-const scoringUrl =
-  process.env.NEXT_PUBLIC_LEAD_SCORING_URL || "https://scoring.f2fintech.in";
+  const scoringUrl =
+    process.env.NEXT_PUBLIC_LEAD_SCORING_URL || "https://scoring.f2fintech.in";
 
 
   const [isLoading, setIsLoading] = useState(true);
@@ -57,8 +57,8 @@ const scoringUrl =
   return (
     <div
       className={`flex flex-col transition-all duration-300 ${isFullScreen
-          ? "fixed inset-0 z-50 bg-white p-4"
-          : "space-y-4"
+        ? "fixed inset-0 z-50 bg-white p-4"
+        : "space-y-4"
         }`}
     >
       {/* Minimal Top Action Bar (Right-aligned) */}
