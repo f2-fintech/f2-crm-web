@@ -14,7 +14,8 @@ import {
 } from "lucide-react";
 
 export default function LeadScoringPage() {
- const scoringUrl = "15.206.212.47";
+const scoringUrl =
+  process.env.NEXT_PUBLIC_LEAD_SCORING_URL || "https://scoring.f2fintech.in";
 
 
   const [isLoading, setIsLoading] = useState(true);
