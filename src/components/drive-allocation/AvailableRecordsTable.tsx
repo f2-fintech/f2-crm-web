@@ -609,18 +609,18 @@ export default function AvailableRecordsTable({
         </div>
       </div>
 
-      {/* Dynamic Filter Bar */}
+      {/* Simple, Modern Filter Bar */}
       {showFilters && (
-        <div className="border-b border-gray-100 bg-gradient-to-r from-blue-50/40 via-indigo-50/30 to-purple-50/30 p-4 transition-all">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <div className="border-b border-gray-200/80 bg-slate-50/70 p-3 sm:p-4 space-y-2.5 transition-all">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Filter size={15} className="text-blue-600" />
-              <span className="text-xs font-bold text-gray-800 uppercase tracking-wider">
-                Filter Leads by Excel Parameters
+              <Filter size={14} className="text-indigo-600" />
+              <span className="text-xs font-bold text-gray-700 tracking-wide">
+                Filter Leads by Excel Columns
               </span>
               {loadingFilterOptions && (
                 <span className="text-[11px] text-gray-400 italic">
-                  (Loading filter options...)
+                  (Loading...)
                 </span>
               )}
             </div>
@@ -629,15 +629,15 @@ export default function AvailableRecordsTable({
               <button
                 type="button"
                 onClick={onResetFilters}
-                className="flex items-center gap-1 text-[11px] font-bold text-rose-600 hover:text-rose-700 hover:underline"
+                className="flex items-center gap-1 text-[11px] font-semibold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer"
               >
-                <RotateCcw size={12} /> Clear all filters
+                <RotateCcw size={11} /> Clear all filters
               </button>
             )}
           </div>
 
-          {/* Multi-Column Dynamic Filter Box */}
-          <div className="bg-white/95 rounded-2xl border border-indigo-100 shadow-sm p-4 space-y-3">
+          {/* Clean Inline Filter Rows */}
+          <div className="space-y-2">
             {activeFiltersList.map((flt, idx) => {
               const filterCol = flt.column || "";
               const isAmount = isColAmount(filterCol);
@@ -646,409 +646,195 @@ export default function AvailableRecordsTable({
               return (
                 <div
                   key={flt.id || `filter-${idx}`}
-                  className="rounded-xl border border-indigo-100/90 bg-slate-50/60 p-3 relative transition hover:border-indigo-300"
+                  className="flex flex-wrap items-center gap-2 bg-white rounded-xl border border-gray-200/90 px-3 py-2 shadow-2xs hover:border-indigo-200 transition"
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-700">
-                      <SlidersHorizontal size={11} /> Filter #{idx + 1}
-                    </span>
-                    {(activeFiltersList.length > 1 || flt.column) && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveFilterRow(idx)}
-                        className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-rose-600 font-semibold transition cursor-pointer"
-                        title="Remove this filter"
-                      >
-                        <Trash2 size={12} />
-                        <span>Hatao</span>
-                      </button>
-                    )}
-                  </div>
+                  {/* Condition label: Where / And */}
+                  <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider w-12 shrink-0">
+                    {idx === 0 ? "Where" : "And"}
+                  </span>
 
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
-                    {/* Step 1: Choose Column */}
-                    <div className="w-full sm:w-1/2">
-                      <label className="block text-[11px] font-bold text-gray-600 mb-1">
-                        Column:
-                      </label>
-                      <select
-                        value={filterCol}
-                        onChange={(e) => {
-                          handleUpdateFilterRow(idx, {
-                            column: e.target.value,
-                            value: "",
-                            minAmount: undefined,
-                            maxAmount: undefined,
-                          });
-                        }}
-                        className="w-full rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs font-bold text-gray-800 shadow-2xs focus:border-indigo-500 focus:outline-none transition"
-                      >
-                        <option value="">-- Choose Column from Excel --</option>
-                        {dynamicColumns.map((col) => (
-                          <option key={col} value={col}>
-                            {col}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                  {/* Column Select */}
+                  <select
+                    value={filterCol}
+                    onChange={(e) => {
+                      handleUpdateFilterRow(idx, {
+                        column: e.target.value,
+                        value: "",
+                        minAmount: undefined,
+                        maxAmount: undefined,
+                      });
+                    }}
+                    className="h-8 rounded-lg border border-gray-200 bg-gray-50/50 hover:bg-white px-2.5 text-xs font-semibold text-gray-800 focus:border-indigo-500 focus:outline-none transition min-w-[170px]"
+                  >
+                    <option value="">-- Choose Column --</option>
+                    {dynamicColumns.map((col) => (
+                      <option key={col} value={col}>
+                        {col}
+                      </option>
+                    ))}
+                  </select>
 
-                    {/* Step 2: Choose or Type Match Value / Amount */}
-                    <div className="w-full sm:w-1/2">
-                      <label className="block text-[11px] font-bold text-gray-600 mb-1 flex items-center gap-1">
-                        <Tag size={12} className="text-purple-600" />
-                        {isAmount
-                          ? "Amount Range (Itna se Itna Amount):"
-                          : "Match Value:"}
-                      </label>
-
-                      {!filterCol ? (
-                        <div className="w-full rounded-xl border border-dashed border-gray-300 bg-white/70 px-3 py-2 text-xs font-medium text-gray-400">
-                          👈 Pehle column choose kijiye...
+                  {/* Value / Amount controls */}
+                  <div className="flex-1 flex flex-wrap items-center gap-2 min-w-[200px]">
+                    {!filterCol ? (
+                      <span className="text-xs text-gray-400 italic">
+                        Select a column to set condition...
+                      </span>
+                    ) : isAmount ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="relative">
+                          <span className="absolute left-2 top-2 text-[11px] font-bold text-gray-400">
+                            ₹
+                          </span>
+                          <input
+                            type="number"
+                            placeholder="Min"
+                            value={flt.minAmount ?? ""}
+                            onChange={(e) => {
+                              const val = e.target.value
+                                ? Number(e.target.value)
+                                : undefined;
+                              handleUpdateFilterRow(idx, {
+                                minAmount: val,
+                              });
+                            }}
+                            className="h-8 w-24 sm:w-28 rounded-lg border border-gray-200 bg-white pl-5 pr-2 text-xs font-medium text-gray-800 placeholder-gray-400 focus:border-indigo-500 focus:outline-none transition"
+                          />
                         </div>
-                      ) : isAmount ? (
-                        <div className="space-y-1.5">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 relative">
-                              <span className="absolute left-2.5 top-2 text-xs font-bold text-emerald-600">
-                                ₹
-                              </span>
-                              <input
-                                type="number"
-                                placeholder="Min Amount"
-                                value={flt.minAmount ?? ""}
-                                onChange={(e) => {
-                                  const val = e.target.value
-                                    ? Number(e.target.value)
-                                    : undefined;
-                                  handleUpdateFilterRow(idx, {
-                                    minAmount: val,
-                                  });
-                                }}
-                                className="w-full rounded-xl border border-emerald-300 bg-white pl-6 pr-2.5 py-1.5 text-xs font-bold text-gray-800 placeholder-gray-400 shadow-2xs focus:border-emerald-500 focus:outline-none transition"
-                              />
-                            </div>
-                            <span className="text-xs font-bold text-gray-400">
-                              to
-                            </span>
-                            <div className="flex-1 relative">
-                              <span className="absolute left-2.5 top-2 text-xs font-bold text-emerald-600">
-                                ₹
-                              </span>
-                              <input
-                                type="number"
-                                placeholder="Max Amount"
-                                value={flt.maxAmount ?? ""}
-                                onChange={(e) => {
-                                  const val = e.target.value
-                                    ? Number(e.target.value)
-                                    : undefined;
-                                  handleUpdateFilterRow(idx, {
-                                    maxAmount: val,
-                                  });
-                                }}
-                                className="w-full rounded-xl border border-emerald-300 bg-white pl-6 pr-2.5 py-1.5 text-xs font-bold text-gray-800 placeholder-gray-400 shadow-2xs focus:border-emerald-500 focus:outline-none transition"
-                              />
-                            </div>
-                          </div>
-
-                          {/* Quick Ranges */}
-                          <div className="flex flex-wrap items-center gap-1">
-                            <span className="text-[10px] font-bold text-emerald-800">
-                              Quick:
-                            </span>
-                            {[
-                              { label: "50k-1L", min: 50000, max: 100000 },
-                              { label: "1L-2.5L", min: 100000, max: 250000 },
-                              { label: "2.5L-5L", min: 250000, max: 500000 },
-                              { label: "5L-10L", min: 500000, max: 1000000 },
-                              { label: "10L+", min: 1000000, max: undefined },
-                            ].map((preset) => {
-                              const isSelected =
-                                flt.minAmount === preset.min &&
-                                flt.maxAmount === preset.max;
-                              return (
-                                <button
-                                  key={preset.label}
-                                  type="button"
-                                  onClick={() => {
-                                    if (isSelected) {
-                                      handleUpdateFilterRow(idx, {
-                                        minAmount: undefined,
-                                        maxAmount: undefined,
-                                      });
-                                    } else {
-                                      handleUpdateFilterRow(idx, {
-                                        minAmount: preset.min,
-                                        maxAmount: preset.max,
-                                      });
-                                    }
-                                  }}
-                                  className={`text-[10px] px-2 py-0.5 rounded-lg font-bold border transition cursor-pointer ${
-                                    isSelected
-                                      ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
-                                      : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-                                  }`}
-                                >
-                                  {isSelected ? "✓ " : ""}
-                                  {preset.label}
-                                </button>
-                              );
-                            })}
-                          </div>
+                        <span className="text-xs text-gray-400 font-medium">to</span>
+                        <div className="relative">
+                          <span className="absolute left-2 top-2 text-[11px] font-bold text-gray-400">
+                            ₹
+                          </span>
+                          <input
+                            type="number"
+                            placeholder="Max"
+                            value={flt.maxAmount ?? ""}
+                            onChange={(e) => {
+                              const val = e.target.value
+                                ? Number(e.target.value)
+                                : undefined;
+                              handleUpdateFilterRow(idx, {
+                                maxAmount: val,
+                              });
+                            }}
+                            className="h-8 w-24 sm:w-28 rounded-lg border border-gray-200 bg-white pl-5 pr-2 text-xs font-medium text-gray-800 placeholder-gray-400 focus:border-indigo-500 focus:outline-none transition"
+                          />
                         </div>
-                      ) : (
-                        <div>
-                          {colOptions.length > 0 && colOptions.length <= 60 ? (
-                            <select
+
+                        {/* Quick Presets */}
+                        <div className="hidden md:flex items-center gap-1 ml-1">
+                          {[
+                            { label: "50k-1L", min: 50000, max: 100000 },
+                            { label: "1L-2.5L", min: 100000, max: 250000 },
+                            { label: "2.5L-5L", min: 250000, max: 500000 },
+                            { label: "5L+", min: 500000, max: undefined },
+                          ].map((p) => {
+                            const isSel =
+                              flt.minAmount === p.min &&
+                              flt.maxAmount === p.max;
+                            return (
+                              <button
+                                key={p.label}
+                                type="button"
+                                onClick={() => {
+                                  if (isSel) {
+                                    handleUpdateFilterRow(idx, {
+                                      minAmount: undefined,
+                                      maxAmount: undefined,
+                                    });
+                                  } else {
+                                    handleUpdateFilterRow(idx, {
+                                      minAmount: p.min,
+                                      maxAmount: p.max,
+                                    });
+                                  }
+                                }}
+                                className={`text-[10px] px-2 py-1 rounded-md font-medium border transition cursor-pointer ${
+                                  isSel
+                                    ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs"
+                                    : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+                                }`}
+                              >
+                                {p.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex-1 min-w-[200px]">
+                        {colOptions.length > 0 && colOptions.length <= 40 ? (
+                          <select
+                            value={flt.value || ""}
+                            onChange={(e) =>
+                              handleUpdateFilterRow(idx, {
+                                value: e.target.value,
+                              })
+                            }
+                            className="h-8 w-full max-w-sm rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-800 focus:border-indigo-500 focus:outline-none transition"
+                          >
+                            <option value="">
+                              -- All ({colOptions.length} available) --
+                            </option>
+                            {colOptions.map((val) => (
+                              <option key={val} value={val}>
+                                {val}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div className="relative max-w-sm">
+                            <input
+                              type="text"
+                              list={`datalist-filter-${idx}`}
+                              placeholder={`Type or choose value...`}
                               value={flt.value || ""}
                               onChange={(e) =>
                                 handleUpdateFilterRow(idx, {
                                   value: e.target.value,
                                 })
                               }
-                              className="w-full rounded-xl border border-purple-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800 shadow-2xs focus:border-purple-500 focus:outline-none transition"
-                            >
-                              <option value="">
-                                -- All / Choose {filterCol} (
-                                {colOptions.length} available) --
-                              </option>
+                              className="h-8 w-full rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-800 placeholder-gray-400 focus:border-indigo-500 focus:outline-none transition"
+                            />
+                            <datalist id={`datalist-filter-${idx}`}>
                               {colOptions.map((val) => (
-                                <option key={val} value={val}>
-                                  {val}
-                                </option>
+                                <option key={val} value={val} />
                               ))}
-                            </select>
-                          ) : (
-                            <div className="relative">
-                              <input
-                                type="text"
-                                list={`datalist-filter-${idx}`}
-                                placeholder={`Type or choose value for ${filterCol}...`}
-                                value={flt.value || ""}
-                                onChange={(e) =>
-                                  handleUpdateFilterRow(idx, {
-                                    value: e.target.value,
-                                  })
-                                }
-                                className="w-full rounded-xl border border-purple-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800 placeholder-gray-400 shadow-2xs focus:border-purple-500 focus:outline-none transition"
-                              />
-                              <datalist id={`datalist-filter-${idx}`}>
-                                {colOptions.map((val) => (
-                                  <option key={val} value={val} />
-                                ))}
-                              </datalist>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                            </datalist>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
+
+                  {/* Remove Filter Row Button */}
+                  {(activeFiltersList.length > 1 || flt.column) && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFilterRow(idx)}
+                      className="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer shrink-0"
+                      title="Remove condition"
+                    >
+                      <X size={15} />
+                    </button>
+                  )}
                 </div>
               );
             })}
-
-            {/* + Add Another Filter Button */}
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-              <button
-                type="button"
-                onClick={handleAddFilterRow}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-dashed border-indigo-300 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition active:scale-95 shadow-2xs cursor-pointer"
-              >
-                <Plus size={14} className="text-indigo-600" />
-                <span>+ Aur Filter Lagayein (Add Another Filter)</span>
-              </button>
-
-              <span className="text-[11px] text-gray-400 font-medium">
-                (Sabhi active filters par <span className="font-bold text-indigo-600">AND</span> match hoga)
-              </span>
-            </div>
           </div>
 
-          {/* Active Filter Badges */}
-          {hasActiveFilters && (
-            <div className="mt-3 flex flex-wrap items-center gap-2 pt-2 border-t border-gray-200/60">
-              <span className="text-[11px] text-gray-500 font-bold">
-                Active Filters:
-              </span>
-              {activeFiltersList.map((flt, idx) => {
-                if (!flt.column) return null;
-                const isAmount = isColAmount(flt.column);
-                if (
-                  isAmount &&
-                  (flt.minAmount !== undefined || flt.maxAmount !== undefined)
-                ) {
-                  return (
-                    <span
-                      key={flt.id || `badge-amt-${idx}`}
-                      className="inline-flex items-center gap-1.5 bg-emerald-100/90 text-emerald-900 px-2.5 py-1 rounded-xl text-xs font-bold border border-emerald-200 shadow-2xs"
-                    >
-                      <span className="text-gray-600">{flt.column}:</span>
-                      <span className="text-emerald-700 font-extrabold">
-                        {flt.minAmount !== undefined && flt.maxAmount !== undefined
-                          ? `₹${flt.minAmount.toLocaleString("en-IN")} - ₹${flt.maxAmount.toLocaleString("en-IN")}`
-                          : flt.minAmount !== undefined
-                          ? `Min ₹${flt.minAmount.toLocaleString("en-IN")}`
-                          : `Max ₹${flt.maxAmount?.toLocaleString("en-IN")}`}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveFilterRow(idx)}
-                        className="hover:text-rose-600 text-emerald-600 ml-1 transition cursor-pointer"
-                        title="Remove filter"
-                      >
-                        <X size={13} />
-                      </button>
-                    </span>
-                  );
-                }
-                if (flt.value && flt.value.trim()) {
-                  return (
-                    <span
-                      key={flt.id || `badge-val-${idx}`}
-                      className="inline-flex items-center gap-1.5 bg-indigo-100/90 text-indigo-900 px-2.5 py-1 rounded-xl text-xs font-bold border border-indigo-200 shadow-2xs"
-                    >
-                      <span className="text-gray-600">{flt.column}:</span>
-                      <span className="text-purple-700 font-extrabold">
-                        &quot;{flt.value}&quot;
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveFilterRow(idx)}
-                        className="hover:text-rose-600 text-indigo-500 ml-1 transition cursor-pointer"
-                        title="Remove filter"
-                      >
-                        <X size={13} />
-                      </button>
-                    </span>
-                  );
-                }
-                return null;
-              })}
-              {(minAmount !== undefined || maxAmount !== undefined) && (
-                <span className="inline-flex items-center gap-1.5 bg-emerald-100/90 text-emerald-900 px-2.5 py-1 rounded-xl text-xs font-bold border border-emerald-200 shadow-2xs">
-                  <span className="text-gray-600">{customColumn || "Eligibility Amount"}:</span>
-                  <span className="text-emerald-700 font-extrabold">
-                    {minAmount !== undefined && maxAmount !== undefined
-                      ? `₹${minAmount.toLocaleString("en-IN")} - ₹${maxAmount.toLocaleString("en-IN")}`
-                      : minAmount !== undefined
-                      ? `Min ₹${minAmount.toLocaleString("en-IN")}`
-                      : `Max ₹${maxAmount?.toLocaleString("en-IN")}`}
-                  </span>
-                  <button
-                    onClick={() => {
-                      onMinAmountChange(undefined);
-                      onMaxAmountChange(undefined);
-                    }}
-                    className="hover:text-rose-600 text-emerald-600 ml-1 transition"
-                    title="Remove amount filter"
-                  >
-                    <X size={13} />
-                  </button>
-                </span>
-              )}
-              {customColumn && customValue && onCustomValueChange && (
-                <span className="inline-flex items-center gap-1.5 bg-indigo-100/90 text-indigo-900 px-2.5 py-1 rounded-xl text-xs font-bold border border-indigo-200 shadow-2xs">
-                  <span className="text-gray-600">{customColumn}:</span>
-                  <span className="text-purple-700 font-extrabold">&quot;{customValue}&quot;</span>
-                  <button
-                    onClick={() => onCustomValueChange("")}
-                    className="hover:text-rose-600 text-indigo-500 ml-1 transition"
-                    title="Remove filter"
-                  >
-                    <X size={13} />
-                  </button>
-                </span>
-              )}
-              {city && (
-                <span className="inline-flex items-center gap-1 bg-blue-100/90 text-blue-800 px-2 py-0.5 rounded-lg text-[11px] font-semibold border border-blue-200">
-                  Location: {city}
-                  <button
-                    onClick={() => onCityChange("")}
-                    className="hover:text-blue-950 text-blue-600 ml-0.5"
-                  >
-                    <X size={12} />
-                  </button>
-                </span>
-              )}
-              {state && (
-                <span className="inline-flex items-center gap-1 bg-purple-100/90 text-purple-800 px-2 py-0.5 rounded-lg text-[11px] font-semibold border border-purple-200">
-                  State: {state}
-                  <button
-                    onClick={() => onStateChange("")}
-                    className="hover:text-purple-950 text-purple-600 ml-0.5"
-                  >
-                    <X size={12} />
-                  </button>
-                </span>
-              )}
-              {cibilMin !== undefined && onCibilMinChange && (
-                <span className="inline-flex items-center gap-1 bg-emerald-100/90 text-emerald-800 px-2 py-0.5 rounded-lg text-[11px] font-semibold border border-emerald-200">
-                  CIBIL: {cibilMin}+
-                  <button
-                    onClick={() => onCibilMinChange(undefined)}
-                    className="hover:text-emerald-950 text-emerald-600 ml-0.5"
-                  >
-                    <X size={12} />
-                  </button>
-                </span>
-              )}
-              {lender && onLenderChange && (
-                <span className="inline-flex items-center gap-1 bg-cyan-100/90 text-cyan-800 px-2 py-0.5 rounded-lg text-[11px] font-semibold border border-cyan-200">
-                  Lender/Company: {lender}
-                  <button
-                    onClick={() => onLenderChange("")}
-                    className="hover:text-cyan-950 text-cyan-600 ml-0.5"
-                  >
-                    <X size={12} />
-                  </button>
-                </span>
-              )}
-              {category && onCategoryChange && (
-                <span className="inline-flex items-center gap-1 bg-purple-100/90 text-purple-800 px-2 py-0.5 rounded-lg text-[11px] font-semibold border border-purple-200">
-                  Category: {category}
-                  <button
-                    onClick={() => onCategoryChange("")}
-                    className="hover:text-purple-950 text-purple-600 ml-0.5"
-                  >
-                    <X size={12} />
-                  </button>
-                </span>
-              )}
-              {year && (
-                <span className="inline-flex items-center gap-1 bg-amber-100/90 text-amber-900 px-2 py-0.5 rounded-lg text-[11px] font-semibold border border-amber-200">
-                  Year/Period: {year}
-                  <button
-                    onClick={() => onYearChange("")}
-                    className="hover:text-amber-950 text-amber-700 ml-0.5"
-                  >
-                    <X size={12} />
-                  </button>
-                </span>
-              )}
-              {minAmount !== undefined && (
-                <span className="inline-flex items-center gap-1 bg-emerald-100/90 text-emerald-900 px-2 py-0.5 rounded-lg text-[11px] font-semibold border border-emerald-200">
-                  Min: ₹{minAmount.toLocaleString("en-IN")}
-                  <button
-                    onClick={() => onMinAmountChange(undefined)}
-                    className="hover:text-emerald-950 text-emerald-700 ml-0.5"
-                  >
-                    <X size={12} />
-                  </button>
-                </span>
-              )}
-              {search && (
-                <span className="inline-flex items-center gap-1 bg-gray-200 text-gray-800 px-2 py-0.5 rounded-lg text-[11px] font-semibold border border-gray-300">
-                  Search: &quot;{search}&quot;
-                  <button
-                    onClick={() => onSearchChange("")}
-                    className="hover:text-black ml-0.5"
-                  >
-                    <X size={12} />
-                  </button>
-                </span>
-              )}
-            </div>
-          )}
+          {/* Add Filter Button */}
+          <div className="flex items-center gap-2 pt-0.5">
+            <button
+              type="button"
+              onClick={handleAddFilterRow}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-dashed border-gray-300 hover:border-indigo-400 bg-white hover:bg-indigo-50/40 text-gray-600 hover:text-indigo-600 text-xs font-medium transition cursor-pointer shadow-2xs"
+            >
+              <Plus size={13} className="text-gray-400" />
+              <span>Add filter condition</span>
+            </button>
+          </div>
         </div>
       )}
 
