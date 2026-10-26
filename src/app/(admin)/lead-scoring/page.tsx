@@ -14,8 +14,8 @@ import {
 } from "lucide-react";
 
 export default function LeadScoringPage() {
-  const scoringUrl =
-    process.env.NEXT_PUBLIC_LEAD_SCORING_URL || "15.206.212.47";
+ const scoringUrl = "15.206.212.47";
+
 
   const [isLoading, setIsLoading] = useState(true);
   const [isFullScreen, setIsFullScreen] = useState(false);
