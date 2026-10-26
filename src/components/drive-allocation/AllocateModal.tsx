@@ -32,6 +32,7 @@ interface AllocateModalProps {
     city?: string;
     state?: string;
     year?: string;
+    category?: string;
     minAmount?: number;
     maxAmount?: number;
   };

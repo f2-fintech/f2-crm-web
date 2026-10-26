@@ -23,6 +23,7 @@ export interface DriveRecordItem {
   eligibilityAmount: number;
   state: string;
   status: "AVAILABLE" | "ALLOCATED";
+  allocationDocId?: string;
   assignedManagerId?: string;
   assignedManagerName?: string;
   assignedEmployeeId?: string;
@@ -87,6 +88,14 @@ export interface DriveStats {
   allocatedRecords: number;
 }
 
+export interface CustomFilterItem {
+  id?: string;
+  column: string;
+  value?: string;
+  minAmount?: number;
+  maxAmount?: number;
+}
+
 export interface AllocatePayload {
   sourceFileId: string;
   managerId: string;
@@ -106,6 +115,7 @@ export interface AllocatePayload {
   customValue?: string;
   minAmount?: number;
   maxAmount?: number;
+  filters?: CustomFilterItem[] | string;
 }
 
 export interface ReturnPayload {
@@ -214,6 +224,7 @@ export const driveAllocationService = {
       customValue?: string;
       minAmount?: number;
       maxAmount?: number;
+      filters?: string;
     } = {}
   ): Promise<{
     data: DriveRecordItem[];

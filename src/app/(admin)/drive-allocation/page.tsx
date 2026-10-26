@@ -17,6 +17,7 @@ import {
   DriveStats,
   HierarchyResponse,
   FileFilterOptions,
+  CustomFilterItem,
 } from "@/services/driveAllocationService";
 import { Layers, Users, FolderGit2, History } from "lucide-react";
 
@@ -56,6 +57,7 @@ export default function DriveAllocationPage() {
   const [availableLender, setAvailableLender] = useState("");
   const [availableCustomCol, setAvailableCustomCol] = useState("");
   const [availableCustomVal, setAvailableCustomVal] = useState("");
+  const [availableFilters, setAvailableFilters] = useState<CustomFilterItem[]>([]);
   const [fileHeaders, setFileHeaders] = useState<string[]>([]);
   const [availableMinAmount, setAvailableMinAmount] = useState<number | undefined>(
     undefined
@@ -177,10 +179,18 @@ export default function DriveAllocationPage() {
       customColumn?: string,
       customValue?: string,
       minAmount?: number,
-      maxAmount?: number
+      maxAmount?: number,
+      filters?: CustomFilterItem[]
     ) => {
       setLoadingAvailable(true);
       try {
+        const validFilters = (filters || []).filter(
+          (f) =>
+            Boolean(f.column && f.column.trim()) &&
+            (Boolean(f.value && f.value.trim()) ||
+              f.minAmount !== undefined ||
+              f.maxAmount !== undefined)
+        );
         const res = await driveAllocationService.getAvailableRecords(fileId, {
           page,
           limit,
@@ -195,6 +205,8 @@ export default function DriveAllocationPage() {
           customValue: customValue || undefined,
           minAmount,
           maxAmount,
+          filters:
+            validFilters.length > 0 ? JSON.stringify(validFilters) : undefined,
         });
         setAvailableRecords(res.data);
         setAvailableTotal(res.total);
@@ -292,6 +304,7 @@ export default function DriveAllocationPage() {
       setAvailableLender("");
       setAvailableCustomCol("");
       setAvailableCustomVal("");
+      setAvailableFilters([]);
       setAvailableMinAmount(undefined);
       setAvailableMaxAmount(undefined);
       setAvailableSearch("");
@@ -316,7 +329,8 @@ export default function DriveAllocationPage() {
         availableCustomCol,
         availableCustomVal,
         availableMinAmount,
-        availableMaxAmount
+        availableMaxAmount,
+        availableFilters
       );
     }
   }, [
@@ -334,6 +348,7 @@ export default function DriveAllocationPage() {
     availableCustomVal,
     availableMinAmount,
     availableMaxAmount,
+    availableFilters,
     loadAvailableRecords,
   ]);
 
@@ -428,6 +443,7 @@ export default function DriveAllocationPage() {
     setAvailableLender("");
     setAvailableCustomCol("");
     setAvailableCustomVal("");
+    setAvailableFilters([]);
     setAvailableMinAmount(undefined);
     setAvailableMaxAmount(undefined);
     setAvailableSearch("");
@@ -475,6 +491,19 @@ export default function DriveAllocationPage() {
         customValue: allocatingIds.length === 0 ? (availableCustomVal || undefined) : undefined,
         minAmount: allocatingIds.length === 0 ? availableMinAmount : undefined,
         maxAmount: allocatingIds.length === 0 ? availableMaxAmount : undefined,
+        filters:
+          allocatingIds.length === 0
+            ? (() => {
+                const valid = availableFilters.filter(
+                  (f) =>
+                    Boolean(f.column && f.column.trim()) &&
+                    (Boolean(f.value && f.value.trim()) ||
+                      f.minAmount !== undefined ||
+                      f.maxAmount !== undefined)
+                );
+                return valid.length > 0 ? valid : undefined;
+              })()
+            : undefined,
       });
 
       showAlert("success", res.message);
@@ -491,8 +520,13 @@ export default function DriveAllocationPage() {
         availableState,
         availableYear,
         availableCategory,
+        availableCibilMin,
+        availableLender,
+        availableCustomCol,
+        availableCustomVal,
         availableMinAmount,
-        availableMaxAmount
+        availableMaxAmount,
+        availableFilters
       );
       const [filesData, statsData] = await Promise.all([
         driveAllocationService.getFiles(),
@@ -552,8 +586,14 @@ export default function DriveAllocationPage() {
           availableCity,
           availableState,
           availableYear,
+          availableCategory,
+          availableCibilMin,
+          availableLender,
+          availableCustomCol,
+          availableCustomVal,
           availableMinAmount,
-          availableMaxAmount
+          availableMaxAmount,
+          availableFilters
         );
       }
       const [filesData, statsData] = await Promise.all([
@@ -787,6 +827,11 @@ export default function DriveAllocationPage() {
               }}
               filterOptions={filterOptions}
               loadingFilterOptions={loadingFilterOptions}
+              customFilters={availableFilters}
+              onCustomFiltersChange={(newFilters) => {
+                setAvailableFilters(newFilters);
+                setAvailablePage(1);
+              }}
               onResetFilters={handleResetAvailableFilters}
               onPageChange={(p) => setAvailablePage(p)}
               onLimitChange={(newLimit) => {
