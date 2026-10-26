@@ -15,7 +15,7 @@ import {
 
 export default function LeadScoringPage() {
   const scoringUrl =
-    process.env.NEXT_PUBLIC_LEAD_SCORING_URL || "http://localhost:5000";
+    process.env.NEXT_PUBLIC_LEAD_SCORING_URL || "15.206.212.47";
 
   const [isLoading, setIsLoading] = useState(true);
   const [isFullScreen, setIsFullScreen] = useState(false);
@@ -55,11 +55,10 @@ export default function LeadScoringPage() {
 
   return (
     <div
-      className={`flex flex-col transition-all duration-300 ${
-        isFullScreen
+      className={`flex flex-col transition-all duration-300 ${isFullScreen
           ? "fixed inset-0 z-50 bg-white p-4"
           : "space-y-4"
-      }`}
+        }`}
     >
       {/* Minimal Top Action Bar (Right-aligned) */}
       <div className="flex items-center justify-end pb-1">
@@ -122,9 +121,8 @@ export default function LeadScoringPage() {
 
       {/* Frame Container */}
       <div
-        className={`relative w-full rounded-2xl border border-slate-200 overflow-hidden bg-slate-50 shadow-sm ${
-          isFullScreen ? "flex-1 h-full" : "h-[calc(100vh-175px)] min-h-[600px]"
-        }`}
+        className={`relative w-full rounded-2xl border border-slate-200 overflow-hidden bg-slate-50 shadow-sm ${isFullScreen ? "flex-1 h-full" : "h-[calc(100vh-175px)] min-h-[600px]"
+          }`}
       >
         {/* Loading Overlay */}
         {isLoading && (
