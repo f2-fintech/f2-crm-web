@@ -649,9 +649,9 @@ export default function AvailableRecordsTable({
                   className="flex flex-wrap items-center gap-2 bg-white rounded-xl border border-gray-200/90 px-3 py-2 shadow-2xs hover:border-indigo-200 transition"
                 >
                   {/* Condition label: Where / And */}
-                  <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider w-12 shrink-0">
+                  {/* <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider w-12 shrink-0">
                     {idx === 0 ? "Where" : "And"}
-                  </span>
+                  </span> */}
 
                   {/* Column Select */}
                   <select
