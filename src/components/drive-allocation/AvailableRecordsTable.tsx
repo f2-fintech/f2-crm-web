@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
   Search,
   UserCheck,
@@ -12,6 +12,8 @@ import {
   Layers,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  Check,
   Filter,
   RotateCcw,
   Calendar,
@@ -29,6 +31,7 @@ import {
   DriveRecordItem,
   FileFilterOptions,
   CustomFilterItem,
+  driveAllocationService,
 } from "@/services/driveAllocationService";
 
 interface AvailableRecordsTableProps {
@@ -69,6 +72,337 @@ interface AvailableRecordsTableProps {
   fileHeaders?: string[];
   customFilters?: CustomFilterItem[];
   onCustomFiltersChange?: (filters: CustomFilterItem[]) => void;
+  fileId?: string;
+}
+
+interface ColumnValueMultiSelectProps {
+  column: string;
+  options: string[];
+  selectedValues: string[];
+  onChange: (values: string[]) => void;
+  placeholder?: string;
+  fileId?: string;
+}
+
+function ColumnValueMultiSelect({
+  column,
+  options,
+  selectedValues,
+  onChange,
+  placeholder,
+  fileId,
+}: ColumnValueMultiSelectProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [backendOptions, setBackendOptions] = useState<string[]>([]);
+  const [isSearchingBackend, setIsSearchingBackend] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false);
+        setSearch("");
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => searchInputRef.current?.focus(), 50);
+    }
+  }, [isOpen]);
+
+  // Live backend search for column values when user types in search box
+  useEffect(() => {
+    if (!fileId || !column || !search.trim()) {
+      setBackendOptions([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        setIsSearchingBackend(true);
+        const results = await driveAllocationService.searchColumnValues(
+          fileId,
+          column,
+          search
+        );
+        if (Array.isArray(results)) {
+          setBackendOptions(results);
+        }
+      } catch {
+        // Fallback to client options
+      } finally {
+        setIsSearchingBackend(false);
+      }
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [fileId, column, search]);
+
+  const allAvailableOptions = useMemo(() => {
+    const set = new Set<string>();
+    options.forEach((opt) => {
+      if (opt && opt.trim()) set.add(opt.trim());
+    });
+    selectedValues.forEach((val) => {
+      if (val && val.trim()) set.add(val.trim());
+    });
+    return Array.from(set);
+  }, [options, selectedValues]);
+
+  const filteredOptions = useMemo(() => {
+    const set = new Set<string>();
+    // Include any values found in backend search
+    backendOptions.forEach((opt) => set.add(opt));
+
+    if (!search.trim()) {
+      allAvailableOptions.forEach((opt) => set.add(opt));
+    } else {
+      const q = search.trim().toLowerCase();
+      allAvailableOptions.forEach((opt) => {
+        if (opt.toLowerCase().includes(q)) set.add(opt);
+      });
+    }
+    return Array.from(set);
+  }, [allAvailableOptions, backendOptions, search]);
+
+  const toggleOption = (val: string) => {
+    if (selectedValues.includes(val)) {
+      onChange(selectedValues.filter((v) => v !== val));
+    } else {
+      onChange([...selectedValues, val]);
+    }
+  };
+
+  const handleRemoveOne = (e: React.MouseEvent, val: string) => {
+    e.stopPropagation();
+    onChange(selectedValues.filter((v) => v !== val));
+  };
+
+  const handleClearAll = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onChange([]);
+    setSearch("");
+  };
+
+  const handleSelectAllFiltered = () => {
+    const newVals = new Set(selectedValues);
+    filteredOptions.forEach((opt) => newVals.add(opt));
+    onChange(Array.from(newVals));
+  };
+
+  const handleAddCustom = () => {
+    const trimmed = search.trim();
+    if (!trimmed) return;
+    if (!selectedValues.includes(trimmed)) {
+      onChange([...selectedValues, trimmed]);
+    }
+    setSearch("");
+  };
+
+  const isExactMatch = allAvailableOptions.some(
+    (opt) => opt.toLowerCase() === search.trim().toLowerCase()
+  );
+
+  return (
+    <div ref={containerRef} className="relative flex-1 min-w-[240px] max-w-xl">
+      {/* Trigger Box */}
+      <div
+        onClick={() => setIsOpen(!isOpen)}
+        className={`flex min-h-[34px] w-full cursor-pointer flex-wrap items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1 text-xs transition shadow-2xs ${
+          isOpen
+            ? "border-indigo-500 ring-2 ring-indigo-500/20"
+            : selectedValues.length > 0
+            ? "border-indigo-300 bg-indigo-50/20"
+            : "border-gray-200 hover:border-gray-300"
+        }`}
+      >
+        {selectedValues.length === 0 ? (
+          <span className="text-gray-400 select-none flex items-center gap-1.5 py-0.5">
+            <Search size={12} className="text-gray-300" />
+            {placeholder || `Choose multiple values (${options.length} available)...`}
+          </span>
+        ) : (
+          <div className="flex flex-wrap items-center gap-1 py-0.5 max-w-full">
+            {selectedValues.slice(0, 3).map((val) => (
+              <span
+                key={val}
+                className="inline-flex items-center gap-1 rounded-md bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 text-[11px] font-bold text-indigo-700"
+              >
+                <span className="truncate max-w-[120px]">{val}</span>
+                <button
+                  type="button"
+                  onClick={(e) => handleRemoveOne(e, val)}
+                  className="text-indigo-400 hover:text-indigo-700 cursor-pointer"
+                >
+                  <X size={10} />
+                </button>
+              </span>
+            ))}
+            {selectedValues.length > 3 && (
+              <span className="inline-flex items-center rounded-md bg-indigo-100 text-indigo-800 px-1.5 py-0.5 text-[10px] font-bold">
+                +{selectedValues.length - 3} more
+              </span>
+            )}
+          </div>
+        )}
+
+        <div className="ml-auto flex items-center gap-1 shrink-0">
+          {selectedValues.length > 0 && (
+            <button
+              type="button"
+              onClick={handleClearAll}
+              className="p-0.5 text-gray-400 hover:text-rose-600 rounded cursor-pointer"
+              title="Clear column selections"
+            >
+              <X size={12} />
+            </button>
+          )}
+          <ChevronDown
+            size={13}
+            className={`text-gray-400 transition-transform ${
+              isOpen ? "rotate-180" : ""
+            }`}
+          />
+        </div>
+      </div>
+
+      {/* Dropdown Popover */}
+      {isOpen && (
+        <div className="absolute left-0 top-full z-50 mt-1 w-full min-w-[280px] sm:min-w-[340px] max-w-md rounded-xl border border-gray-200 bg-white shadow-xl animate-in fade-in-50 zoom-in-95 duration-100">
+          {/* Header: Search + Actions */}
+          <div className="p-2 border-b border-gray-100 space-y-1.5 bg-gray-50/60 rounded-t-xl">
+            <div className="relative">
+              <Search
+                size={13}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+              />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (search.trim()) {
+                      if (!isExactMatch) {
+                        handleAddCustom();
+                      } else if (filteredOptions.length > 0) {
+                        toggleOption(filteredOptions[0]);
+                      }
+                    }
+                  }
+                }}
+                placeholder={`Search or type value in ${column}...`}
+                className="w-full h-7 rounded-lg border border-gray-200 bg-white pl-7 pr-7 text-xs font-medium text-gray-800 placeholder-gray-400 focus:border-indigo-500 focus:outline-none"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                >
+                  <X size={11} />
+                </button>
+              )}
+            </div>
+
+            {/* Quick Actions Bar */}
+            <div className="flex items-center justify-between text-[11px] px-1 text-gray-500">
+              <span className="font-semibold text-indigo-700 flex items-center gap-1.5">
+                <span>{selectedValues.length} selected</span>
+                {isSearchingBackend && (
+                  <span className="text-[10px] font-normal text-indigo-500 italic animate-pulse">
+                    (searching file...)
+                  </span>
+                )}
+              </span>
+              <div className="flex items-center gap-2">
+                {filteredOptions.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleSelectAllFiltered}
+                    className="font-semibold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
+                  >
+                    Select All ({filteredOptions.length})
+                  </button>
+                )}
+                {selectedValues.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onChange([])}
+                    className="font-semibold text-rose-600 hover:text-rose-800 hover:underline cursor-pointer"
+                  >
+                    Clear All
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Options List */}
+          <div className="max-h-56 overflow-y-auto p-1.5 space-y-0.5">
+            {search.trim() && !isExactMatch && (
+              <button
+                type="button"
+                onClick={handleAddCustom}
+                className="flex items-center gap-1.5 w-full rounded-lg px-2.5 py-1.5 text-xs text-left font-bold text-indigo-600 bg-indigo-50/70 hover:bg-indigo-100/80 transition cursor-pointer mb-1 border border-indigo-200 border-dashed"
+              >
+                <Plus size={12} />
+                <span>Add &quot;{search.trim()}&quot; as filter value</span>
+              </button>
+            )}
+
+            {filteredOptions.length === 0 && !search.trim() ? (
+              <div className="p-3 text-center text-xs text-gray-400 italic">
+                No values pre-loaded. Type any value above and press Enter to add.
+              </div>
+            ) : filteredOptions.length === 0 && search.trim() ? (
+              <div className="p-3 text-center text-xs text-gray-400">
+                No existing option matches &quot;{search}&quot;. Click above to add it.
+              </div>
+            ) : (
+              filteredOptions.map((opt) => {
+                const isSelected = selectedValues.includes(opt);
+                return (
+                  <div
+                    key={opt}
+                    onClick={() => toggleOption(opt)}
+                    className={`flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs cursor-pointer transition select-none ${
+                      isSelected
+                        ? "bg-indigo-50 font-bold text-indigo-900"
+                        : "text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate pr-2">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => {}}
+                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5 cursor-pointer"
+                      />
+                      <span className="truncate">{opt}</span>
+                    </div>
+                    {isSelected && (
+                      <Check size={13} className="text-indigo-600 shrink-0" />
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function AvailableRecordsTable({
@@ -109,6 +443,7 @@ export default function AvailableRecordsTable({
   fileHeaders,
   customFilters,
   onCustomFiltersChange,
+  fileId,
 }: AvailableRecordsTableProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [quickCount, setQuickCount] = useState<number>(100);
@@ -224,24 +559,29 @@ export default function AvailableRecordsTable({
       return customFilters;
     }
     if (customColumn || customValue || minAmount !== undefined || maxAmount !== undefined) {
+      const parsedValues = customValue
+        ? customValue.split(",").map((s) => s.trim()).filter(Boolean)
+        : [];
       return [
         {
           id: "flt-single",
           column: customColumn || "",
           value: customValue || "",
+          values: parsedValues,
           minAmount,
           maxAmount,
         },
       ];
     }
-    return [{ id: "flt-init", column: "", value: "" }];
+    return [{ id: "flt-init", column: "", value: "", values: [] }];
   }, [customFilters, customColumn, customValue, minAmount, maxAmount]);
 
-  const handleAddFilterRow = () => {
+  const handleAddFilterRow = (colName?: string) => {
     const newFilter: CustomFilterItem = {
       id: `flt-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      column: "",
+      column: colName || "",
       value: "",
+      values: [],
     };
     const current = activeFiltersList.map((f) => ({ ...f }));
     const updated = [...current, newFilter];
@@ -251,15 +591,25 @@ export default function AvailableRecordsTable({
   const handleUpdateFilterRow = (index: number, updates: Partial<CustomFilterItem>) => {
     const list = [...activeFiltersList];
     if (!list[index]) {
-      list[index] = { id: `flt-${Date.now()}`, column: "", value: "" };
+      list[index] = { id: `flt-${Date.now()}`, column: "", value: "", values: [] };
     }
     const existing = list[index];
     const updatedItem = { ...existing, ...updates };
 
     if (updates.column !== undefined && updates.column !== existing.column) {
       updatedItem.value = "";
+      updatedItem.values = [];
       updatedItem.minAmount = undefined;
       updatedItem.maxAmount = undefined;
+    }
+
+    // Keep value string and values array synchronized
+    if (updates.values !== undefined && updates.value === undefined) {
+      updatedItem.value = updates.values.join(", ");
+    } else if (updates.value !== undefined && updates.values === undefined) {
+      updatedItem.values = updates.value
+        ? updates.value.split(",").map((s) => s.trim()).filter(Boolean)
+        : [];
     }
 
     list[index] = updatedItem;
@@ -267,7 +617,7 @@ export default function AvailableRecordsTable({
 
     if (index === 0) {
       if (updates.column !== undefined) onCustomColumnChange?.(updates.column);
-      if (updates.value !== undefined) onCustomValueChange?.(updates.value);
+      if (updatedItem.value !== undefined) onCustomValueChange?.(updatedItem.value);
       if (updates.minAmount !== undefined) onMinAmountChange?.(updates.minAmount);
       if (updates.maxAmount !== undefined) onMaxAmountChange?.(updates.maxAmount);
     }
@@ -288,7 +638,10 @@ export default function AvailableRecordsTable({
     activeFiltersList.some(
       (f) =>
         f.column &&
-        (f.value || f.minAmount !== undefined || f.maxAmount !== undefined)
+        ((f.values && f.values.length > 0) ||
+          f.value ||
+          f.minAmount !== undefined ||
+          f.maxAmount !== undefined)
     )
   );
 
@@ -652,6 +1005,7 @@ export default function AvailableRecordsTable({
                   {/* <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider w-12 shrink-0">
                     {idx === 0 ? "Where" : "And"}
                   </span> */}
+                  
 
                   {/* Column Select */}
                   <select
@@ -763,48 +1117,28 @@ export default function AvailableRecordsTable({
                         </div>
                       </div>
                     ) : (
-                      <div className="flex-1 min-w-[200px]">
-                        {colOptions.length > 0 && colOptions.length <= 40 ? (
-                          <select
-                            value={flt.value || ""}
-                            onChange={(e) =>
-                              handleUpdateFilterRow(idx, {
-                                value: e.target.value,
-                              })
-                            }
-                            className="h-8 w-full max-w-sm rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-800 focus:border-indigo-500 focus:outline-none transition"
-                          >
-                            <option value="">
-                              -- All ({colOptions.length} available) --
-                            </option>
-                            {colOptions.map((val) => (
-                              <option key={val} value={val}>
-                                {val}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <div className="relative max-w-sm">
-                            <input
-                              type="text"
-                              list={`datalist-filter-${idx}`}
-                              placeholder={`Type or choose value...`}
-                              value={flt.value || ""}
-                              onChange={(e) =>
-                                handleUpdateFilterRow(idx, {
-                                  value: e.target.value,
-                                })
-                              }
-                              className="h-8 w-full rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-800 placeholder-gray-400 focus:border-indigo-500 focus:outline-none transition"
-                            />
-                            <datalist id={`datalist-filter-${idx}`}>
-                              {colOptions.map((val) => (
-                                <option key={val} value={val} />
-                              ))}
-                            </datalist>
-                          </div>
-                        )}
-                      </div>
+                      <ColumnValueMultiSelect
+                        column={filterCol}
+                        options={colOptions}
+                        selectedValues={
+                          flt.values && flt.values.length > 0
+                            ? flt.values
+                            : flt.value
+                            ? flt.value
+                                .split(",")
+                                .map((s) => s.trim())
+                                .filter(Boolean)
+                            : []
+                        }
+                        onChange={(vals) => {
+                          handleUpdateFilterRow(idx, {
+                            values: vals,
+                            value: vals.join(", "),
+                          });
+                        }}
+                        placeholder={`Select multiple ${filterCol} values...`}
+                        fileId={fileId}
+                      />
                     )}
                   </div>
 
@@ -824,16 +1158,32 @@ export default function AvailableRecordsTable({
             })}
           </div>
 
-          {/* Add Filter Button */}
-          <div className="flex items-center gap-2 pt-0.5">
+          {/* Add Filter Button + Quick Column Buttons */}
+          <div className="flex flex-wrap items-center gap-2 pt-1">
             <button
               type="button"
-              onClick={handleAddFilterRow}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-dashed border-gray-300 hover:border-indigo-400 bg-white hover:bg-indigo-50/40 text-gray-600 hover:text-indigo-600 text-xs font-medium transition cursor-pointer shadow-2xs"
+              onClick={() => handleAddFilterRow()}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dashed border-indigo-300 hover:border-indigo-500 bg-white hover:bg-indigo-50/50 text-indigo-700 text-xs font-bold transition cursor-pointer shadow-2xs"
             >
-              <Plus size={13} className="text-gray-400" />
-              <span>Add filter condition</span>
+              <Plus size={13} />
+              <span>+ Add Column Filter</span>
             </button>
+
+            {/* Quick-add unselected columns */}
+            {dynamicColumns
+              .filter((col) => !activeFiltersList.some((f) => f.column === col))
+              .slice(0, 6)
+              .map((col) => (
+                <button
+                  key={col}
+                  type="button"
+                  onClick={() => handleAddFilterRow(col)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white hover:bg-indigo-50 text-gray-600 hover:text-indigo-700 text-[11px] font-semibold transition cursor-pointer border border-gray-200 hover:border-indigo-200 shadow-2xs"
+                >
+                  <Plus size={10} className="text-gray-400" />
+                  <span>{col}</span>
+                </button>
+              ))}
           </div>
         </div>
       )}

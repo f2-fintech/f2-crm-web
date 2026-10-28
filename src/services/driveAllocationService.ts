@@ -92,6 +92,7 @@ export interface CustomFilterItem {
   id?: string;
   column: string;
   value?: string;
+  values?: string[];
   minAmount?: number;
   maxAmount?: number;
 }
@@ -204,6 +205,18 @@ export const driveAllocationService = {
   // Get dynamic filter options for a file (Cities, States, Years, Categories, Amount range)
   async getFilterOptions(fileId: string): Promise<FileFilterOptions> {
     const res = await api.get(`/drive-allocation/filter-options/${fileId}`);
+    return res.data;
+  },
+
+  // Search unique column values directly from backend
+  async searchColumnValues(
+    fileId: string,
+    column: string,
+    search = ""
+  ): Promise<string[]> {
+    const res = await api.get(`/drive-allocation/column-values/${fileId}`, {
+      params: { column, search, limit: 100 },
+    });
     return res.data;
   },
 

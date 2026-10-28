@@ -188,6 +188,7 @@ export default function DriveAllocationPage() {
           (f) =>
             Boolean(f.column && f.column.trim()) &&
             (Boolean(f.value && f.value.trim()) ||
+              (f.values && f.values.length > 0) ||
               f.minAmount !== undefined ||
               f.maxAmount !== undefined)
         );
@@ -498,6 +499,7 @@ export default function DriveAllocationPage() {
                   (f) =>
                     Boolean(f.column && f.column.trim()) &&
                     (Boolean(f.value && f.value.trim()) ||
+                      (f.values && f.values.length > 0) ||
                       f.minAmount !== undefined ||
                       f.maxAmount !== undefined)
                 );
@@ -839,6 +841,7 @@ export default function DriveAllocationPage() {
                 setAvailablePage(1);
               }}
               loading={loadingAvailable}
+              fileId={selectedFile.fileId}
               onOpenAllocateModal={(ids, count) =>
                 handleOpenAllocateModal(ids, count)
               }

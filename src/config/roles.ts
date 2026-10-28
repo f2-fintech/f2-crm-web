@@ -32,6 +32,7 @@ export const ROUTE_PERMISSIONS: Record<string, string[]> = {
   "/agents": [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER, ROLES.TEAM_LEADER],
   "/notion-remarks": [ROLES.SUPER_ADMIN, ROLES.ADMIN],
   "/mis-search": [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+  "/dialer": [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER, ROLES.TEAM_LEADER],
 };
 
 export const hasPermission = (pathname: string, userRole: string): boolean => {

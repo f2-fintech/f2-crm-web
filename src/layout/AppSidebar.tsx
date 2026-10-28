@@ -20,7 +20,7 @@ import {
   UserCircleIcon,
 } from "../icons/index";
 import SidebarWidget from "./SidebarWidget";
-import { MessageSquare, Contact, Sparkles, Calculator, Stethoscope, FolderGit2, Search } from "lucide-react";
+import { MessageSquare, Contact, Sparkles, Calculator, Stethoscope, FolderGit2, Search, PhoneCall } from "lucide-react";
 
 type NavItem = {
   name: string;
@@ -95,6 +95,11 @@ const othersItems: NavItem[] = [
     icon: <FolderGit2 size={20} className="text-blue-500" />,
     name: "Drive Allocation",
     path: "/drive-allocation",
+  },
+  {
+    icon: <PhoneCall size={20} className="text-emerald-500" />,
+    name: "Dialer Call Logs",
+    path: "/dialer",
   },
   {
     icon: <Search size={20} className="text-cyan-500" />,
