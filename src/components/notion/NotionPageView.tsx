@@ -11,6 +11,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TablePagination,
   Typography,
 } from "@mui/material";
 import { Plus, MoreHorizontal, Search, Table as TableIcon, FileText } from "lucide-react";
@@ -42,11 +43,29 @@ export default function NotionPageView({
     JSON.stringify(row).toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const [page, setPage] = React.useState(0);
+  const [rowsPerPage, setRowsPerPage] = React.useState(50);
+
+  const handleChangePage = (event: unknown, newPage: number) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  React.useEffect(() => {
+    setPage(0);
+  }, [searchQuery]);
+
+  const paginatedRows = filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+
   return (
     <Box sx={{ flexGrow: 1, display: "flex", flexDirection: "column", overflowY: "auto" }}>
       {/* Topbar */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 3, py: 1.5 }}>
-        <Stack direction="row" alignItems="center" spacing={1} sx={{ color: notionColors.textMuted }}>
+      <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center", px: 3, py: 1.5 }}>
+        <Stack direction="row" spacing={1} sx={{ alignItems: "center", color: notionColors.textMuted }}>
           <Typography variant="body2" sx={{ cursor: "pointer", "&:hover": { textDecoration: "underline" } }}>Vineet Team</Typography>
           <Typography variant="body2">/</Typography>
           <Typography variant="body2" sx={{ color: notionColors.textMain }}>{selectedPageTitle}</Typography>
@@ -68,8 +87,40 @@ export default function NotionPageView({
           <Typography variant="h2" sx={{ fontWeight: 700, color: notionColors.textMain, mb: 2, fontSize: "40px", fontFamily: "ui-serif, Georgia, serif" }}>
             {selectedPageTitle}
           </Typography>
+
+          {/* Audit Logs & Properties */}
+          <Box sx={{ mb: 4, display: 'flex', flexDirection: 'column', gap: 1, py: 2, borderBottom: `1px solid ${notionColors.borderLight}` }}>
+            <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+              <Typography sx={{ width: 120, color: notionColors.textMuted, fontSize: '14px' }}>Created By</Typography>
+              <Typography sx={{ color: notionColors.textMain, fontSize: '14px' }}>
+                {activePage?.createdBy?.firstName 
+                  ? `${activePage.createdBy.firstName} ${activePage.createdBy.lastName || ""}` 
+                  : activePage?.createdBy || "System"}
+              </Typography>
+            </Stack>
+            <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+              <Typography sx={{ width: 120, color: notionColors.textMuted, fontSize: '14px' }}>Created At</Typography>
+              <Typography sx={{ color: notionColors.textMain, fontSize: '14px' }}>
+                {activePage?.createdAt ? new Date(activePage.createdAt).toLocaleString() : "-"}
+              </Typography>
+            </Stack>
+            <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+              <Typography sx={{ width: 120, color: notionColors.textMuted, fontSize: '14px' }}>Assigned To</Typography>
+              <Typography sx={{ color: notionColors.textMain, fontSize: '14px' }}>
+                {activePage?.assignedMemberId?.firstName 
+                  ? `${activePage.assignedMemberId.firstName} ${activePage.assignedMemberId.lastName || ""}` 
+                  : activePage?.assignedMemberId || "Unassigned"}
+              </Typography>
+            </Stack>
+            <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+              <Typography sx={{ width: 120, color: notionColors.textMuted, fontSize: '14px' }}>Last Updated</Typography>
+              <Typography sx={{ color: notionColors.textMain, fontSize: '14px' }}>
+                {activePage?.updatedAt ? new Date(activePage.updatedAt).toLocaleString() : "-"}
+              </Typography>
+            </Stack>
+          </Box>
           
-          <Stack direction="row" spacing={2} sx={{ mb: 4, borderBottom: `1px solid ${notionColors.borderLight}`, pb: 2 }}>
+          <Stack direction="row" spacing={2} sx={{ alignItems: "center", mb: 4, borderBottom: `1px solid ${notionColors.borderLight}`, pb: 2 }}>
             <Button variant="outlined" size="small" startIcon={<Plus size={16} />} onClick={onOpenCreateModal} sx={{ textTransform: "none", borderColor: notionColors.borderLight, color: notionColors.textMain, "&:hover": { bgcolor: notionColors.sidebarHover } }}>
               Add Sub-page
             </Button>
@@ -82,7 +133,7 @@ export default function NotionPageView({
         {/* Leads Data Table (if data exists) */}
         {rowsData.length > 0 ? (
           <Box>
-            <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 2 }}>
               <Search size={16} color={notionColors.textMuted} />
               <InputBase 
                 placeholder="Search in database..." 
@@ -103,7 +154,7 @@ export default function NotionPageView({
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filteredRows.map((row, idx) => (
+                  {paginatedRows.map((row, idx) => (
                     <TableRow key={idx} sx={{ "&:hover": { bgcolor: notionColors.sidebarHover } }}>
                       <TableCell sx={{ color: notionColors.textMain, fontSize: "14px", fontWeight: 500, py: 1 }}>{row.col2 || row.id}</TableCell>
                       <TableCell sx={{ color: notionColors.textMain, fontSize: "14px", py: 1 }}>{row.col1}</TableCell>
@@ -118,6 +169,15 @@ export default function NotionPageView({
                   ))}
                 </TableBody>
               </Table>
+              <TablePagination
+                rowsPerPageOptions={[25, 50, 100]}
+                component="div"
+                count={filteredRows.length}
+                rowsPerPage={rowsPerPage}
+                page={page}
+                onPageChange={handleChangePage}
+                onRowsPerPageChange={handleChangeRowsPerPage}
+              />
             </TableContainer>
           </Box>
         ) : (
@@ -136,10 +196,9 @@ export default function NotionPageView({
               <Stack 
                 key={child._id} 
                 direction="row" 
-                alignItems="center" 
                 spacing={1} 
                 onClick={() => onSelectChildPage(child)}
-                sx={{ py: 1, cursor: "pointer", "&:hover": { textDecoration: "underline" } }}
+                sx={{ alignItems: "center", py: 1, cursor: "pointer", "&:hover": { textDecoration: "underline" } }}
               >
                 <FileText size={18} color={notionColors.textMuted} />
                 <Typography sx={{ color: notionColors.textMain, fontWeight: 500 }}>{child.title}</Typography>
@@ -151,3 +210,4 @@ export default function NotionPageView({
     </Box>
   );
 }
+

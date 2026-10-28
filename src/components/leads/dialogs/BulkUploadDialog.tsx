@@ -240,7 +240,7 @@ export default function BulkUploadDialog({
             <Box>
               <Typography
                 variant="subtitle1"
-                mb={1}
+                sx={{ mb: 1 }}
               >
                 Upload Errors
               </Typography>
@@ -264,7 +264,7 @@ export default function BulkUploadDialog({
                       key={index}
                       variant="body2"
                       color="error"
-                      mb={1}
+                      sx={{ mb: 1 }}
                     >
                       Row :
                       {item.row}

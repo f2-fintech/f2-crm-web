@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import api from "@/lib/axios";
+import toast from "react-hot-toast";
 
 interface UserModalProps {
   open: boolean;
@@ -71,11 +72,11 @@ export default function UserModal({
         email: user.email || "",
         phone: user.phone || "",
         password: "",
-        roleId: user.roleId?._id || "",
-        branchId: user.branchId?._id || "",
-        departmentId: user.departmentId?._id || "",
+        roleId: user.roleId?._id || user.roleId || "",
+        branchId: user.branchId?._id || user.branchId || "",
+        departmentId: user.departmentId?._id || user.departmentId || "",
         profileImage: user.profileImage || "",
-        isActive: user.isActive,
+        isActive: user.isActive !== undefined ? user.isActive : true,
       });
     }
 
@@ -133,22 +134,33 @@ export default function UserModal({
       if (mode === "edit" && !payload.password) {
         delete payload.password;
       }
+      if (!payload.branchId) delete payload.branchId;
+      if (!payload.departmentId) delete payload.departmentId;
+      if (!payload.phone) delete payload.phone;
+      if (!payload.roleId) delete payload.roleId;
 
       const res =
         mode === "create"
           ? await api.post("/users", payload)
           : await api.patch(`/users/${user._id}`, payload);
 
-      alert(res.data.message);
+      toast.success(
+        res.data?.message || (mode === "create" ? "User created successfully" : "User updated successfully")
+      );
 
       onSuccess();
       handleClose();
     } catch (err: any) {
-      console.error(err);
-      alert(
-        err?.response?.data?.message ||
-          "Something went wrong. Please try again."
-      );
+      const errorData = err?.response?.data;
+      let errorMessage = "Something went wrong. Please try again.";
+      
+      if (errorData?.message) {
+        errorMessage = Array.isArray(errorData.message)
+          ? errorData.message.join(", ")
+          : errorData.message;
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -158,8 +170,10 @@ export default function UserModal({
 
   return (
     <div
-      className="fixed inset-0 z-99999 flex items-center justify-center bg-black/40"
-      onClick={handleClose}
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) handleClose();
+      }}
     >
       <div
         className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl bg-white p-6"
@@ -216,7 +230,6 @@ export default function UserModal({
 
             <input
               type="email"
-              disabled={mode === "edit"}
               name="email"
               value={form.email}
               onChange={handleChange}

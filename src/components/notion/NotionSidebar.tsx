@@ -41,10 +41,10 @@ export default function NotionSidebar({
         <Box key={nodeKey}>
           <Stack
             direction="row"
-            alignItems="center"
             spacing={0.5}
             onClick={() => onSelectPage(node)}
             sx={{
+              alignItems: "center",
               py: 0.5,
               pl: 1 + depth * 1.5,
               pr: 1,
@@ -100,7 +100,7 @@ export default function NotionSidebar({
         flexShrink: 0,
       }}
     >
-      <Stack direction="row" alignItems="center" spacing={1} sx={{ p: 2, cursor: "pointer", "&:hover": { bgcolor: notionColors.sidebarHover } }}>
+      <Stack direction="row" spacing={1} sx={{ alignItems: "center", p: 2, cursor: "pointer", "&:hover": { bgcolor: notionColors.sidebarHover } }}>
         <Box sx={{ width: 24, height: 24, borderRadius: 1, bgcolor: "#eb5757", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: "bold" }}>
           V
         </Box>

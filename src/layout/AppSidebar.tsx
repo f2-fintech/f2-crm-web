@@ -20,6 +20,7 @@ import {
   UserCircleIcon,
 } from "../icons/index";
 import SidebarWidget from "./SidebarWidget";
+import { MessageSquare, Contact, Sparkles, Calculator, Stethoscope, FolderGit2, Search, PhoneCall } from "lucide-react";
 
 type NavItem = {
   name: string;
@@ -33,6 +34,24 @@ const navItems: NavItem[] = [
     icon: <GridIcon />,
     name: "Dashboard",
     path: "/",
+  },
+  {
+    icon: <PhoneCall size={20} className="text-emerald-500" />,
+    name: "Dialer Call Logs",
+    path: "/dialer",
+  },
+  {
+    icon: <Calculator size={20} className="text-green-500" />,
+    name: "EMI Calculator",
+    path: "/emi-calculator",
+  },
+  {
+    icon: <GroupIcon />,
+    name: "CRM",
+    subItems: [
+      { name: "Notion Workspace", path: "/notion-pages", new: true },
+      { name: "Notion Remarks", path: "/notion-remarks", pro: true },
+    ],
   },
   {
     icon: <ListIcon />,
@@ -55,14 +74,14 @@ const navItems: NavItem[] = [
     path: "/my-requests",
   },
   {
-    icon: <GroupIcon />,
-    name: "CRM",
-    subItems: [
-      { name: "Leads", path: "/leads" },
-      { name: "Customers", path: "/customers" },
-      { name: "Follow Ups", path: "/followups" },
-      { name: "Notion Workspace", path: "/notion-pages", new: true },
-    ],
+    icon: <Sparkles size={20} className="text-brand-400" />,
+    name: "AI Copilot",
+    path: "/ai-assistant",
+  },
+  {
+    icon: <Stethoscope size={20} className="text-teal-600 dark:text-teal-400" />,
+    name: "Doctor Network",
+    path: "/doctors",
   },
   {
     icon: <UserCircleIcon />,
@@ -72,6 +91,21 @@ const navItems: NavItem[] = [
 ];
 
 const othersItems: NavItem[] = [
+  {
+    icon: <Sparkles size={20} className="text-amber-500" />,
+    name: "Lead Scoring",
+    path: "/lead-scoring",
+  },
+  {
+    icon: <FolderGit2 size={20} className="text-blue-500" />,
+    name: "Drive Allocation",
+    path: "/drive-allocation",
+  },
+  {
+    icon: <Search size={20} className="text-cyan-500" />,
+    name: "MIS Search Book",
+    path: "/mis-search",
+  },
   {
     icon: <BoxCubeIcon />,
     name: "Administration",
@@ -97,9 +131,13 @@ const othersItems: NavItem[] = [
 ];
 
 const AppSidebar: React.FC = () => {
-  const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
+  const { isExpanded, isMobileOpen, isHovered, setIsHovered, toggleMobileSidebar } = useSidebar();
   const pathname = usePathname();
   const { role, isLoading } = useAuth();
+
+  const handleLinkClick = () => {
+    if (isMobileOpen) toggleMobileSidebar();
+  };
 
   const [openSubmenu, setOpenSubmenu] = useState<{
     type: "main" | "others";
@@ -117,26 +155,33 @@ const AppSidebar: React.FC = () => {
   const renderMenuItems = (
     navItems: NavItem[],
     menuType: "main" | "others"
-  ) => (
-    <ul className="flex flex-col gap-1">
-      {navItems.map((nav, index) => {
-        const groupOpen =
-          openSubmenu?.type === menuType && openSubmenu?.index === index;
+  ) => {
+    const visibleItems = navItems.filter((nav) => {
+      if (nav.path && !hasPermission(nav.path, role)) return false;
+      return true;
+    });
+
+    return (
+      <ul className="flex flex-col gap-1">
+        {visibleItems.map((nav, index) => {
+          const groupOpen =
+            openSubmenu?.type === menuType && openSubmenu?.index === index;
 
         return (
           <li key={nav.name} className="relative">
             {nav.subItems ? (
               <button
+                id={`sidebar-item-${nav.name.toLowerCase().replace(/\s+/g, '-')}`}
                 onClick={() => handleSubmenuToggle(index, menuType)}
-                className={`group flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${groupOpen
-                    ? "bg-white/10 text-white"
-                    : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+                className={`group relative flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${groupOpen
+                  ? "bg-white/5 text-white ring-1 ring-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+                  : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
                   } ${!showLabels ? "lg:justify-center" : "justify-start"}`}
               >
                 <span
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center ${groupOpen
-                      ? "text-indigo-400"
-                      : "text-slate-500 group-hover:text-slate-300"
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center transition-colors duration-200 ${groupOpen
+                    ? "text-indigo-400"
+                    : "text-slate-500 group-hover:text-slate-300"
                     }`}
                 >
                   {nav.icon}
@@ -152,19 +197,21 @@ const AppSidebar: React.FC = () => {
             ) : (
               nav.path && (
                 <Link
+                  id={`sidebar-item-${nav.name.toLowerCase().replace(/\s+/g, '-')}`}
                   href={nav.path}
-                  className={`group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${isActive(nav.path)
-                      ? "bg-white/10 text-white"
-                      : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+                  onClick={handleLinkClick}
+                  className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${isActive(nav.path)
+                    ? "bg-gradient-to-r from-indigo-500/10 to-transparent text-indigo-200 ring-1 ring-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+                    : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
                     } ${!showLabels ? "lg:justify-center" : "justify-start"}`}
                 >
                   {isActive(nav.path) && (
-                    <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-indigo-400" />
+                    <span className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]" />
                   )}
                   <span
-                    className={`flex h-5 w-5 shrink-0 items-center justify-center ${isActive(nav.path)
-                        ? "text-indigo-400"
-                        : "text-slate-500 group-hover:text-slate-300"
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center transition-colors duration-200 ${isActive(nav.path)
+                      ? "text-indigo-400"
+                      : "text-slate-500 group-hover:text-slate-300"
                       }`}
                   >
                     {nav.icon}
@@ -190,12 +237,15 @@ const AppSidebar: React.FC = () => {
                   {nav.subItems.map((subItem) => (
                     <li key={subItem.name}>
                       <Link
+                        id={`sidebar-subitem-${subItem.name.toLowerCase().replace(/\s+/g, '-')}`}
                         href={subItem.path}
-                        className={`flex items-center gap-2 rounded-md px-2.5 py-2 text-sm transition-colors ${isActive(subItem.path)
-                            ? "font-medium text-indigo-300"
-                            : "text-slate-400 hover:text-slate-200"
+                        onClick={handleLinkClick}
+                        className={`group flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm transition-all duration-200 ${isActive(subItem.path)
+                          ? "bg-white/5 font-medium text-indigo-300 ring-1 ring-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+                          : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
                           }`}
                       >
+                        <span className={`h-1.5 w-1.5 rounded-full transition-colors duration-200 ${isActive(subItem.path) ? "bg-indigo-400 shadow-[0_0_6px_rgba(99,102,241,0.6)]" : "bg-slate-600 group-hover:bg-slate-400"}`} />
                         <span className="truncate">{subItem.name}</span>
                         <span className="ml-auto flex items-center gap-1">
                           {subItem.new && (
@@ -219,7 +269,8 @@ const AppSidebar: React.FC = () => {
         );
       })}
     </ul>
-  );
+    );
+  };
 
   useEffect(() => {
     let submenuMatched = false;
@@ -272,8 +323,30 @@ const AppSidebar: React.FC = () => {
       });
   }, [role]);
 
-  const filteredNavItems = React.useMemo(() => filterItems(navItems), [filterItems]);
-  const filteredOthersItems = React.useMemo(() => filterItems(othersItems), [filterItems]);
+  const filteredNavItems = React.useMemo(() => {
+    const baseItems = navItems.filter((item) =>
+      ["Dashboard", "Dialer Call Logs", "CRM", "EMI Calculator"].includes(item.name)
+    );
+    return filterItems(baseItems);
+  }, [filterItems]);
+
+  const filteredOthersItems = React.useMemo(() => {
+    const isAdmin = role === "SUPER_ADMIN" || role === "ADMIN";
+    const baseItems = isAdmin ? othersItems : [];
+    return filterItems(baseItems);
+  }, [filterItems, role]);
+
+  useEffect(() => {
+    const handleOpenAdminMenu = () => {
+      // Find the index of "Administration" in filteredOthersItems
+      const index = filteredOthersItems.findIndex(item => item.name === "Administration");
+      if (index !== -1) {
+        setOpenSubmenu({ type: "others", index });
+      }
+    };
+    window.addEventListener("open-admin-menu", handleOpenAdminMenu);
+    return () => window.removeEventListener("open-admin-menu", handleOpenAdminMenu);
+  }, [filteredOthersItems]);
 
   const handleSubmenuToggle = (index: number, menuType: "main" | "others") => {
     setOpenSubmenu((prevOpenSubmenu) => {
@@ -290,14 +363,44 @@ const AppSidebar: React.FC = () => {
 
   return (
     <aside
-      className={`fixed left-0 top-0 z-50 mt-16 flex h-screen flex-col border-r border-white/5 bg-[#0f1729] px-4 text-slate-300 transition-all duration-300 ease-in-out lg:mt-0
-        ${isExpanded || isMobileOpen ? "w-[290px]" : isHovered ? "w-[290px]" : "w-[90px]"}
+      id="sidebar-menu"
+      className={`fixed left-0 top-0 z-50 mt-16 flex h-[calc(100vh-64px)] flex-col border-r border-white/10 bg-gradient-to-b from-[#0f172a] to-[#020617] px-4 text-slate-300 shadow-2xl transition-all duration-300 ease-in-out lg:mt-0 lg:h-screen
+        ${isExpanded || isMobileOpen ? "w-[290px]" : "w-[90px]"}
         ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}
         lg:translate-x-0`}
-      onMouseEnter={() => !isExpanded && setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
     >
-      <div className="h-8" />
+      {/* ── Logo Section ── */}
+      <div className={`flex shrink-0 items-center justify-between pt-7 pb-6 transition-all duration-300 ${!showLabels ? "lg:justify-center px-0" : "px-2"}`}>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 font-extrabold text-white shadow-[0_4px_14px_rgba(99,102,241,0.4)] ring-1 ring-white/10">
+            F2
+          </div>
+          {showLabels && (
+            <div className="flex flex-col overflow-hidden whitespace-nowrap transition-opacity duration-300">
+              <span className="text-[17.5px] font-extrabold tracking-wide text-white leading-tight">
+                F2 CRM
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-400 mt-0.5">
+                Fintech
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Mobile Close Button */}
+        {isMobileOpen && (
+          <button
+            onClick={toggleMobileSidebar}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/5 hover:text-white lg:hidden"
+            aria-label="Close sidebar"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        )}
+      </div>
 
       <div className="no-scrollbar flex flex-col overflow-y-auto duration-300 ease-linear">
         <nav className="mb-6">

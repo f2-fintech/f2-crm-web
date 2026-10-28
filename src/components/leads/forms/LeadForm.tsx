@@ -135,7 +135,9 @@ export default function LeadForm({
         <Stack
           direction="row"
           spacing={2}
-          justifyContent="flex-end"
+          sx={{
+            justifyContent: "flex-end",
+          }}
         >
           <Button
             variant="outlined"

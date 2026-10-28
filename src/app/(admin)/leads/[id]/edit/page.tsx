@@ -18,6 +18,7 @@ import LeadForm from "@/components/leads/forms/LeadForm";
 
 import useLeadDetails from "@/hooks/useLeadDetails";
 import useLeadForm from "@/hooks/useLeadForm";
+import api from "@/lib/axios";
 
 export default function EditLeadPage() {
   const router = useRouter();
@@ -102,12 +103,10 @@ export default function EditLeadPage() {
       if (!validate()) return;
 
       try {
-        /*
-        await axios.patch(
+        await api.patch(
           `/leads/${id}`,
           values,
         );
-        */
 
         router.push(
           `/leads/${id}`,
@@ -120,9 +119,9 @@ export default function EditLeadPage() {
   if (loading) {
     return (
       <Stack
-        alignItems="center"
-        justifyContent="center"
         sx={{
+          alignItems: "center",
+          justifyContent: "center",
           minHeight: 400,
         }}
       >
@@ -133,9 +132,15 @@ export default function EditLeadPage() {
 
   if (!lead) {
     return (
-      <Alert severity="error">
-        Lead not found.
-      </Alert>
+      <Stack spacing={2}>
+        <PageBreadcrumb pageTitle="Edit Lead" />
+        <Alert severity="error">
+          Lead not found or may have been deleted.
+        </Alert>
+        <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => router.push('/leads')} sx={{ alignSelf: 'flex-start' }}>
+          Back to Leads
+        </Button>
+      </Stack>
     );
   }
 
@@ -147,9 +152,11 @@ export default function EditLeadPage() {
 
       <Stack
         direction="row"
-        justifyContent="space-between"
-        alignItems="center"
-        mb={3}
+        sx={{ 
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3 
+        }}
       >
         <Button
           variant="outlined"

@@ -141,7 +141,7 @@ export default function PermissionModal({
               payload
             );
 
-      alert(res.data.message);
+      alert(res.data?.message || (mode === "create" ? "Permission created successfully" : "Permission updated successfully"));
 
       onSuccess();
 

@@ -37,10 +37,7 @@ export default function BasicInformation({
       }}
     >
       <CardContent>
-        <Typography
-          variant="h6"
-          mb={3}
-        >
+        <Typography variant="h6" sx={{ mb: 3 }}>
           Basic Information
         </Typography>
 

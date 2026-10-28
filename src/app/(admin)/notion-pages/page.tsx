@@ -1,61 +1,90 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import {
+  Alert,
   Box,
   Button,
+  Checkbox,
+  Chip,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
+  FormControlLabel,
   IconButton,
   InputBase,
+  Menu,
+  MenuItem,
+  Skeleton,
+  Snackbar,
   Stack,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
+  TablePagination,
   TableRow,
-  Typography,
   TextField,
   Tooltip,
-  Fade,
-  Chip,
-  Checkbox,
-  FormControlLabel,
+  Typography,
 } from "@mui/material";
 import {
-  ChevronRight,
+  Activity,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
   FileText,
-  Plus,
+  Inbox,
+  MessageSquare,
   MoreHorizontal,
+  Plus,
   Search,
-  Table as TableIcon,
   Share2,
-  Sparkles,
+  Smile,
+  Table as TableIcon,
   Trash2,
+  UserPlus,
+  X,
+  Download,
 } from "lucide-react";
 import useNotionPages, { NotionPageItem } from "@/hooks/useNotionPages";
 import { useAuth } from "@/hooks/useAuth";
 import api from "@/lib/axios";
+import NotionPageView from "@/components/notion/NotionPageView";
+import TrashDialog from "@/components/notion/dialogs/TrashDialog";
+import ActivityLogDialog from "@/components/notion/dialogs/ActivityLogDialog";
 
-// Refined palette — closer to real Notion, but with a touch more warmth & contrast
+/* ------------------------------------------------------------------ *
+ * Tokens
+ * ------------------------------------------------------------------ */
+
 const c = {
   bg: "#ffffff",
   sidebarBg: "#fbfbfa",
-  sidebarHover: "rgba(55, 53, 47, 0.06)",
-  sidebarActive: "rgba(35, 131, 226, 0.09)",
+  hover: "rgba(55, 53, 47, 0.055)",
+  active: "rgba(35, 131, 226, 0.09)",
   textMain: "#37352f",
   textMuted: "rgba(55, 53, 47, 0.55)",
-  textFaint: "rgba(55, 53, 47, 0.38)",
-  border: "rgba(55, 53, 47, 0.11)",
+  textFaint: "rgba(55, 53, 47, 0.36)",
+  border: "rgba(55, 53, 47, 0.1)",
   borderStrong: "rgba(55, 53, 47, 0.16)",
   accent: "#2383e2",
-  accentSoft: "rgba(35, 131, 226, 0.10)",
+  accentSoft: "rgba(35, 131, 226, 0.1)",
   accentHover: "#1b6bbd",
+  danger: "#d5493f",
+  dangerSoft: "rgba(213, 73, 63, 0.08)",
 };
+
+const FONT_SANS =
+  '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Helvetica, Arial, sans-serif';
+const FONT_SERIF = 'ui-serif, Lyon-Text, Georgia, "Times New Roman", serif';
+const FONT_MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
 
 const AVATAR_COLORS = ["#eb5757", "#e08840", "#2383e2", "#9b6bd6", "#0f9d8c"];
 
@@ -65,6 +94,33 @@ function hashColor(seed: string) {
   return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
 }
 
+/* Feedback is stored as "[timestamp]: text" blocks joined by blank lines.
+   Parse it back into entries so history can render as a real log. */
+type FeedbackEntry = { time: string; text: string };
+
+function parseFeedback(notes?: string): FeedbackEntry[] {
+  if (!notes) return [];
+  return notes
+    .split("\n\n")
+    .map((chunk) => {
+      const m = chunk.match(/^\[(.*?)\]:\s*([\s\S]*)$/);
+      return m
+        ? { time: m[1].trim(), text: m[2].trim() }
+        : { time: "", text: chunk.trim() };
+    })
+    .filter((e) => e.text.length > 0);
+}
+
+function matchesQuery(node: NotionPageItem, q: string): boolean {
+  if (!q) return true;
+  if (node.title?.toLowerCase().includes(q)) return true;
+  return (node.children || []).some((child) => matchesQuery(child, q));
+}
+
+/* ------------------------------------------------------------------ *
+ * Component
+ * ------------------------------------------------------------------ */
+
 export default function NotionPagesClientPage() {
   const {
     treeData,
@@ -72,354 +128,761 @@ export default function NotionPagesClientPage() {
     fetchTree,
     fetchPageDetails,
     createPage,
-    addRecord,
     updatePageTitle,
+    deletePage,
+    assignPage,
     setActivePage,
   } = useNotionPages();
 
-  const [selectedPageTitle, setSelectedPageTitle] = useState<string>("Untitled");
-  const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
-  const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
-  const [rowsData, setRowsData] = useState<any[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
+  useEffect(() => {
+    fetchTree();
+  }, [fetchTree]);
 
   const { user, role } = useAuth();
   const currentUser = user;
 
-  // Modals
-  const [uploadDataModalOpen, setUploadDataModalOpen] = useState(false);
+  const isAdmin = useMemo(() => {
+    const r = role?.toUpperCase();
+    return r === "SUPER_ADMIN" || r === "ADMIN";
+  }, [role]);
+
+  const handleUpdateColumnName = async (colKey: string, newName: string) => {
+    if (!activePage || !selectedPageId) return;
+    const finalName = newName.trim();
+    if (!finalName) return;
+
+    const newColumns = activePage.columns.map((col: any) =>
+      col.key === colKey ? { ...col, name: finalName } : col
+    );
+
+    setActivePage({ ...activePage, columns: newColumns });
+    try {
+      await api.patch(`/notion-pages/${selectedPageId}`, { columns: newColumns });
+      notify("Column renamed");
+    } catch (e) {
+      console.error(e);
+      notify("Couldn’t rename column.", "error");
+      await fetchPageDetails(selectedPageId);
+    }
+  };
+
+  const handleExportData = () => {
+    if (!activePage || !activePage.rows || !activePage.columns) return;
+    const headers = ["#", ...activePage.columns.map((c: any) => c.name), "Disposition", "Remarks"];
+    const csvRows = [headers.join(",")];
+    activePage.rows.forEach((row: any, i: number) => {
+      const rowData = [
+        i + 1,
+        ...activePage.columns.map((c: any) => {
+          let val = row[c.key] || "";
+          if (typeof val === "string" && val.includes(",")) {
+            val = `"${val}"`;
+          }
+          return val;
+        }),
+        `"${row.disposition || ""}"`,
+        `"${row.feedback_notes || ""}"`
+      ];
+      csvRows.push(rowData.join(","));
+    });
+    const csvContent = csvRows.join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `${selectedPageTitle || "export"}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const [selectedPageTitle, setSelectedPageTitle] = useState("Untitled");
+  const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+  const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
+  const [rowsData, setRowsData] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sidebarQuery, setSidebarQuery] = useState("");
+  const [loadingPage, setLoadingPage] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [pageMenuAnchor, setPageMenuAnchor] = useState<null | HTMLElement>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  // Pagination
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
+
+  // Upload
+  const [uploadOpen, setUploadOpen] = useState(false);
   const [pastedData, setPastedData] = useState("");
   const [replaceData, setReplaceData] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  // Create page
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createParentId, setCreateParentId] = useState<string | undefined>();
+  const [createTitle, setCreateTitle] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  // Clear confirm
+  const [clearOpen, setClearOpen] = useState(false);
+  const [clearing, setClearing] = useState(false);
+
+  // Delete page
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  
+  // Trash
+  const [trashOpen, setTrashOpen] = useState(false);
+
+  // Activity log
+  const [activityLogOpen, setActivityLogOpen] = useState(false);
+
+  // Assign page
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [assigning, setAssigning] = useState(false);
+  const [selectedAssignee, setSelectedAssignee] = useState("");
+
+  // Toast
+  const savingRemarksRef = useRef<Set<number>>(new Set());
+
+  const historyRef = useRef<HTMLDivElement | null>(null);
+
+  const notify = useCallback(
+    (msg: string, severity: "success" | "error" = "success") => {
+      if (severity === "success") {
+        toast.success(msg);
+      } else {
+        toast.error(msg);
+      }
+    },
+    []
+  );
+
+  /* ---------------- effects ---------------- */
 
   useEffect(() => {
-    // Current user is provided by useAuth
-  }, []);
-
-  useEffect(() => {
-    if (treeData?.shared && treeData.shared.length > 0 && !selectedPageId) {
-      const firstRoot = treeData.shared[0];
-      const targetId = firstRoot._id || firstRoot.id;
-      if (targetId) {
-        setSelectedPageId(targetId);
-        setSelectedPageTitle(firstRoot.title);
-        fetchPageDetails(targetId);
+    if (!selectedPageId) {
+      let queryPageId = null;
+      if (typeof window !== "undefined") {
+        queryPageId = new URLSearchParams(window.location.search).get("pageId");
+      }
+      
+      if (queryPageId) {
+        setSelectedPageId(queryPageId);
+        setLoadingPage(true);
+        fetchPageDetails(queryPageId).then((page: any) => {
+          if (page?.title) setSelectedPageTitle(page.title);
+        }).finally(() => setLoadingPage(false));
       }
     }
   }, [treeData, selectedPageId, fetchPageDetails]);
 
   useEffect(() => {
-    if (activePage) {
-      if (activePage.rows && Array.isArray(activePage.rows)) {
-        setRowsData(activePage.rows);
-      }
-      if (activePage.title) {
-        setSelectedPageTitle(activePage.title);
-      }
-    }
+    if (!activePage) return;
+    setRowsData(Array.isArray(activePage.rows) ? activePage.rows : []);
+    if (activePage.title) setSelectedPageTitle(activePage.title);
   }, [activePage]);
 
-  const toggleExpand = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setExpandedNodes((prev) => ({ ...prev, [id]: !prev[id] }));
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Don't interfere if user is typing in an input/textarea
+      const tag = document.activeElement?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || document.activeElement?.getAttribute("contenteditable") === "true") {
+        return;
+      }
+      
+      const container = document.getElementById("notion-table-container");
+      if (!container) return;
+
+      const scrollAmount = 80;
+      
+      switch (e.key) {
+        case "ArrowDown":
+          container.scrollTop += scrollAmount;
+          e.preventDefault();
+          break;
+        case "ArrowUp":
+          container.scrollTop -= scrollAmount;
+          e.preventDefault();
+          break;
+        case "ArrowLeft":
+          container.scrollLeft -= scrollAmount;
+          e.preventDefault();
+          break;
+        case "ArrowRight":
+          container.scrollLeft += scrollAmount;
+          e.preventDefault();
+          break;
+        case "PageDown":
+          container.scrollTop += container.clientHeight;
+          e.preventDefault();
+          break;
+        case "PageUp":
+          container.scrollTop -= container.clientHeight;
+          e.preventDefault();
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, []);
+
+  /* ---------------- permissions ---------------- */
+
+  const canEdit = useCallback(
+    (nodeId?: string, pageObj: any = null) => {
+      if (!user) return false;
+      const r = role?.toUpperCase();
+      if (r === "SUPER_ADMIN" || r === "ADMIN") return true;
+      const isElevated = r === "MANAGER" || r === "TEAM_LEADER";
+
+      if (nodeId?.startsWith("user_")) {
+        const target = nodeId.replace("user_", "");
+        if (target === user.id || target === (user as any)._id) return true;
+        return isElevated;
+      }
+      if (pageObj?.assignedMemberId) {
+        const a = pageObj.assignedMemberId;
+        if (a === user.id || a === (user as any)._id) return true;
+        return isElevated;
+      }
+      return isElevated;
+    },
+    [user, role]
+  );
+
+  const editable = canEdit(selectedPageId || undefined, activePage);
+  const r = role?.toUpperCase();
+  const canUploadData = editable;
+  const canCreatePage = true;
+
+  const isSyntheticNode = useMemo(() => {
+    const isTeam = treeData?.shared?.some(t => t.id === selectedPageId || t._id === selectedPageId);
+    const isUser = selectedPageId?.startsWith("user_");
+    return isTeam || isUser;
+  }, [treeData, selectedPageId]);
+
+  const findPath = useCallback((
+    nodes: NotionPageItem[],
+    targetId: string,
+    currentPath: NotionPageItem[] = []
+  ): NotionPageItem[] | null => {
+    if (!nodes) return null;
+    for (const node of nodes) {
+      const newPath = [...currentPath, node];
+      if (node.id === targetId || node._id === targetId) return newPath;
+      if (node.children && node.children.length > 0) {
+        const found = findPath(node.children, targetId, newPath);
+        if (found) return found;
+      }
+    }
+    return null;
+  }, []);
+
+  const breadcrumbs = useMemo(() => {
+    if (!selectedPageId) return [];
+    const allRoots = [...(treeData?.shared || []), ...(treeData?.private || [])];
+    return findPath(allRoots, selectedPageId) || [];
+  }, [treeData, selectedPageId, findPath]);
+
+  /* ---------------- actions ---------------- */
+
+  const assignableUsers = useMemo(() => {
+    const users: { id: string; name: string }[] = [];
+    treeData?.shared?.forEach(team => {
+      team.children?.forEach(child => {
+        if (child.id?.startsWith("user_")) {
+          users.push({ id: child.id.replace("user_", ""), name: child.title });
+        }
+      });
+    });
+    return users;
+  }, [treeData]);
+
+  const handleShareClick = () => {
+    if (!selectedPageId) return;
+    const shareUrl = `${window.location.origin}/notion-pages?pageId=${selectedPageId}`;
+    navigator.clipboard.writeText(shareUrl)
+      .then(() => notify("Link copied to clipboard!", "success"))
+      .catch(() => notify("Failed to copy link", "error"));
   };
 
   const handleSelectPage = async (node: NotionPageItem) => {
     const pageId = node._id || node.id;
+    if (!pageId || pageId === selectedPageId) return;
     setSelectedPageTitle(node.title);
     setSelectedPageId(pageId);
-    if (pageId) {
-      await fetchPageDetails(pageId);
-    }
-  };
-
-  const canAddSubPage = (nodeId: string | undefined, pageObj: any = null) => {
-    if (!user) return false;
-    const userRole = role?.toUpperCase();
-    if (["SUPER_ADMIN", "ADMIN"].includes(userRole)) return true;
-
-    if (nodeId?.startsWith("user_")) {
-      const targetUserId = nodeId.replace("user_", "");
-      if (targetUserId === user.id || targetUserId === user._id) return true;
-      if (["MANAGER", "TEAM_LEADER"].includes(userRole)) return true;
-      return false;
-    }
-
-    if (pageObj?.assignedMemberId) {
-      const assignedTo = pageObj.assignedMemberId;
-      if (assignedTo === user.id || assignedTo === user._id) return true;
-      if (["MANAGER", "TEAM_LEADER"].includes(userRole)) return true;
-      return false;
-    }
-
-    if (["MANAGER", "TEAM_LEADER"].includes(userRole)) return true;
-
-    return false;
-  };
-
-  const handleCreateNewPage = async (parentId?: string) => {
-    const pageName = prompt("Enter a name for the new page:", "Untitled");
-    if (pageName === null) return;
-    
+    setSearchQuery("");
+    setLoadingPage(true);
+    setIsSidebarOpen(false); // Auto-hide sidebar when a page is selected
     try {
+      await fetchPageDetails(pageId);
+    } finally {
+      setLoadingPage(false);
+    }
+  };
+
+  const openCreateDialog = (parentId?: string) => {
+    setCreateParentId(parentId);
+    setCreateTitle("");
+    setCreateOpen(true);
+  };
+
+  const handleCreatePage = async () => {
+    setCreating(true);
+    try {
+      const title = createTitle.trim() || "Untitled";
       const created = await createPage({
-        title: pageName || "Untitled",
+        title,
         pageType: "SHEET",
         section: "SHARED",
-        parentId: parentId || undefined,
+        parentId: createParentId || undefined,
       });
-
       const newId = created?._id || created?.id;
       if (newId) {
+        if (createParentId) {
+          setExpandedNodes((p) => ({ ...p, [createParentId]: true }));
+        }
         setSelectedPageId(newId);
-        setSelectedPageTitle(pageName || "Untitled");
+        setSelectedPageTitle(title);
         await fetchPageDetails(newId);
       }
+      setCreateOpen(false);
+      notify(`Created “${title}”`);
     } catch (e) {
       console.error(e);
+      notify("Couldn’t create the page. Try again.", "error");
+    } finally {
+      setCreating(false);
     }
   };
 
   const handleRenamePage = async (newTitle: string) => {
-    if (!selectedPageId || newTitle.trim() === "") {
-      setSelectedPageTitle(activePage?.title || "");
+    const next = newTitle.trim();
+    if (!selectedPageId || !next || next === activePage?.title) {
+      setSelectedPageTitle(activePage?.title || "Untitled");
       return;
     }
     try {
-      await api.patch(`/notion-pages/${selectedPageId}`, { title: newTitle.trim() });
-      setSelectedPageTitle(newTitle.trim());
-      if (activePage) setActivePage({ ...activePage, title: newTitle.trim() });
-      const res = await api.get("/notion-pages/tree");
-      setTreeData(res.data);
+      await api.patch(`/notion-pages/${selectedPageId}`, { title: next });
+      setSelectedPageTitle(next);
+      if (activePage) setActivePage({ ...activePage, title: next });
+      await fetchTree(); // refresh sidebar titles
     } catch (e) {
       console.error(e);
-      alert("Failed to rename page");
+      setSelectedPageTitle(activePage?.title || "Untitled");
+      notify("Couldn’t rename the page.", "error");
     }
   };
 
-  const handleUploadDataToPage = async () => {
-    if (!pastedData) return;
-    const lines = pastedData.trim().split("\n");
-    if (lines.length === 0) return;
+  const handleUpload = async () => {
+    if (!pastedData.trim() || !selectedPageId) return;
+    const lines = pastedData.trim().split("\n").filter((l) => l.trim());
+    if (!lines.length) return;
 
-    let finalColumns = replaceData ? [] : (activePage?.columns || []);
-    let isNewStructure = finalColumns.length === 0;
+    const split = (line: string) =>
+      line.split("\t").length > 1 ? line.split("\t") : line.split(",");
 
+    let finalColumns: any[] = replaceData ? [] : activePage?.columns || [];
+    const firstParts = split(lines[0]);
     let startIndex = 0;
-    const firstRowParts =
-      lines[0].split("\t").length > 1 ? lines[0].split("\t") : lines[0].split(",");
 
-    if (isNewStructure) {
-      finalColumns = firstRowParts.map((header: string, idx: number) => ({
-        key: `col_${idx}`,
-        name: header.trim() || `Column ${idx + 1}`,
-        type: "text",
-      }));
+    let dispositionIndex = -1;
+    let remarksIndex = -1;
+    const ignoredIndices = new Set<number>();
+
+    let isHeaderRow = false;
+    if (finalColumns.length === 0) {
+      isHeaderRow = true;
+    } else if (
+      firstParts[0]?.trim().toLowerCase() === finalColumns[0]?.name?.toLowerCase() ||
+      firstParts[0]?.trim() === "#"
+    ) {
+      isHeaderRow = true;
+    }
+
+    if (isHeaderRow) {
       startIndex = 1;
-    } else {
-      if (firstRowParts[0]?.trim().toLowerCase() === finalColumns[0]?.name?.toLowerCase()) {
-        startIndex = 1;
+      if (finalColumns.length === 0) {
+        firstParts.forEach((headerRaw, idx) => {
+          const header = headerRaw.trim();
+          const headerLower = header.toLowerCase();
+          if (headerLower === "disposition") dispositionIndex = idx;
+          else if (headerLower === "remarks" || headerLower === "feedback_notes") remarksIndex = idx;
+          else if (headerLower === "#") ignoredIndices.add(idx);
+          else {
+            finalColumns.push({
+              key: `col_${idx}`,
+              name: header || `Column ${idx + 1}`,
+              type: "text",
+            });
+          }
+        });
+      } else {
+        firstParts.forEach((headerRaw, idx) => {
+          const headerLower = headerRaw.trim().toLowerCase();
+          if (headerLower === "disposition") dispositionIndex = idx;
+          else if (headerLower === "remarks" || headerLower === "feedback_notes") remarksIndex = idx;
+          else if (headerLower === "#") ignoredIndices.add(idx);
+        });
       }
     }
 
-    const newRows = lines.slice(startIndex).map((line: string, rowIndex: number) => {
-      const parts = line.split("\t").length > 1 ? line.split("\t") : line.split(",");
+    const newRows = lines.slice(startIndex).map((line, rowIndex) => {
+      const parts = split(line);
       const rowObj: any = { id: `row_${Date.now()}_${rowIndex}` };
-      finalColumns.forEach((col: any, idx: number) => {
-        rowObj[col.key] = parts[idx]?.trim() || "";
-      });
+      
+      if (isHeaderRow) {
+        // Read data using the mapped indices
+        finalColumns.forEach((col) => {
+          // find the idx in firstParts for this col key
+          const colIdx = parseInt(col.key.split('_')[1]);
+          if (!isNaN(colIdx) && parts[colIdx] !== undefined) {
+            rowObj[col.key] = parts[colIdx]?.trim() || "";
+          }
+        });
+        if (dispositionIndex !== -1 && parts[dispositionIndex] !== undefined) {
+          rowObj.disposition = parts[dispositionIndex]?.trim() || "";
+        }
+        if (remarksIndex !== -1 && parts[remarksIndex] !== undefined) {
+          rowObj.feedback_notes = parts[remarksIndex]?.trim() || "";
+        }
+      } else {
+        // No headers, just map sequentially to finalColumns
+        finalColumns.forEach((col, idx) => {
+          rowObj[col.key] = parts[idx]?.trim() || "";
+        });
+      }
       return rowObj;
     });
 
-    const updatedRows = replaceData ? newRows : [...(activePage?.rows || []), ...newRows];
+    const updatedRows = replaceData
+      ? newRows
+      : [...(activePage?.rows || []), ...newRows];
 
+    setUploading(true);
     try {
-      if (selectedPageId) {
-        const response = await api.patch(`/notion-pages/${selectedPageId}`, {
-          columns: finalColumns,
-          rows: updatedRows,
-        });
-
-        let updatedDoc = response.data;
-        if (response.data?.data !== undefined) updatedDoc = response.data.data;
-
-        setActivePage(updatedDoc);
-      }
-      setUploadDataModalOpen(false);
+      const res = await api.patch(`/notion-pages/${selectedPageId}`, {
+        columns: finalColumns,
+        rows: updatedRows,
+      });
+      setActivePage(res.data?.data ?? res.data);
+      setUploadOpen(false);
       setPastedData("");
+      setReplaceData(false);
+      notify(
+        `${newRows.length} ${newRows.length === 1 ? "lead" : "leads"} added`
+      );
     } catch (e: any) {
       console.error(e);
-      const errMsg = e?.response?.data
-        ? JSON.stringify(e.response.data)
-        : e?.message || "Unknown error";
-      alert("Error Details: " + errMsg);
+      notify(
+        e?.response?.data?.message || "Upload failed. Check the format and retry.",
+        "error"
+      );
+    } finally {
+      setUploading(false);
     }
   };
 
   const handleClearData = async () => {
     if (!selectedPageId) return;
-    if (!confirm("Are you sure you want to clear all data from this page?")) return;
+    setClearing(true);
     try {
-      const response = await api.patch(`/notion-pages/${selectedPageId}`, {
+      const res = await api.patch(`/notion-pages/${selectedPageId}`, {
         columns: [],
         rows: [],
       });
-      let updatedDoc = response.data;
-      if (response.data?.data !== undefined) updatedDoc = response.data.data;
-      setActivePage(updatedDoc);
-    } catch (e: any) {
+      setActivePage(res.data?.data ?? res.data);
+      setClearOpen(false);
+      notify("All rows removed");
+    } catch (e) {
       console.error(e);
-      alert("Failed to clear data");
+      notify("Couldn’t clear the data.", "error");
+    } finally {
+      setClearing(false);
     }
   };
 
-  const filteredRows = rowsData.filter((row) =>
-    JSON.stringify(row).toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const handleSaveRemark = async (rowIndex: number, value: string) => {
+    if (!activePage || !selectedPageId) return;
+    const remark = value.trim();
+
+    const updatedRows = [...activePage.rows];
+    const row = { ...updatedRows[rowIndex] };
+
+    if ((row.feedback_notes || "") === remark) return;
+
+    if (savingRemarksRef.current.has(rowIndex)) return;
+    savingRemarksRef.current.add(rowIndex);
+
+    row.feedback_notes = remark;
+    updatedRows[rowIndex] = row;
+
+    try {
+      setActivePage({ ...activePage, rows: updatedRows });
+      await api.patch(`/notion-pages/${selectedPageId}`, {
+        rows: updatedRows,
+      });
+      notify("Remark saved");
+    } catch (e) {
+      console.error(e);
+      notify("Couldn’t save the remark.", "error");
+      await fetchPageDetails(selectedPageId);
+    } finally {
+      savingRemarksRef.current.delete(rowIndex);
+    }
+  };
+
+  const handleSaveDisposition = async (rowIndex: number, value: string) => {
+    if (!activePage || !selectedPageId) return;
+    
+    const updatedRows = [...activePage.rows];
+    const row = { ...updatedRows[rowIndex] };
+
+    if ((row.disposition || "") === value) return;
+
+    row.disposition = value;
+    updatedRows[rowIndex] = row;
+
+    try {
+      setActivePage({ ...activePage, rows: updatedRows });
+      await api.patch(`/notion-pages/${selectedPageId}`, {
+        rows: updatedRows,
+      });
+      notify("Disposition saved");
+    } catch (e) {
+      console.error(e);
+      notify("Couldn’t save disposition.", "error");
+      await fetchPageDetails(selectedPageId);
+    } 
+  };
+
+  /* ---------------- derived ---------------- */
 
   const pageColumns = activePage?.columns || [];
 
-  const renderTreeNodes = (nodes: NotionPageItem[], depth = 0) => {
-    return nodes.map((node) => {
-      const nodeKey = node._id || node.id;
-      const isExpanded = expandedNodes[nodeKey] !== false;
-      const hasChildren = node.children && node.children.length > 0;
-      const isSelected = selectedPageId === nodeKey;
-
-      return (
-        <Box key={nodeKey}>
-          <Stack
-            className="tree-row"
-            direction="row"
-            spacing={0.25}
-            onClick={() => handleSelectPage(node)}
-            sx={{
-              alignItems: "center",
-              py: 0.6,
-              pl: 1 + depth * 1.5,
-              pr: 1,
-              mx: 0.5,
-              borderRadius: "6px",
-              cursor: "pointer",
-              bgcolor: isSelected ? c.sidebarActive : "transparent",
-              color: isSelected ? c.accent : c.textMain,
-              transition: "background-color 120ms ease",
-              "&:hover": {
-                bgcolor: isSelected ? c.sidebarActive : c.sidebarHover,
-              },
-            }}
-          >
-            <IconButton
-              size="small"
-              onClick={(e) => toggleExpand(nodeKey, e)}
-              sx={{
-                p: 0.2,
-                color: c.textFaint,
-                visibility: hasChildren ? "visible" : "hidden",
-              }}
-            >
-              {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-            </IconButton>
-
-            {node.pageType === "SHEET" ? (
-              <TableIcon
-                size={15}
-                style={{ color: isSelected ? c.accent : c.textMuted, marginRight: 6, flexShrink: 0 }}
-              />
-            ) : (
-              <FileText
-                size={15}
-                style={{ color: isSelected ? c.accent : c.textMuted, marginRight: 6, flexShrink: 0 }}
-              />
-            )}
-
-            <Typography
-              variant="body2"
-              sx={{
-                fontSize: "13.5px",
-                fontWeight: isSelected ? 600 : 500,
-                flexGrow: 1,
-                letterSpacing: "-0.1px",
-              }}
-              noWrap
-            >
-              {node.title}
-            </Typography>
-
-            {canAddSubPage(nodeKey) && (
-              <IconButton
-                size="small"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleCreateNewPage(nodeKey);
-                }}
-                className="add-child-btn"
-                sx={{
-                  p: 0.2,
-                  color: c.textMuted,
-                  opacity: 0,
-                  transition: "opacity 120ms ease",
-                  ".tree-row:hover &": { opacity: 1 },
-                }}
-              >
-                <Plus size={14} />
-              </IconButton>
-            )}
-          </Stack>
-
-          {hasChildren && isExpanded && <Box>{renderTreeNodes(node.children!, depth + 1)}</Box>}
-        </Box>
+  const filteredRows = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return rowsData.map((row, i) => ({ row, i }));
+    return rowsData
+      .map((row, i) => ({ row, i }))
+      .filter(({ row }) =>
+        pageColumns.some((col: any) =>
+          String(row[col.key] ?? "").toLowerCase().includes(q)
+        )
       );
-    });
-  };
+  }, [rowsData, searchQuery, pageColumns]);
 
+  const workspaceName = currentUser?.firstName
+    ? `${currentUser.firstName}’s Team`
+    : "Workspace";
   const initials = currentUser?.firstName?.charAt(0)?.toUpperCase() || "W";
   const avatarColor = hashColor(currentUser?.firstName || "workspace");
+
+  const paginatedRows = useMemo(() => {
+    return filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  }, [filteredRows, page, rowsPerPage]);
+
+  const handleChangePage = (event: unknown, newPage: number) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  useEffect(() => {
+    setPage(0);
+  }, [searchQuery, selectedPageId]);
+
+  /* ---------------- sidebar tree ---------------- */
+
+  const renderTreeNodes = (nodes: NotionPageItem[], depth = 0) => {
+    const q = sidebarQuery.trim().toLowerCase();
+    return nodes
+      .filter((node) => matchesQuery(node, q))
+      .map((node) => {
+        const nodeKey = node._id || node.id;
+        const hasChildren = !!node.children?.length;
+        const isExpanded = q ? true : expandedNodes[nodeKey] === true;
+        const isSelected = selectedPageId === nodeKey;
+
+        return (
+          <Box key={nodeKey}>
+            <Stack
+              className="tree-row"
+              direction="row"
+              onClick={() => handleSelectPage(node)}
+              sx={{
+                alignItems: "center",
+                gap: 0.25,
+                height: 28,
+                pl: 0.75 + depth * 1.25,
+                pr: 0.75,
+                mx: 0.75,
+                borderRadius: "6px",
+                cursor: "pointer",
+                bgcolor: isSelected ? c.active : "transparent",
+                color: isSelected ? c.accent : c.textMain,
+                "&:hover": { bgcolor: isSelected ? c.active : c.hover },
+                "&:focus-visible": {
+                  outline: `2px solid ${c.accent}`,
+                  outlineOffset: 1,
+                },
+              }}
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSelectPage(node);
+              }}
+            >
+              <IconButton
+                size="small"
+                aria-label={isExpanded ? "Collapse" : "Expand"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setExpandedNodes((p) => ({ ...p, [nodeKey]: !isExpanded }));
+                }}
+                sx={{
+                  p: 0.2,
+                  color: c.textFaint,
+                  visibility: hasChildren ? "visible" : "hidden",
+                  "&:hover": { bgcolor: c.hover },
+                }}
+              >
+                {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              </IconButton>
+
+              {node.pageType === "SHEET" ? (
+                <TableIcon
+                  size={15}
+                  style={{
+                    color: isSelected ? c.accent : c.textMuted,
+                    marginRight: 6,
+                    flexShrink: 0,
+                  }}
+                />
+              ) : (
+                <FileText
+                  size={15}
+                  style={{
+                    color: isSelected ? c.accent : c.textMuted,
+                    marginRight: 6,
+                    flexShrink: 0,
+                  }}
+                />
+              )}
+
+              <Typography
+                noWrap
+                sx={{
+                  fontSize: "13.5px",
+                  fontWeight: isSelected ? 600 : 450,
+                  flexGrow: 1,
+                  letterSpacing: "-0.08px",
+                }}
+              >
+                {node.title}
+              </Typography>
+
+              {canCreatePage && canEdit(nodeKey) && (
+                <Tooltip title="Add a page inside" placement="top" arrow>
+                  <IconButton
+                    size="small"
+                    aria-label="Add a page inside"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openCreateDialog(nodeKey);
+                    }}
+                    sx={{
+                      p: 0.2,
+                      color: c.textMuted,
+                      opacity: 0,
+                      ".tree-row:hover &": { opacity: 1 },
+                      "&:focus-visible": { opacity: 1 },
+                    }}
+                  >
+                    <Plus size={14} />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </Stack>
+
+            {hasChildren && isExpanded && renderTreeNodes(node.children!, depth + 1)}
+          </Box>
+        );
+      });
+  };
+
+  const sectionLabel = (text: string) => (
+    <Typography
+      sx={{
+        color: c.textFaint,
+        fontWeight: 600,
+        fontSize: "11.5px",
+        px: 2,
+        mb: 0.5,
+        display: "block",
+        letterSpacing: "0.01em",
+      }}
+    >
+      {text}
+    </Typography>
+  );
+
+  /* ---------------- render ---------------- */
 
   return (
     <Box
       sx={{
         display: "flex",
-        height: "100vh",
+        height: "calc(100vh - 144px)",
         bgcolor: c.bg,
-        fontFamily:
-          '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
+        fontFamily: FONT_SANS,
+        color: c.textMain,
+        "@media (prefers-reduced-motion: no-preference)": {
+          "& .tree-row, & button": { transition: "background-color 120ms ease" },
+        },
       }}
     >
-      {/* Sidebar */}
+      {/* ============================ Sidebar ============================ */}
       <Box
+        id="notion-sidebar"
+        component="nav"
         sx={{
-          width: 264,
-          bgcolor: c.sidebarBg,
-          borderRight: `1px solid ${c.border}`,
-          display: "flex",
-          flexDirection: "column",
+          width: { xs: "100%", md: 264 },
           flexShrink: 0,
+          bgcolor: c.sidebarBg,
+          borderRight: { md: `1px solid ${c.border}` },
+          display: isSidebarOpen ? "flex" : "none",
+          flexDirection: "column",
         }}
       >
         <Stack
           direction="row"
-          spacing={1.2}
           sx={{
             alignItems: "center",
-            p: 1.75,
-            mx: 1,
+            gap: 1.2,
+            height: 44,
+            px: 1.25,
+            mx: 0.75,
             mt: 1,
             borderRadius: "8px",
             cursor: "pointer",
-            "&:hover": { bgcolor: c.sidebarHover },
+            "&:hover": { bgcolor: c.hover },
           }}
         >
           <Box
             sx={{
-              width: 26,
-              height: 26,
-              borderRadius: "7px",
+              width: 24,
+              height: 24,
+              borderRadius: "6px",
               bgcolor: avatarColor,
-              color: "white",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 13,
+              color: "#fff",
+              display: "grid",
+              placeItems: "center",
+              fontSize: 12.5,
               fontWeight: 700,
               flexShrink: 0,
             }}
@@ -427,463 +890,1224 @@ export default function NotionPagesClientPage() {
             {initials}
           </Box>
           <Typography
-            sx={{
-              fontWeight: 600,
-              fontSize: "14px",
-              color: c.textMain,
-              letterSpacing: "-0.1px",
-            }}
             noWrap
+            sx={{ fontWeight: 600, fontSize: "14px", letterSpacing: "-0.1px" }}
           >
-            {currentUser?.firstName ? `${currentUser.firstName}'s Team` : "Workspace"}
+            {workspaceName}
           </Typography>
         </Stack>
 
-        <Box sx={{ flexGrow: 1, overflowY: "auto", py: 1, mt: 0.5 }}>
-          <Typography
-            variant="caption"
-            sx={{
-              color: c.textFaint,
-              fontWeight: 600,
-              fontSize: "11px",
-              px: 2.25,
-              mb: 0.5,
-              display: "block",
-            }}
-          >
-            Shared workspaces
-          </Typography>
-          {renderTreeNodes(treeData.shared || [])}
+        <Stack
+          direction="row"
+          sx={{
+            alignItems: "center",
+            gap: 1,
+            height: 30,
+            px: 1.25,
+            mx: 0.75,
+            mt: 1,
+            mb: 1.5,
+            borderRadius: "6px",
+            color: c.textMuted,
+            "&:hover": { bgcolor: c.hover },
+            "&:focus-within": { bgcolor: c.hover },
+          }}
+        >
+          <Search size={14} />
+          <InputBase
+            placeholder="Find a page"
+            value={sidebarQuery}
+            onChange={(e) => setSidebarQuery(e.target.value)}
+            sx={{ fontSize: "13.5px", color: c.textMain, flexGrow: 1 }}
+          />
+          {sidebarQuery && (
+            <IconButton
+              size="small"
+              aria-label="Clear"
+              onClick={() => setSidebarQuery("")}
+              sx={{ p: 0.2, color: c.textFaint }}
+            >
+              <X size={13} />
+            </IconButton>
+          )}
+        </Stack>
+
+        <Box sx={{ flexGrow: 1, overflowY: "auto", pb: 2 }}>
+          {sectionLabel("Shared")}
+          {treeData?.shared?.length ? (
+            renderTreeNodes(treeData.shared)
+          ) : (
+            <Typography sx={{ px: 2, fontSize: "12.5px", color: c.textFaint }}>
+              Nothing here yet
+            </Typography>
+          )}
 
           <Box sx={{ mt: 2.5 }}>
-            <Typography
-              variant="caption"
-              sx={{
-                color: c.textFaint,
-                fontWeight: 600,
-                fontSize: "11px",
-                px: 2.25,
-                mb: 0.5,
-                display: "block",
-              }}
-            >
-              Private pages
-            </Typography>
-            {renderTreeNodes(treeData.private || [])}
+            {sectionLabel("Private")}
+            {treeData?.private?.length ? (
+              renderTreeNodes(treeData.private)
+            ) : (
+              <Typography sx={{ px: 2, fontSize: "12.5px", color: c.textFaint }}>
+                Nothing here yet
+              </Typography>
+            )}
           </Box>
         </Box>
+
+        <Divider sx={{ borderColor: c.border }} />
+        <Button
+          id="notion-add-page-btn"
+          fullWidth
+          startIcon={<Plus size={15} />}
+          onClick={() => openCreateDialog(undefined)}
+          sx={{
+            justifyContent: "flex-start",
+            textTransform: "none",
+            color: c.textMuted,
+            fontSize: "13.5px",
+            fontWeight: 500,
+            py: 1.25,
+            px: 2,
+            borderRadius: 0,
+            "&:hover": { bgcolor: c.hover, color: c.textMain },
+          }}
+        >
+          New page
+        </Button>
+        {user?.role && ["SUPER_ADMIN", "ADMIN"].includes(user.role) && (
+          <Button
+            fullWidth
+            startIcon={<Trash2 size={15} />}
+            onClick={() => setTrashOpen(true)}
+            sx={{
+              justifyContent: "flex-start",
+              textTransform: "none",
+              color: c.textMuted,
+              fontSize: "13.5px",
+              fontWeight: 500,
+              py: 1.25,
+              px: 2,
+              borderRadius: 0,
+              borderTop: `1px solid ${c.border}`,
+              "&:hover": { bgcolor: c.hover, color: c.textMain },
+            }}
+          >
+            Trash
+          </Button>
+        )}
       </Box>
 
-      {/* Main Content View */}
-      <Box sx={{ flexGrow: 1, display: "flex", flexDirection: "column", overflowY: "auto" }}>
+      {/* ========================= Main column ========================= */}
+      <Box
+        id="notion-main-view"
+        onScroll={(e) => setScrolled((e.target as HTMLElement).scrollTop > 4)}
+        sx={{ flexGrow: 1, display: "flex", flexDirection: "column", overflowY: "auto", width: isSidebarOpen ? { xs: "none", md: "calc(100% - 264px)" } : "100%" }}
+      >
         {/* Topbar */}
         <Stack
           direction="row"
           sx={{
             justifyContent: "space-between",
             alignItems: "center",
-            px: 3,
-            py: 1.5,
-            borderBottom: `1px solid transparent`,
+            height: 45,
+            px: { xs: 2, md: 3 },
             position: "sticky",
             top: 0,
+            zIndex: 3,
             bgcolor: c.bg,
-            zIndex: 2,
+            borderBottom: `1px solid ${scrolled ? c.border : "transparent"}`,
           }}
         >
-          <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", color: c.textMuted, minWidth: 0 }}>
-            <Typography
-              variant="body2"
-              sx={{ cursor: "pointer", fontSize: "13px", "&:hover": { color: c.textMain } }}
-            >
-              {currentUser?.firstName ? `${currentUser.firstName}'s Team` : "Workspace"}
-            </Typography>
-            <Typography variant="body2" sx={{ color: c.textFaint }}>
-              /
-            </Typography>
-            {canAddSubPage(selectedPageId || undefined, activePage) ? (
-              <InputBase
-                value={selectedPageTitle}
-                onChange={(e) => setSelectedPageTitle(e.target.value)}
-                onBlur={(e) => handleRenamePage(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    handleRenamePage((e.target as HTMLInputElement).value);
-                    (e.target as HTMLInputElement).blur();
-                  }
-                }}
-                sx={{ 
-                  color: c.textMain, 
-                  fontSize: "13px", 
-                  fontWeight: 500, 
-                  minWidth: 50, 
-                  px: 0.5, 
-                  py: 0, 
-                  borderRadius: "4px", 
-                  "&:hover": { bgcolor: "rgba(55, 53, 47, 0.08)" }, 
-                  "&.Mui-focused": { bgcolor: "rgba(55, 53, 47, 0.08)" } 
-                }}
-              />
+          <Stack
+            direction="row"
+            sx={{ alignItems: "center", gap: 0.75, color: c.textMuted, minWidth: 0, overflow: "hidden" }}
+          >
+            {!isSidebarOpen && (
+              <IconButton
+                sx={{ mr: 1, p: 0.5 }}
+                onClick={() => setIsSidebarOpen(true)}
+              >
+                <ChevronRight size={18} />
+              </IconButton>
+            )}
+            {breadcrumbs.length > 0 ? (
+              breadcrumbs.map((crumb, idx) => (
+                <React.Fragment key={crumb.id || crumb._id}>
+                  {idx > 0 && <Typography sx={{ color: c.textFaint, fontSize: "13px" }}>/</Typography>}
+                  {idx === breadcrumbs.length - 1 && editable ? (
+                    <InputBase
+                      value={selectedPageTitle}
+                      onChange={(e) => setSelectedPageTitle(e.target.value)}
+                      onBlur={(e) => handleRenamePage(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                        if (e.key === "Escape") {
+                          setSelectedPageTitle(activePage?.title || crumb.title);
+                          (e.target as HTMLInputElement).blur();
+                        }
+                      }}
+                      sx={{
+                        color: c.textMain,
+                        fontSize: "13px",
+                        fontWeight: 500,
+                        minWidth: 60,
+                        px: 0.5,
+                        borderRadius: "4px",
+                        "&:hover, &.Mui-focused": { bgcolor: c.hover },
+                      }}
+                    />
+                  ) : (
+                    <Typography
+                      noWrap
+                      onClick={() => {
+                        if (idx !== breadcrumbs.length - 1) {
+                          const node = breadcrumbs[idx];
+                          const id = node.id || node._id;
+                          if (id) {
+                            setSelectedPageTitle(node.title);
+                            setSelectedPageId(id);
+                            setSearchQuery("");
+                            setLoadingPage(true);
+                            setIsSidebarOpen(false);
+                            fetchPageDetails(id).finally(() => setLoadingPage(false));
+                          }
+                        }
+                      }}
+                      sx={{
+                        fontSize: "13px",
+                        fontWeight: idx === breadcrumbs.length - 1 ? 500 : 400,
+                        color: idx === breadcrumbs.length - 1 ? c.textMain : c.textMuted,
+                        px: 0.5,
+                        borderRadius: "4px",
+                        cursor: idx === breadcrumbs.length - 1 ? "default" : "pointer",
+                        "&:hover": idx === breadcrumbs.length - 1 ? {} : { bgcolor: c.hover, color: c.textMain },
+                        maxWidth: "150px",
+                      }}
+                    >
+                      {idx === breadcrumbs.length - 1 ? selectedPageTitle : crumb.title}
+                    </Typography>
+                  )}
+                </React.Fragment>
+              ))
+            ) : selectedPageId ? (
+              <>
+                <Typography
+                  noWrap
+                  sx={{
+                    fontSize: "13px",
+                    px: 0.5,
+                    borderRadius: "4px",
+                    color: c.textMuted,
+                  }}
+                >
+                  {workspaceName}
+                </Typography>
+                <Typography sx={{ color: c.textFaint, fontSize: "13px" }}>/</Typography>
+                <Typography noWrap sx={{ color: c.textMain, fontSize: "13px", fontWeight: 500 }}>
+                  {selectedPageTitle}
+                </Typography>
+              </>
             ) : (
               <Typography
-                variant="body2"
-                sx={{ color: c.textMain, fontSize: "13px", fontWeight: 500 }}
                 noWrap
+                sx={{
+                  fontSize: "13px",
+                  px: 0.5,
+                  borderRadius: "4px",
+                  color: c.textMain,
+                  fontWeight: 500
+                }}
               >
-                {selectedPageTitle}
+                {workspaceName}
               </Typography>
             )}
           </Stack>
-          <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
+
+          <Stack direction="row" sx={{ alignItems: "center", gap: 0.25 }}>
             <Button
-              variant="text"
               startIcon={<Share2 size={14} />}
+              onClick={handleShareClick}
               sx={{
                 color: c.textMuted,
                 textTransform: "none",
                 fontSize: "13px",
+                fontWeight: 500,
                 minWidth: 0,
                 px: 1.25,
                 borderRadius: "6px",
-                "&:hover": { bgcolor: c.sidebarHover, color: c.textMain },
+                "&:hover": { bgcolor: c.hover, color: c.textMain },
               }}
             >
               Share
             </Button>
+            {selectedPageId && !selectedPageId.startsWith("user_") && (
+              <Tooltip title="Page Activity Log" placement="bottom" arrow>
+                <IconButton
+                  size="small"
+                  aria-label="Activity log"
+                  onClick={() => setActivityLogOpen(true)}
+                  sx={{ color: c.textMuted, borderRadius: "6px", "&:hover": { bgcolor: c.hover, color: c.accent } }}
+                >
+                  <Activity size={16} />
+                </IconButton>
+              </Tooltip>
+            )}
             <IconButton
               size="small"
-              sx={{ color: c.textMuted, borderRadius: "6px", "&:hover": { bgcolor: c.sidebarHover } }}
+              aria-label="More actions"
+              onClick={(e) => setPageMenuAnchor(e.currentTarget)}
+              sx={{ color: c.textMuted, borderRadius: "6px", "&:hover": { bgcolor: c.hover } }}
             >
               <MoreHorizontal size={18} />
             </IconButton>
           </Stack>
         </Stack>
 
-        {/* Page Content */}
-        <Box sx={{ px: { xs: 3, md: 8, lg: 12 }, py: 3, maxWidth: "1200px", margin: "0 auto", width: "100%" }}>
-          <Box sx={{ mb: 3, position: "relative" }}>
-            <Box sx={{ position: "absolute", top: -30, left: 0 }}>
+        <Menu
+          anchorEl={pageMenuAnchor}
+          open={!!pageMenuAnchor}
+          onClose={() => setPageMenuAnchor(null)}
+          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+          transformOrigin={{ vertical: "top", horizontal: "right" }}
+          slotProps={{
+            paper: {
+              sx: {
+                minWidth: 210,
+                borderRadius: "10px",
+                border: `1px solid ${c.border}`,
+                boxShadow: "0 10px 30px rgba(15, 15, 15, 0.12)",
+                "& .MuiMenuItem-root": { fontSize: "13.5px", gap: 1.25, py: 0.9 },
+              },
+            }
+          }}
+        >
+          {canCreatePage && (
+            <MenuItem
+              onClick={() => {
+                setPageMenuAnchor(null);
+                openCreateDialog(selectedPageId || undefined);
+              }}
+              disabled={!editable}
+            >
+              <Plus size={15} /> Add a page inside
+            </MenuItem>
+          )}
+          <MenuItem
+            onClick={() => {
+              setPageMenuAnchor(null);
+              setUploadOpen(true);
+            }}
+            disabled={!editable || !canUploadData || activePage?.pageType !== "SHEET"}
+          >
+            <TableIcon size={15} /> Paste leads
+          </MenuItem>
+          <Divider sx={{ borderColor: c.border }} />
+          <MenuItem
+            onClick={() => {
+              setPageMenuAnchor(null);
+              setClearOpen(true);
+            }}
+            disabled={!editable || !rowsData.length}
+            sx={{ color: c.danger }}
+          >
+            <Trash2 size={15} /> Remove all rows
+          </MenuItem>
+
+          {!isSyntheticNode && (r === "MANAGER" || r === "TEAM_LEADER" || r === "SUPER_ADMIN" || r === "ADMIN") && (
+            <MenuItem
+              onClick={() => {
+                setPageMenuAnchor(null);
+                setAssignOpen(true);
+              }}
+              disabled={!editable}
+            >
+              <UserPlus size={15} /> Assign page
+            </MenuItem>
+          )}
+
+          {!isSyntheticNode && (r === "SUPER_ADMIN" || r === "ADMIN") && (
+            <MenuItem
+              onClick={() => {
+                setPageMenuAnchor(null);
+                setDeleteOpen(true);
+              }}
+              sx={{ color: c.danger }}
+            >
+              <Trash2 size={15} /> Delete page
+            </MenuItem>
+          )}
+        </Menu>
+
+        {/* Page body */}
+        <Box
+          sx={{
+            px: { xs: 3, md: 8, lg: 12 },
+            pt: 5,
+            pb: 10,
+            width: "100%",
+            maxWidth: 1180,
+            mx: "auto",
+          }}
+        >
+          {loadingPage || deleting ? (
+            <Stack sx={{ alignItems: "center", justifyContent: "center", height: "40vh" }}>
+              <CircularProgress size={32} sx={{ color: c.textMuted }} />
+            </Stack>
+          ) : !selectedPageId ? (
+            <Stack sx={{ alignItems: "center", justifyContent: "center", height: "40vh" }}>
+              <FileText size={48} color={c.borderStrong} />
+              <Typography sx={{ mt: 2, color: c.textMuted, fontWeight: 500 }}>No page selected</Typography>
+            </Stack>
+          ) : (
+            <>
+              {/* Title block */}
+              <Box className="title-block" sx={{ mb: 3 }}>
+                {editable && (
               <Button
                 size="small"
+                startIcon={<Smile size={14} />}
                 sx={{
+                  ml: -1,
+                  mb: 0.5,
                   color: c.textFaint,
                   textTransform: "none",
-                  fontSize: "12px",
-                  bgcolor: "transparent",
-                  borderRadius: "5px",
-                  "&:hover": { bgcolor: c.sidebarHover, color: c.textMuted },
+                  fontSize: "12.5px",
+                  fontWeight: 500,
+                  borderRadius: "6px",
+                  opacity: 0,
+                  ".title-block:hover &": { opacity: 1 },
+                  "&:focus-visible": { opacity: 1 },
+                  "&:hover": { bgcolor: c.hover, color: c.textMuted },
                 }}
               >
-                Change icon
+                Add icon
               </Button>
-            </Box>
+            )}
+
             <InputBase
               value={selectedPageTitle}
               onChange={(e) => setSelectedPageTitle(e.target.value)}
               onBlur={() => {
                 if (selectedPageId && !selectedPageId.startsWith("user_")) {
-                  updatePageTitle(selectedPageId, selectedPageTitle);
+                  updatePageTitle(selectedPageId, selectedPageTitle.trim() || "Untitled");
                 }
               }}
               placeholder="Untitled"
+              readOnly={!editable}
               sx={{
-                fontWeight: 700,
-                color: c.textMain,
-                mb: 2.5,
-                fontSize: "38px",
-                fontFamily: "ui-serif, Georgia, serif",
-                letterSpacing: "-0.5px",
                 width: "100%",
-                "& input": { padding: 0 },
+                fontFamily: FONT_SERIF,
+                fontWeight: 700,
+                fontSize: { xs: "30px", md: "40px" },
+                lineHeight: 1.15,
+                letterSpacing: "-0.6px",
+                color: c.textMain,
+                "& input": { p: 0 },
+                "& input::placeholder": { color: "rgba(55,53,47,0.16)", opacity: 1 },
               }}
             />
 
+            {/* Page meta */}
             <Stack
               direction="row"
-              spacing={1.5}
-              sx={{ mb: 3.5, borderBottom: `1px solid ${c.border}`, pb: 2.5 }}
+              sx={{ alignItems: "center", gap: 2, mt: 1.5, color: c.textMuted }}
             >
-              {canAddSubPage(selectedPageId || undefined, activePage) && (
-                <Button
-                  variant="outlined"
-                  size="small"
-                  startIcon={<Plus size={15} />}
-                  onClick={() => handleCreateNewPage(selectedPageId as string)}
-                  sx={{
-                    textTransform: "none",
-                    fontSize: "13px",
-                    fontWeight: 500,
-                    borderColor: c.border,
-                    color: c.textMain,
-                    borderRadius: "7px",
-                    "&:hover": { bgcolor: c.sidebarHover, borderColor: c.borderStrong },
-                  }}
-                >
-                  Add sub-page
-                </Button>
+              <Stack direction="row" sx={{ alignItems: "center", gap: 0.75 }}>
+                <TableIcon size={14} />
+                <Typography sx={{ fontSize: "13px" }}>
+                  {rowsData.length
+                    ? `${rowsData.length} ${rowsData.length === 1 ? "lead" : "leads"}`
+                    : "No leads"}
+                </Typography>
+              </Stack>
+              {pageColumns.length > 0 && (
+                <Typography sx={{ fontSize: "13px" }}>
+                  {pageColumns.length}{" "}
+                  {pageColumns.length === 1 ? "column" : "columns"}
+                </Typography>
               )}
-              {activePage?.pageType === "SHEET" &&
-                canAddSubPage(selectedPageId || undefined, activePage) && (
+            </Stack>
+
+            {/* Actions */}
+            {editable && (
+              <Stack
+                direction="row"
+                sx={{
+                  gap: 1,
+                  flexWrap: "wrap",
+                  mt: 2.5,
+                  pb: 2.5,
+                  borderBottom: `1px solid ${c.border}`,
+                }}
+              >
+                {canCreatePage && (
+                  <Button
+                    size="small"
+                    startIcon={<Plus size={15} />}
+                    onClick={() => openCreateDialog(selectedPageId || undefined)}
+                    sx={outlineBtn}
+                  >
+                    Add a page inside
+                  </Button>
+                )}
+                {activePage?.pageType === "SHEET" && (
                   <>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={<TableIcon size={15} />}
-                      onClick={() => setUploadDataModalOpen(true)}
-                      sx={{
-                        textTransform: "none",
-                        fontSize: "13px",
-                        fontWeight: 500,
-                        borderColor: c.border,
-                        color: c.textMain,
-                        borderRadius: "7px",
-                        "&:hover": { bgcolor: c.sidebarHover, borderColor: c.borderStrong },
-                      }}
-                    >
-                      Paste / upload leads
-                    </Button>
-                    {activePage?.rows?.length > 0 && (
+                    {canUploadData && (
                       <Button
-                        variant="outlined"
+                        size="small"
+                        startIcon={<TableIcon size={15} />}
+                        onClick={() => setUploadOpen(true)}
+                        sx={outlineBtn}
+                      >
+                        Paste leads
+                      </Button>
+                    )}
+                    {isAdmin && rowsData.length > 0 && (
+                      <Button
+                        size="small"
+                        startIcon={<Download size={15} />}
+                        onClick={handleExportData}
+                        sx={outlineBtn}
+                      >
+                        Export sheet
+                      </Button>
+                    )}
+                    {rowsData.length > 0 && (
+                      <Button
                         size="small"
                         startIcon={<Trash2 size={15} />}
-                        onClick={handleClearData}
+                        onClick={() => setClearOpen(true)}
                         sx={{
-                          textTransform: "none",
-                          fontSize: "13px",
-                          fontWeight: 500,
-                          borderColor: c.border,
-                          color: "#eb5757",
-                          borderRadius: "7px",
-                          "&:hover": { bgcolor: "rgba(235,87,87,0.1)", borderColor: "#eb5757" },
+                          ...outlineBtn,
+                          color: c.danger,
+                          "&:hover": {
+                            bgcolor: c.dangerSoft,
+                            borderColor: "rgba(213,73,63,0.4)",
+                          },
                         }}
                       >
-                        Clear all data
+                        Remove all rows
                       </Button>
                     )}
                   </>
                 )}
-            </Stack>
+              </Stack>
+            )}
           </Box>
 
-          {/* Leads Data Table (if data exists and it's a SHEET) */}
+          {/* Sheet */}
           {activePage?.pageType === "SHEET" &&
-            (rowsData.length > 0 && pageColumns.length > 0 ? (
+            (loadingPage ? (
+              <Stack sx={{ gap: 1 }}>
+                {[...Array(6)].map((_, i) => (
+                  <Skeleton
+                    key={i}
+                    variant="rounded"
+                    height={36}
+                    sx={{ bgcolor: c.hover }}
+                  />
+                ))}
+              </Stack>
+            ) : rowsData.length > 0 && pageColumns.length > 0 ? (
               <Box>
                 <Stack
                   direction="row"
-                  spacing={1}
                   sx={{
                     alignItems: "center",
-                    mb: 2,
+                    gap: 1,
+                    mb: 1.5,
                     px: 1.25,
-                    py: 0.75,
+                    height: 34,
                     border: `1px solid ${c.border}`,
-                    borderRadius: "7px",
+                    borderRadius: "8px",
                     bgcolor: c.sidebarBg,
+                    "&:focus-within": {
+                      borderColor: c.accent,
+                      boxShadow: `0 0 0 3px ${c.accentSoft}`,
+                    },
                   }}
                 >
                   <Search size={15} color={c.textFaint} />
                   <InputBase
-                    placeholder="Search in database..."
+                    placeholder="Search leads"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     sx={{ flexGrow: 1, fontSize: "13.5px", color: c.textMain }}
                   />
                   {searchQuery && (
-                    <Chip
-                      size="small"
-                      label={`${filteredRows.length} result${filteredRows.length === 1 ? "" : "s"}`}
-                      sx={{
-                        height: 20,
-                        fontSize: "11px",
-                        bgcolor: c.accentSoft,
-                        color: c.accent,
-                        fontWeight: 600,
-                      }}
-                    />
+                    <>
+                      <Typography sx={{ fontSize: "12px", color: c.textMuted }}>
+                        {filteredRows.length} of {rowsData.length}
+                      </Typography>
+                      <IconButton
+                        size="small"
+                        aria-label="Clear search"
+                        onClick={() => setSearchQuery("")}
+                        sx={{ p: 0.3, color: c.textFaint }}
+                      >
+                        <X size={14} />
+                      </IconButton>
+                    </>
                   )}
                 </Stack>
+
                 <TableContainer
+                  id="notion-table-container"
+                  tabIndex={0}
                   sx={{
                     border: `1px solid ${c.border}`,
-                    borderRadius: "8px",
-                    maxHeight: "65vh",
+                    borderRadius: "10px",
+                    maxHeight: "62vh",
+                    "&:focus": { outline: "none" }
                   }}
                 >
                   <Table size="small" stickyHeader>
                     <TableHead>
                       <TableRow>
+                        <TableCell sx={{ ...headCell, width: 44, textAlign: "right", pr: 1.5 }}>
+                          #
+                        </TableCell>
                         {pageColumns.map((col: any) => (
-                          <TableCell
-                            key={col.key}
-                            sx={{
-                              color: c.textMuted,
-                              fontWeight: 600,
-                              fontSize: "12.5px",
-                              py: 1.1,
-                              bgcolor: c.sidebarBg,
-                              borderBottom: `1px solid ${c.border}`,
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {col.name}
+                          <TableCell key={col.key} sx={headCell}>
+                            {isAdmin ? (
+                              <InputBase
+                                defaultValue={col.name}
+                                onBlur={(e) => {
+                                  if (e.target.value !== col.name) {
+                                    handleUpdateColumnName(col.key, e.target.value);
+                                  }
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    (e.target as HTMLInputElement).blur();
+                                  }
+                                }}
+                                sx={{
+                                  color: "inherit",
+                                  fontSize: "inherit",
+                                  fontWeight: "inherit",
+                                  fontFamily: "inherit",
+                                  "& input": { p: 0, textOverflow: "ellipsis" }
+                                }}
+                              />
+                            ) : (
+                              col.name
+                            )}
                           </TableCell>
                         ))}
+                        <TableCell sx={{ ...headCell, minWidth: 150, textAlign: "left" }}>
+                          Disposition
+                        </TableCell>
+                        <TableCell
+                          sx={{ ...headCell, minWidth: 200, textAlign: "left" }}
+                        >
+                          Remarks
+                        </TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {filteredRows.map((row, idx) => (
-                        <TableRow
-                          key={idx}
-                          sx={{
-                            "&:hover": { bgcolor: c.sidebarHover },
-                            "&:last-child td": { borderBottom: 0 },
-                          }}
-                        >
-                          {pageColumns.map((col: any) => (
+                      {loadingPage ? (
+                        Array.from(new Array(10)).map((_, i) => (
+                          <TableRow key={`skeleton-${i}`}>
+                            <TableCell sx={{ ...bodyCell, width: 44 }} />
+                            {pageColumns.map((col: any) => (
+                              <TableCell key={`skeleton-${col.key}`} sx={bodyCell}>
+                                <Skeleton variant="text" width={`${Math.random() * 40 + 40}%`} animation="wave" />
+                              </TableCell>
+                            ))}
+                            <TableCell sx={{ ...bodyCell, minWidth: 150 }}>
+                              <Skeleton variant="rectangular" width="100%" height={28} sx={{ borderRadius: 1 }} />
+                            </TableCell>
+                            <TableCell sx={{ ...bodyCell, minWidth: 200 }}>
+                              <Skeleton variant="text" width="80%" animation="wave" />
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        paginatedRows.map(({ row, i }) => {
+                          return (
+                            <TableRow
+                            key={row.id || i}
+                            sx={{
+                              "&:hover": { bgcolor: c.hover },
+                              "&:last-child td": { borderBottom: 0 },
+                            }}
+                          >
                             <TableCell
-                              key={col.key}
                               sx={{
-                                color: c.textMain,
-                                fontSize: "13.5px",
-                                py: 0.9,
-                                borderBottom: `1px solid ${c.border}`,
+                                ...bodyCell,
+                                color: c.textFaint,
+                                fontFamily: FONT_MONO,
+                                fontSize: "12px",
+                                textAlign: "right",
+                                pr: 1.5,
                               }}
                             >
-                              {row[col.key]}
+                              {i + 1}
                             </TableCell>
-                          ))}
+
+                            {pageColumns.map((col: any) => {
+                              const val = row[col.key];
+                              return (
+                                <TableCell key={col.key} sx={bodyCell}>
+                                  {val ? (
+                                    String(val)
+                                  ) : (
+                                    <Box component="span" sx={{ color: c.textFaint }}>
+                                      —
+                                    </Box>
+                                  )}
+                                </TableCell>
+                              );
+                            })}
+
+                            <TableCell sx={{ ...bodyCell, textAlign: "left", py: 0.4 }}>
+                              <select
+                                value={row.disposition || ""}
+                                onChange={(e) => handleSaveDisposition(i, e.target.value)}
+                                disabled={!editable}
+                                style={{
+                                  width: "100%",
+                                  padding: "6px 8px",
+                                  borderRadius: "6px",
+                                  border: `1px solid ${c.border}`,
+                                  backgroundColor: c.sidebarBg,
+                                  color: c.textMain,
+                                  fontSize: "13px",
+                                  outline: "none",
+                                  cursor: editable ? "pointer" : "default"
+                                }}
+                              >
+                                <option value="" disabled>Select disposition...</option>
+                                <option value="Ringing">Ringing</option>
+                                <option value="Follow up">Follow up</option>
+                                <option value="Call cut">Call cut</option>
+                                <option value="Not interested">Not interested</option>
+                                <option value="Login">Login</option>
+                                <option value="Voice mail">Voice mail</option>
+                                <option value="Call back">Call back</option>
+                                <option value="Interested">Interested</option>
+                                <option value="Switch off">Switch off</option>
+                                <option value="Not connected">Not connected</option>
+                              </select>
+                            </TableCell>
+
+                            <TableCell sx={{ ...bodyCell, textAlign: "left", py: 0.4 }}>
+                              <InputBase
+                                multiline
+                                maxRows={5}
+                                defaultValue={row.feedback_notes || ""}
+                                onBlur={(e) => handleSaveRemark(i, e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && !e.shiftKey) {
+                                    e.preventDefault();
+                                    (e.target as HTMLInputElement).blur();
+                                  }
+                                }}
+                                placeholder="Add remark..."
+                                sx={{
+                                  fontSize: "13px",
+                                  color: c.textMain,
+                                  width: "100%",
+                                  px: 1.5,
+                                  py: 0.75,
+                                  borderRadius: "6px",
+                                  border: "1px solid transparent",
+                                  transition: "all 0.2s ease",
+                                  "&:hover": {
+                                    bgcolor: "rgba(0,0,0,0.02)",
+                                  },
+                                  "&.Mui-focused": {
+                                    border: `1px solid ${c.border}`,
+                                    bgcolor: c.sidebarBg,
+                                    boxShadow: "0 2px 6px rgba(0,0,0,0.05)",
+                                  },
+                                }}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        );
+                      }))}
+
+                      {!loadingPage && filteredRows.length === 0 && (
+                        <TableRow>
+                          <TableCell
+                            colSpan={pageColumns.length + 2}
+                            sx={{ ...bodyCell, textAlign: "center", py: 5, color: c.textMuted }}
+                          >
+                            <Typography sx={{ fontSize: "13.5px" }}>
+                              Nothing matches “{searchQuery}”.
+                            </Typography>
+                          </TableCell>
                         </TableRow>
-                      ))}
+                      )}
                     </TableBody>
                   </Table>
                 </TableContainer>
+                
+                <TablePagination
+                  rowsPerPageOptions={[25, 50, 100]}
+                  component="div"
+                  count={filteredRows.length}
+                  rowsPerPage={rowsPerPage}
+                  page={page}
+                  onPageChange={handleChangePage}
+                  onRowsPerPageChange={handleChangeRowsPerPage}
+                  sx={{ borderBottom: "none" }}
+                />
+
+                <Typography
+                  sx={{ mt: 1.25, fontSize: "12.5px", color: c.textFaint, px: 0.5 }}
+                >
+                  {filteredRows.length}{" "}
+                  {filteredRows.length === 1 ? "row" : "rows"}
+                  {searchQuery ? ` of ${rowsData.length}` : ""}
+                </Typography>
               </Box>
             ) : (
-              <Fade in>
-                <Box
-                  sx={{
-                    textAlign: "center",
-                    py: 9,
-                    border: `1px dashed ${c.border}`,
-                    borderRadius: "10px",
-                    bgcolor: c.sidebarBg,
-                  }}
+              <Box
+                sx={{
+                  display: "grid",
+                  placeItems: "center",
+                  gap: 1,
+                  py: 8,
+                  px: 3,
+                  border: `1px dashed ${c.borderStrong}`,
+                  borderRadius: "12px",
+                  bgcolor: c.sidebarBg,
+                  textAlign: "center",
+                }}
+              >
+                <Inbox size={26} color={c.textFaint} />
+                <Typography sx={{ fontSize: "14.5px", fontWeight: 600 }}>
+                  This sheet is empty
+                </Typography>
+                <Typography
+                  sx={{ fontSize: "13.5px", color: c.textMuted, maxWidth: 380 }}
                 >
-                  <Sparkles size={22} color={c.textFaint} style={{ marginBottom: 10 }} />
-                  <Typography sx={{ color: c.textMuted, fontSize: "14px", mb: 0.5 }}>
-                    No data in this view yet.
-                  </Typography>
+                  Copy rows straight from Excel or Google Sheets and paste them
+                  here. The first row becomes your column names.
+                </Typography>
+                {editable && canUploadData && (
                   <Button
-                    size="small"
-                    onClick={() => setUploadDataModalOpen(true)}
-                    sx={{
-                      mt: 0.5,
-                      textTransform: "none",
-                      color: c.accent,
-                      fontWeight: 500,
-                      fontSize: "13.5px",
-                      "&:hover": { bgcolor: c.accentSoft },
-                    }}
+                    variant="contained"
+                    disableElevation
+                    startIcon={<TableIcon size={15} />}
+                    onClick={() => setUploadOpen(true)}
+                    sx={{ ...primaryBtn, mt: 1 }}
                   >
-                    Paste leads to get started
+                    Paste leads
                   </Button>
-                </Box>
-              </Fade>
+                )}
+              </Box>
             ))}
 
-          {/* Child Pages Preview */}
+          {/* Child pages */}
           {activePage?.children?.length > 0 && (
-            <Box sx={{ mt: 4 }}>
+            <Box sx={{ mt: 5 }}>
+              <Typography
+                sx={{ fontSize: "12.5px", color: c.textFaint, fontWeight: 600, mb: 0.75 }}
+              >
+                Pages inside
+              </Typography>
               {activePage.children.map((child: any) => (
                 <Stack
-                  key={child._id}
+                  key={child._id || child.id}
                   direction="row"
-                  spacing={1.25}
                   onClick={() => handleSelectPage(child)}
                   sx={{
                     alignItems: "center",
+                    gap: 1.25,
                     py: 1,
                     px: 1,
                     mx: -1,
                     borderRadius: "6px",
                     cursor: "pointer",
-                    "&:hover": { bgcolor: c.sidebarHover },
+                    "&:hover": { bgcolor: c.hover },
                   }}
                 >
-                  <FileText size={17} color={c.textMuted} />
-                  <Typography sx={{ color: c.textMain, fontWeight: 500, fontSize: "14.5px" }}>
+                  {child.pageType === "SHEET" ? (
+                    <TableIcon size={16} color={c.textMuted} />
+                  ) : (
+                    <FileText size={16} color={c.textMuted} />
+                  )}
+                  <Typography
+                    sx={{
+                      fontSize: "14.5px",
+                      fontWeight: 500,
+                      borderBottom: `1px solid ${c.border}`,
+                    }}
+                  >
                     {child.title}
                   </Typography>
                 </Stack>
               ))}
             </Box>
           )}
+            </>
+          )}
         </Box>
       </Box>
 
-      {/* Upload Data Modal */}
+      {/* ========================= Create page ========================= */}
       <Dialog
-        open={uploadDataModalOpen}
-        onClose={() => setUploadDataModalOpen(false)}
-        PaperProps={{ sx: { bgcolor: c.bg, minWidth: 520, borderRadius: "12px" } }}
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        slotProps={{ paper: { sx: dialogPaper(420) } }}
       >
-        <DialogTitle sx={{ fontWeight: 600, color: c.textMain, fontSize: "17px", pb: 0.5 }}>
-          Paste leads data
-        </DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" sx={{ color: c.textMuted, mb: 2, fontSize: "13.5px" }}>
-            Paste rows from Excel or Sheets — they'll be added to this page right away.
+        <DialogTitle sx={dialogTitle}>New page</DialogTitle>
+        <DialogContent sx={{ px: 3, pt: 1 }}>
+          <Typography sx={{ fontSize: "13.5px", color: c.textMuted, mb: 1.5 }}>
+            {createParentId
+              ? "This page will live inside the page you selected."
+              : "This page will be added to your shared workspace."}
+          </Typography>
+          <TextField
+            fullWidth
+            autoFocus
+            placeholder="Untitled"
+            value={createTitle}
+            onChange={(e) => setCreateTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !creating) handleCreatePage();
+            }}
+            sx={textFieldSx}
+          />
+        </DialogContent>
+        <DialogActions sx={dialogActions}>
+          <Button onClick={() => setCreateOpen(false)} sx={ghostBtn}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            disableElevation
+            onClick={handleCreatePage}
+            disabled={creating}
+            startIcon={creating ? <CircularProgress size={14} color="inherit" /> : null}
+            sx={primaryBtn}
+          >
+            Create page
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ========================= Paste leads ========================= */}
+      <Dialog
+        open={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        slotProps={{ paper: { sx: dialogPaper(560) } }}
+      >
+        <DialogTitle sx={dialogTitle}>Paste leads</DialogTitle>
+        <DialogContent sx={{ px: 3, pt: 1 }}>
+          <Typography sx={{ fontSize: "13.5px", color: c.textMuted, mb: 1.75 }}>
+            Copy a block of cells from Excel or Google Sheets and paste it below.
+            Tabs and commas both work as separators.
           </Typography>
           <TextField
             fullWidth
             multiline
             rows={8}
-            placeholder={"ID\tPhone\tName\tPAN\tCity..."}
+            autoFocus
+            placeholder={"ID\tPhone\tName\tPAN\tCity\n1042\t9876543210\tAsha Rao\tABCDE1234F\tNoida"}
             value={pastedData}
             onChange={(e) => setPastedData(e.target.value)}
             sx={{
-              bgcolor: c.sidebarBg,
-              borderRadius: "8px",
+              ...textFieldSx,
               "& .MuiOutlinedInput-root": {
-                fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                fontSize: "13px",
-                borderRadius: "8px",
+                ...(textFieldSx["& .MuiOutlinedInput-root"] as object),
+                fontFamily: FONT_MONO,
+                fontSize: "12.5px",
+                lineHeight: 1.7,
+                bgcolor: c.sidebarBg,
               },
             }}
           />
           <FormControlLabel
-            control={<Checkbox checked={replaceData} onChange={(e) => setReplaceData(e.target.checked)} size="small" />}
-            label={<Typography sx={{ fontSize: "13.5px", color: c.textMain, fontWeight: 500 }}>Replace existing data</Typography>}
-            sx={{ mt: 1, ml: 0 }}
+            sx={{ mt: 1.25, ml: 0 }}
+            control={
+              <Checkbox
+                size="small"
+                checked={replaceData}
+                onChange={(e) => setReplaceData(e.target.checked)}
+                sx={{ color: c.borderStrong, "&.Mui-checked": { color: c.accent } }}
+              />
+            }
+            label={
+              <Box>
+                <Typography sx={{ fontSize: "13.5px", fontWeight: 500 }}>
+                  Replace what’s already here
+                </Typography>
+                <Typography sx={{ fontSize: "12.5px", color: c.textMuted }}>
+                  Existing rows and columns are removed first. Feedback on those
+                  rows goes with them.
+                </Typography>
+              </Box>
+            }
           />
         </DialogContent>
-        <DialogActions sx={{ p: 2.5, pt: 1 }}>
-          <Button
-            onClick={() => setUploadDataModalOpen(false)}
-            sx={{ color: c.textMuted, textTransform: "none", fontWeight: 500, borderRadius: "7px" }}
-          >
+        <DialogActions sx={dialogActions}>
+          <Button onClick={() => setUploadOpen(false)} sx={ghostBtn}>
             Cancel
           </Button>
           <Button
             variant="contained"
-            onClick={handleUploadDataToPage}
             disableElevation
-            disabled={!pastedData.trim()}
-            sx={{
-              bgcolor: c.accent,
-              textTransform: "none",
-              fontWeight: 500,
-              borderRadius: "7px",
-              px: 2.5,
-              "&:hover": { bgcolor: c.accentHover },
-            }}
+            onClick={handleUpload}
+            disabled={!pastedData.trim() || uploading}
+            startIcon={uploading ? <CircularProgress size={14} color="inherit" /> : null}
+            sx={primaryBtn}
           >
-            Upload to page
+            {replaceData ? "Replace leads" : "Add leads"}
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* ====================== Remove all rows ======================= */}
+      <Dialog
+        open={clearOpen}
+        onClose={() => setClearOpen(false)}
+        slotProps={{ paper: { sx: dialogPaper(420) } }}
+      >
+        <DialogTitle sx={dialogTitle}>Remove all rows?</DialogTitle>
+        <DialogContent sx={{ px: 3, pt: 1 }}>
+          <Typography sx={{ fontSize: "13.5px", color: c.textMuted }}>
+            This clears all {rowsData.length} rows and their columns from{" "}
+            <Box component="span" sx={{ color: c.textMain, fontWeight: 600 }}>
+              {selectedPageTitle}
+            </Box>
+            , including any feedback saved on them. It can’t be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={dialogActions}>
+          <Button onClick={() => setClearOpen(false)} sx={ghostBtn}>
+            Keep them
+          </Button>
+          <Button
+            variant="contained"
+            disableElevation
+            onClick={handleClearData}
+            disabled={clearing}
+            startIcon={clearing ? <CircularProgress size={14} color="inherit" /> : null}
+            sx={{
+              ...primaryBtn,
+              bgcolor: c.danger,
+              "&:hover": { bgcolor: "#b93c33" },
+            }}
+          >
+            Remove all rows
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+
+
+      {/* ========================= Delete confirm ========================= */}
+      <Dialog
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        slotProps={{ paper: { sx: dialogPaper(420) } }}
+      >
+        <DialogTitle sx={dialogTitle}>Delete this page?</DialogTitle>
+        <DialogContent sx={{ px: 3, pt: 1 }}>
+          <Typography variant="body2" sx={{ color: c.textMuted }}>
+            This will permanently delete the page and all of its contents. This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={dialogActions}>
+          <Button onClick={() => setDeleteOpen(false)} sx={ghostBtn}>
+            Cancel
+          </Button>
+          <Button
+            onClick={async () => {
+              if (!selectedPageId) return;
+              setDeleting(true);
+              try {
+                await deletePage(selectedPageId);
+                notify("Page deleted successfully", "success");
+                setDeleteOpen(false);
+              } catch (e: any) {
+                notify(e?.message || "Failed to delete page", "error");
+              } finally {
+                setDeleting(false);
+              }
+            }}
+            disabled={deleting}
+            sx={{
+              ...primaryBtn,
+              bgcolor: c.danger,
+              "&:hover": { bgcolor: "#b93c33" },
+            }}
+          >
+            {deleting ? "Deleting..." : "Delete Page"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ========================= Assign page ========================= */}
+      <Dialog
+        open={assignOpen}
+        onClose={() => setAssignOpen(false)}
+        slotProps={{ paper: { sx: dialogPaper(420) } }}
+      >
+        <DialogTitle sx={dialogTitle}>Assign Page</DialogTitle>
+        <DialogContent sx={{ px: 3, pt: 1 }}>
+          <Typography variant="body2" sx={{ color: c.textMuted, mb: 2 }}>
+            Assign this page to a team member.
+          </Typography>
+          <TextField
+            select
+            fullWidth
+            label="Select Team Member"
+            value={selectedAssignee}
+            onChange={(e) => setSelectedAssignee(e.target.value)}
+            size="small"
+            sx={{
+              "& .MuiOutlinedInput-root": { borderRadius: "8px" },
+            }}
+          >
+            {assignableUsers.map((u) => (
+              <MenuItem key={u.id} value={u.id}>
+                {u.name}
+              </MenuItem>
+            ))}
+          </TextField>
+        </DialogContent>
+        <DialogActions sx={dialogActions}>
+          <Button onClick={() => setAssignOpen(false)} sx={ghostBtn}>
+            Cancel
+          </Button>
+          <Button
+            onClick={async () => {
+              if (!selectedPageId || !selectedAssignee) return;
+              setAssigning(true);
+              try {
+                await assignPage(selectedPageId, selectedAssignee);
+                notify("Page assigned successfully", "success");
+                setAssignOpen(false);
+                setSelectedAssignee("");
+              } catch (e: any) {
+                notify(e?.message || "Failed to assign page", "error");
+              } finally {
+                setAssigning(false);
+              }
+            }}
+            disabled={assigning || !selectedAssignee}
+            sx={{ ...primaryBtn, bgcolor: c.accent, "&:hover": { bgcolor: c.accentHover } }}
+          >
+            {assigning ? "Assigning..." : "Assign"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* =========================== Toast ============================ */}
+
+      <TrashDialog open={trashOpen} onClose={() => setTrashOpen(false)} />
+
+      <ActivityLogDialog
+        open={activityLogOpen}
+        onClose={() => setActivityLogOpen(false)}
+        pageId={selectedPageId}
+        pageTitle={selectedPageTitle}
+      />
     </Box>
   );
 }
+
+/* ------------------------------------------------------------------ *
+ * Shared style objects
+ * ------------------------------------------------------------------ */
+
+const outlineBtn = {
+  textTransform: "none",
+  fontSize: "13px",
+  fontWeight: 500,
+  color: c.textMain,
+  border: `1px solid ${c.border}`,
+  borderRadius: "7px",
+  px: 1.5,
+  py: 0.6,
+  "&:hover": { bgcolor: c.hover, borderColor: c.borderStrong },
+} as const;
+
+const primaryBtn = {
+  textTransform: "none",
+  fontSize: "13.5px",
+  fontWeight: 600,
+  bgcolor: c.accent,
+  color: "#fff",
+  borderRadius: "8px",
+  px: 2.25,
+  py: 0.7,
+  boxShadow: "none",
+  "&:hover": { bgcolor: c.accentHover, boxShadow: "none" },
+  "&.Mui-disabled": { bgcolor: "rgba(35,131,226,0.35)", color: "#fff" },
+} as const;
+
+const ghostBtn = {
+  textTransform: "none",
+  fontSize: "13.5px",
+  fontWeight: 500,
+  color: c.textMuted,
+  borderRadius: "8px",
+  px: 1.75,
+  "&:hover": { bgcolor: c.hover, color: c.textMain },
+} as const;
+
+const dialogPaper = (minWidth: number) =>
+  ({
+    bgcolor: c.bg,
+    width: "100%",
+    maxWidth: minWidth,
+    borderRadius: "14px",
+    border: `1px solid ${c.border}`,
+    boxShadow: "0 16px 48px rgba(15, 15, 15, 0.16)",
+  } as const);
+
+const dialogTitle = {
+  fontFamily: FONT_SANS,
+  fontWeight: 600,
+  fontSize: "16.5px",
+  color: c.textMain,
+  px: 3,
+  pt: 2.5,
+  pb: 0.5,
+} as const;
+
+const dialogActions = { px: 3, pb: 2.5, pt: 1.5, gap: 0.5 } as const;
+
+const textFieldSx = {
+  "& .MuiOutlinedInput-root": {
+    fontSize: "13.5px",
+    borderRadius: "9px",
+    bgcolor: c.bg,
+    "& fieldset": { borderColor: c.border },
+    "&:hover fieldset": { borderColor: c.borderStrong },
+    "&.Mui-focused fieldset": {
+      borderColor: c.accent,
+      borderWidth: "1px",
+      boxShadow: `0 0 0 3px ${c.accentSoft}`,
+    },
+  },
+} as const;
+
+const headCell = {
+  color: c.textMuted,
+  fontWeight: 600,
+  fontSize: "12.5px",
+  py: 1.15,
+  bgcolor: c.sidebarBg,
+  borderBottom: `1px solid ${c.border}`,
+  whiteSpace: "nowrap",
+} as const;
+
+const bodyCell = {
+  color: c.textMain,
+  fontSize: "13.5px",
+  py: 0.9,
+  borderBottom: `1px solid ${c.border}`,
+  maxWidth: 260,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+} as const;

@@ -161,7 +161,7 @@ export default function ApplicationModal({
               payload
             );
 
-      alert(res.data.message);
+      alert(res.data?.message || (mode === "create" ? "Application created successfully" : "Application updated successfully"));
 
       onSuccess();
 
@@ -428,56 +428,71 @@ export default function ApplicationModal({
 
           </div>
 
-          {/* Preview */}
-
-          <div className="rounded-xl border border-blue-200 bg-blue-50 p-5">
-
-            <h3 className="mb-4 text-base font-semibold text-blue-700">
-              Application Preview
-            </h3>
-
-            <div className="grid grid-cols-2 gap-5">
-
-              <div>
-                <p className="text-xs text-gray-500">
-                  Applicant
-                </p>
-                <p className="font-medium">
-                  {form.applicantName || "-"}
-                </p>
+          {/* Preview & Logs */}
+          <div className="flex flex-col gap-5">
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-5">
+              <h3 className="mb-4 text-base font-semibold text-blue-700">
+                Application Preview
+              </h3>
+              <div className="grid grid-cols-2 gap-5">
+                <div>
+                  <p className="text-xs text-gray-500">Applicant</p>
+                  <p className="font-medium">{form.applicantName || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Phone</p>
+                  <p className="font-medium">{form.phone || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Loan Type</p>
+                  <p className="font-medium">{form.loanType || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Loan Amount</p>
+                  <p className="font-medium">₹ {form.loanAmount || "-"}</p>
+                </div>
               </div>
-
-              <div>
-                <p className="text-xs text-gray-500">
-                  Phone
-                </p>
-                <p className="font-medium">
-                  {form.phone || "-"}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs text-gray-500">
-                  Loan Type
-                </p>
-                <p className="font-medium">
-                  {form.loanType || "-"}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs text-gray-500">
-                  Loan Amount
-                </p>
-                <p className="font-medium">
-                  ₹ {form.loanAmount || "-"}
-                </p>
-              </div>
-
             </div>
 
-          </div>
+            {mode === "edit" && application && (
+              <div className="rounded-xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-700 dark:bg-gray-800/50">
+                <h3 className="mb-4 text-base font-semibold text-gray-700 dark:text-gray-200">
+                  Audit Logs & History
+                </h3>
+                <div className="grid grid-cols-2 gap-5">
+                  <div>
+                    <p className="text-xs text-gray-500">Created By</p>
+                    <p className="font-medium text-sm text-gray-700 dark:text-gray-300">
+                      {application.createdBy?.firstName
+                        ? `${application.createdBy.firstName} ${application.createdBy.lastName || ""}`
+                        : "System"}
+                    </p>
                   </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Created At</p>
+                    <p className="font-medium text-sm text-gray-700 dark:text-gray-300">
+                      {application.createdAt ? new Date(application.createdAt).toLocaleString() : "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Last Assigned To</p>
+                    <p className="font-medium text-sm text-gray-700 dark:text-gray-300">
+                      {application.assignedTo?.firstName
+                        ? `${application.assignedTo.firstName} ${application.assignedTo.lastName || ""}`
+                        : "Unassigned"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Last Updated</p>
+                    <p className="font-medium text-sm text-gray-700 dark:text-gray-300">
+                      {application.updatedAt ? new Date(application.updatedAt).toLocaleString() : "-"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Footer */}
 

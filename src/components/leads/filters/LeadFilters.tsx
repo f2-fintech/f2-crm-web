@@ -237,8 +237,10 @@ export default function LeadFilters({
               e.target.value,
             )
           }
-          InputLabelProps={{
-            shrink: true,
+          slotProps={{
+            inputLabel: {
+              shrink: true,
+            }
           }}
           fullWidth
         />
@@ -255,8 +257,10 @@ export default function LeadFilters({
               e.target.value,
             )
           }
-          InputLabelProps={{
-            shrink: true,
+          slotProps={{
+            inputLabel: {
+              shrink: true,
+            }
           }}
           fullWidth
         />

@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 
+import api from "@/lib/axios";
+
 export default function useLeadForm(initialData: any = {}) {
   const [values, setValues] = useState(initialData);
+  const [loading, setLoading] = useState(false);
 
   const [errors, setErrors] = useState<any>({});
 
@@ -39,6 +42,18 @@ export default function useLeadForm(initialData: any = {}) {
     return Object.keys(error).length === 0;
   };
 
+  const createLead = async (data: any) => {
+    setLoading(true);
+    try {
+      const response = await api.post("/leads", data);
+      return response.data;
+    } catch (err: any) {
+      throw new Error(err?.response?.data?.message || "Failed to create lead");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     values,
     errors,
@@ -47,5 +62,6 @@ export default function useLeadForm(initialData: any = {}) {
     handleChange,
     validate,
     reset,
+    createLead,
   };
 }

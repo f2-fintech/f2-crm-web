@@ -79,7 +79,7 @@ export default function QuickActions() {
       <CardContent>
         <Typography
           variant="h6"
-          mb={3}
+          sx={{ mb: 3 }}
         >
           Quick Actions
         </Typography>
@@ -139,7 +139,7 @@ export default function QuickActions() {
                     </div>
 
                     <Typography
-                      mt={2}
+                      sx={{ mt: 2 }}
                       fontWeight={700}
                     >
                       {item.title}
