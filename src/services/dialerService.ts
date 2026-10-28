@@ -42,10 +42,19 @@ export interface CallLogItem {
   meeting_id?: string | null;
 }
 
+export interface TeamMember {
+  id: string;
+  name: string;
+  role: string;
+  employeeId?: string;
+  dialerExtension?: string;
+}
+
 export interface CallLogsResponse {
   success: boolean;
   total: number;
   data: CallLogItem[];
+  teamMembers?: TeamMember[];
   stats: {
     totalCalls: number;
     answeredCalls: number;

@@ -25,15 +25,22 @@ import {
   AlertCircle,
   Radio,
   X,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import {
   dialerService,
   CallLogItem,
   CallLogsResponse,
+  TeamMember,
 } from "@/services/dialerService";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function DialerPage() {
   const [logs, setLogs] = useState<CallLogItem[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [stats, setStats] = useState({
     totalCalls: 0,
     answeredCalls: 0,
@@ -57,7 +64,11 @@ export default function DialerPage() {
   const [searchPhone, setSearchPhone] = useState<string>("");
   const [selectedAgent, setSelectedAgent] = useState<string>("");
   const [selectedCallType, setSelectedCallType] = useState<string>("");
-  const [limit, setLimit] = useState<number>(100);
+  const [limit, setLimit] = useState<number>(1000);
+
+  // Client-side pagination state
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(20);
 
   // Audio player state
   const [activeAudioLog, setActiveAudioLog] = useState<CallLogItem | null>(null);
@@ -108,7 +119,7 @@ export default function DialerPage() {
         from_date: from,
         from_date_to: to,
         phone_number: searchPhone.trim() || undefined,
-        agent: selectedAgent || undefined,
+        agent: selectedAgent.trim() || undefined,
         limit,
       });
 
@@ -116,6 +127,9 @@ export default function DialerPage() {
         setLogs(res.data);
         if (res.stats) {
           setStats(res.stats);
+        }
+        if (res.teamMembers) {
+          setTeamMembers(res.teamMembers);
         }
       } else {
         setLogs([]);
@@ -136,16 +150,85 @@ export default function DialerPage() {
     fetchCallLogs();
   }, [fetchCallLogs]);
 
-  // Unique agents list from logs for filter dropdown
+  // Unique agents combining all team members + agents in logs
   const uniqueAgents = useMemo(() => {
-    const set = new Set<string>();
-    logs.forEach((log) => {
-      if (log.agent_name && log.agent_name.trim()) {
-        set.add(log.agent_name.trim());
+    const map = new Map<
+      string,
+      { code: string; name: string; callCount: number; role?: string }
+    >();
+
+    // 1. Add all known team members from Manager/TL team roster
+    teamMembers.forEach((member) => {
+      const name = (member.name || "").trim();
+      const code = (member.dialerExtension || "").trim();
+      const key = (name || code).toLowerCase();
+      if (key) {
+        map.set(key, { code, name, callCount: 0, role: member.role });
       }
     });
-    return Array.from(set).sort();
-  }, [logs]);
+
+    // 2. Count calls from logs for team members (or discover agents for unrestricted admin)
+    logs.forEach((log) => {
+      const code = (log.agent_name || log.extension_no || "").trim();
+      const name = (log.employee_code || "").trim();
+      const nameKey = name.toLowerCase();
+      const codeKey = code.toLowerCase();
+
+      let matched = false;
+      for (const [, item] of map.entries()) {
+        const itemCode = (item.code || "").toLowerCase();
+        const itemName = (item.name || "").toLowerCase();
+
+        if (
+          (code && itemCode && itemCode === codeKey) ||
+          (name &&
+            itemName &&
+            (itemName === nameKey ||
+              itemName.includes(nameKey) ||
+              nameKey.includes(itemName)))
+        ) {
+          item.callCount += 1;
+          if (!item.code && code) item.code = code;
+          matched = true;
+          break;
+        }
+      }
+
+      // Only for unrestricted admin (teamMembers is empty), discover outside agents
+      if (!matched && teamMembers.length === 0) {
+        const key = (name || code).toLowerCase();
+        if (key) {
+          if (!map.has(key)) {
+            map.set(key, { code, name: name || `Agent ${code}`, callCount: 1 });
+          } else {
+            map.get(key)!.callCount += 1;
+          }
+        }
+      }
+    });
+
+    return Array.from(map.values())
+      .map((ag) => {
+        let label = ag.name;
+        if (ag.code) {
+          label += ` (${ag.code})`;
+        }
+        if (ag.callCount > 0) {
+          label += ` — ${ag.callCount} calls`;
+        } else {
+          label += ` — 0 calls`;
+        }
+        return {
+          id: ag.code || ag.name,
+          code: ag.code,
+          name: ag.name,
+          role: ag.role,
+          label,
+          callCount: ag.callCount,
+        };
+      })
+      .sort((a, b) => b.callCount - a.callCount || a.name.localeCompare(b.name));
+  }, [logs, teamMembers]);
 
   // Unique call types
   const uniqueCallTypes = useMemo(() => {
@@ -155,7 +238,7 @@ export default function DialerPage() {
         set.add(log.CallType.trim());
       }
     });
-    return Array.from(set);
+    return Array.from(set).sort();
   }, [logs]);
 
   // Client-side search and filters
@@ -164,9 +247,35 @@ export default function DialerPage() {
       if (selectedCallType && log.CallType !== selectedCallType) {
         return false;
       }
+
+      if (selectedAgent) {
+        const code = (log.agent_name || log.extension_no || "").trim();
+        const name = (log.employee_code || "").trim().toLowerCase();
+        const target = selectedAgent.toLowerCase();
+
+        const matchCode = code && code === selectedAgent;
+        const matchName = name && name === target;
+        if (!matchCode && !matchName) {
+          return false;
+        }
+      }
+
       return true;
     });
-  }, [logs, selectedCallType]);
+  }, [logs, selectedCallType, selectedAgent]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [fromDate, toDate, searchPhone, selectedAgent, selectedCallType, limit]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / pageSize));
+  const validPage = Math.min(currentPage, totalPages);
+
+  const paginatedLogs = useMemo(() => {
+    const start = (validPage - 1) * pageSize;
+    return filteredLogs.slice(start, start + pageSize);
+  }, [filteredLogs, validPage, pageSize]);
 
   const handleCopyPhone = (phone: string) => {
     navigator.clipboard.writeText(phone);
@@ -178,34 +287,46 @@ export default function DialerPage() {
     if (filteredLogs.length === 0) return;
     const headers = [
       "Log ID",
-      "Start Time",
-      "End Time",
-      "Customer Name",
-      "Location",
-      "Phone Number",
-      "Agent Name",
-      "Employee Code",
+      "Dialed Number",
       "Call Type",
-      "Hangup Cause",
+      "Status",
+      "No of Attempts",
+      "Campaign",
+      "DID No",
+      "Agent Code",
+      "Agent Name",
       "CRM Duration",
       "Call Duration",
+      "Wrapup Duration",
+      "Start Time",
+      "End Time",
       "Disposition",
+      "Sub Disposition",
+      "Customer Name",
+      "Location",
+      "Remark",
     ];
 
     const rows = filteredLogs.map((l) => [
       l.log_id || "",
-      l.start_time || "",
-      l.end_time || "",
-      `"${l.Customer_Name || ""}"`,
-      `"${l.Location || ""}"`,
       l.dialed_phone_no || l.phone || "",
-      `"${l.agent_name || ""}"`,
-      l.employee_code || "",
       `"${l.CallType || ""}"`,
-      `"${l.HangupCause || ""}"`,
+      `"${l.Status || ""}"`,
+      l.NoOfAttempts || "",
+      `"${l.campaign_name || ""}"`,
+      l.DID_No || "",
+      l.agent_name || l.extension_no || "",
+      `"${l.employee_code || ""}"`,
       l.crm_duration || "",
       l.call_duration || "",
+      l.Wrapup_Durn || "",
+      l.start_time || "",
+      l.end_time || "",
       `"${l.disposition || ""}"`,
+      `"${l.sub_disposition || ""}"`,
+      `"${l.Customer_Name || ""}"`,
+      `"${l.Location || ""}"`,
+      `"${l.Remark || ""}"`,
     ]);
 
     const csvContent =
@@ -220,8 +341,11 @@ export default function DialerPage() {
     document.body.removeChild(link);
   };
 
+  const { user, role, isManager, isSuperAdmin, isAdmin } = useAuth();
+  const isTeamLeader = role === "TEAM_LEADER";
+
   return (
-    <div className="space-y-6 p-4 sm:p-6 max-w-[1600px] mx-auto">
+    <div className="space-y-5 p-4 sm:p-6 max-w-[1700px] mx-auto">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-gray-100 shadow-xs">
         <div>
@@ -230,9 +354,33 @@ export default function DialerPage() {
               <PhoneCall size={22} />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900 tracking-tight">
-                Dialer Call Logs
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold text-gray-900 tracking-tight">
+                  Dialer Call Logs
+                </h1>
+                {isManager && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-bold">
+                    My Team View
+                  </span>
+                )}
+                {isTeamLeader && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-purple-50 border border-purple-200 text-purple-700 text-[10px] font-bold">
+                    Direct Reports View
+                  </span>
+                )}
+                {(isAdmin || isSuperAdmin) && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold">
+                    All Company View
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {isManager
+                  ? "Showing real-time dialer logs for all agents in your team"
+                  : isTeamLeader
+                  ? "Showing real-time dialer logs for your direct reports"
+                  : "Live call monitoring and CDR audit from local dialer"}
+              </p>
             </div>
           </div>
         </div>
@@ -329,14 +477,87 @@ export default function DialerPage() {
           </div>
           <div>
             <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-              Active Agents
+              {teamMembers.length > 0 ? "Team Size" : "Active Agents"}
             </span>
             <p className="text-xl font-extrabold text-purple-600 mt-0.5">
-              {stats.uniqueAgents.toLocaleString()}
+              {teamMembers.length > 0 ? teamMembers.length : uniqueAgents.length}
             </p>
           </div>
         </div>
       </div>
+
+      {/* Team Roster Bar for Manager & TL */}
+      {teamMembers.length > 0 && (
+        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600">
+                <Users size={16} />
+              </div>
+              <span className="font-bold text-gray-900 text-xs">
+                My Team Roster ({teamMembers.length} Members)
+              </span>
+            </div>
+            <span className="text-[11px] text-gray-400">
+              Click any agent pill to filter their calls
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setSelectedAgent("")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                !selectedAgent
+                  ? "bg-indigo-600 text-white shadow-2xs"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              All Team ({logs.length} calls)
+            </button>
+
+            {uniqueAgents.map((ag) => {
+              const isSelected =
+                selectedAgent === ag.id ||
+                selectedAgent === ag.name ||
+                selectedAgent === ag.code;
+
+              return (
+                <button
+                  key={ag.id}
+                  onClick={() =>
+                    setSelectedAgent(isSelected ? "" : (ag.code || ag.name))
+                  }
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+                    isSelected
+                      ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs"
+                      : ag.callCount > 0
+                      ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
+                      : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
+                  }`}
+                >
+                  <span>{ag.name}</span>
+                  {ag.code && (
+                    <span className="text-[10px] font-mono opacity-75">
+                      ({ag.code})
+                    </span>
+                  )}
+                  <span
+                    className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                      isSelected
+                        ? "bg-white/20 text-white"
+                        : ag.callCount > 0
+                        ? "bg-emerald-200/70 text-emerald-900"
+                        : "bg-gray-200 text-gray-600"
+                    }`}
+                  >
+                    {ag.callCount} calls
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Filter Toolbar */}
       <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs space-y-3">
@@ -381,21 +602,19 @@ export default function DialerPage() {
             />
           </div>
 
-          {/* Agent Filter */}
-          {uniqueAgents.length > 0 && (
-            <select
-              value={selectedAgent}
-              onChange={(e) => setSelectedAgent(e.target.value)}
-              className="rounded-xl border border-gray-200 bg-gray-50/50 hover:bg-white px-3 py-2 text-xs font-semibold text-gray-700 focus:border-indigo-500 focus:outline-none transition shadow-2xs min-w-[150px]"
-            >
-              <option value="">All Agents ({uniqueAgents.length})</option>
-              {uniqueAgents.map((ag) => (
-                <option key={ag} value={ag}>
-                  {ag}
-                </option>
-              ))}
-            </select>
-          )}
+          {/* Agent Filter (showing all agents with Code and Name) */}
+          <select
+            value={selectedAgent}
+            onChange={(e) => setSelectedAgent(e.target.value)}
+            className="rounded-xl border border-gray-200 bg-gray-50/50 hover:bg-white px-3 py-2 text-xs font-semibold text-gray-700 focus:border-indigo-500 focus:outline-none transition shadow-2xs min-w-[200px]"
+          >
+            <option value="">All Agents ({uniqueAgents.length})</option>
+            {uniqueAgents.map((ag) => (
+              <option key={ag.id} value={ag.id}>
+                {ag.label}
+              </option>
+            ))}
+          </select>
 
           {/* Call Type Filter */}
           {uniqueCallTypes.length > 0 && (
@@ -419,10 +638,12 @@ export default function DialerPage() {
             onChange={(e) => setLimit(Number(e.target.value))}
             className="rounded-xl border border-gray-200 bg-gray-50/50 hover:bg-white px-3 py-2 text-xs font-semibold text-gray-700 focus:border-indigo-500 focus:outline-none transition shadow-2xs"
           >
-            <option value={50}>Limit 50</option>
-            <option value={100}>Limit 100</option>
             <option value={250}>Limit 250</option>
             <option value={500}>Limit 500</option>
+            <option value={1000}>Limit 1,000 (Default)</option>
+            <option value={2500}>Limit 2,500</option>
+            <option value={5000}>Limit 5,000</option>
+            <option value={10000}>Limit 10,000</option>
           </select>
 
           {/* Apply Filter Button */}
@@ -435,29 +656,39 @@ export default function DialerPage() {
         </div>
       </div>
 
-      {/* Main Table */}
+      {/* Main Table Matching Dialer Portal Columns */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-w-full">
           <table className="w-full text-left text-xs text-gray-700 whitespace-nowrap">
             <thead className="bg-[#0b2545] text-white text-[11px] font-bold uppercase tracking-wider border-b border-gray-200 shadow-sm">
               <tr>
-                <th className="p-3.5 w-12 text-gray-300">#</th>
+                <th className="p-3.5 w-12 text-gray-300">SrNo</th>
+                <th className="p-3.5 text-center">Action</th>
                 <th className="p-3.5">Log ID</th>
-                <th className="p-3.5">Date & Time</th>
-                <th className="p-3.5">Customer Name & Location</th>
-                <th className="p-3.5">Dialed Phone</th>
-                <th className="p-3.5">Agent</th>
+                <th className="p-3.5">Dialed Number</th>
                 <th className="p-3.5">Call Type</th>
-                <th className="p-3.5">Status / Hangup Cause</th>
-                <th className="p-3.5">Duration</th>
-                <th className="p-3.5 text-center">Audio</th>
+                <th className="p-3.5 text-center">Status</th>
+                <th className="p-3.5 text-center">Attempts</th>
+                <th className="p-3.5">Campaign</th>
+                <th className="p-3.5">DID No</th>
+                <th className="p-3.5">Agent (Code & Name)</th>
+                <th className="p-3.5">CRM Durn</th>
+                <th className="p-3.5">Call Durn</th>
+                <th className="p-3.5">Wrapup Durn</th>
+                <th className="p-3.5">Start Time</th>
+                <th className="p-3.5">End Time</th>
+                <th className="p-3.5">Disposition</th>
+                <th className="p-3.5">Sub Disposition</th>
+                <th className="p-3.5">Customer Name</th>
+                <th className="p-3.5">Location</th>
+                <th className="p-3.5">Remark</th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-gray-100 font-medium">
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="p-12 text-center text-gray-400">
+                  <td colSpan={20} className="p-12 text-center text-gray-400">
                     <div className="inline-flex items-center gap-2">
                       <div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
                       <span>Fetching live call logs from F2 dialer...</span>
@@ -466,7 +697,7 @@ export default function DialerPage() {
                 </tr>
               ) : filteredLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="p-12 text-center text-gray-400">
+                  <td colSpan={20} className="p-12 text-center text-gray-400">
                     <div className="max-w-xs mx-auto">
                       <PhoneMissed size={32} className="mx-auto text-gray-300 mb-2" />
                       <p className="font-semibold text-gray-700 text-sm">
@@ -479,16 +710,16 @@ export default function DialerPage() {
                   </td>
                 </tr>
               ) : (
-                filteredLogs.map((log, index) => {
+                paginatedLogs.map((log, index) => {
                   const phone = log.dialed_phone_no || log.phone || "--";
                   const hasRecording = Boolean(log.Recording_Path);
-                  const isAnswered =
-                    (log.crm_duration && log.crm_duration !== "00:00:00") ||
-                    (log.call_duration && log.call_duration !== "00:00:00");
                   const isThisAudioPlaying =
                     activeAudioLog?.log_id === log.log_id && isPlaying;
                   const isThisActiveAudio =
                     activeAudioLog?.log_id === log.log_id;
+
+                  const agentCode = log.agent_name || log.extension_no || "";
+                  const agentName = log.employee_code || "";
 
                   return (
                     <tr
@@ -499,39 +730,56 @@ export default function DialerPage() {
                           : "hover:bg-slate-50/70"
                       }`}
                     >
+                      {/* SrNo */}
                       <td className="p-3.5 text-gray-400 font-mono text-[11px]">
-                        {index + 1}
+                        {(validPage - 1) * pageSize + index + 1}
+                      </td>
+
+                      {/* Action (Audio Player) */}
+                      <td className="p-3.5 text-center">
+                        {hasRecording ? (
+                          <button
+                            type="button"
+                            onClick={() => handlePlayAudio(log)}
+                            className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-xl border transition active:scale-95 cursor-pointer shadow-2xs ${
+                              isThisActiveAudio
+                                ? "bg-indigo-600 text-white border-indigo-600 shadow-indigo-200"
+                                : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200"
+                            }`}
+                            title="Play Recording"
+                          >
+                            {isThisAudioPlaying ? (
+                              <>
+                                <Pause size={12} className="text-white fill-white" />
+                                <span className="text-[11px]">Pause</span>
+                              </>
+                            ) : (
+                              <>
+                                <Play
+                                  size={12}
+                                  className={
+                                    isThisActiveAudio
+                                      ? "text-white fill-white"
+                                      : "text-emerald-600 fill-emerald-600"
+                                  }
+                                />
+                                <span className="text-[11px]">{isThisActiveAudio ? "Resume" : "Play"}</span>
+                              </>
+                            )}
+                          </button>
+                        ) : (
+                          <span className="text-gray-300 text-xs">--</span>
+                        )}
                       </td>
 
                       {/* Log ID */}
                       <td className="p-3.5 font-mono text-xs font-bold text-gray-700">
-                        #{log.log_id}
+                        {log.log_id}
                       </td>
 
-                      {/* Date & Time */}
-                      <td className="p-3.5 text-gray-800">
-                        <div className="flex items-center gap-1.5 font-semibold">
-                          <Clock size={12} className="text-gray-400" />
-                          <span>{log.start_time || "--"}</span>
-                        </div>
-                      </td>
-
-                      {/* Customer Name & Location */}
+                      {/* Dialed Number */}
                       <td className="p-3.5">
-                        <div className="font-bold text-gray-900">
-                          {log.Customer_Name || "Customer"}
-                        </div>
-                        {log.Location && (
-                          <div className="flex items-center gap-1 text-[11px] text-gray-400 font-medium">
-                            <MapPin size={11} className="text-indigo-400" />
-                            <span>{log.Location}</span>
-                          </div>
-                        )}
-                      </td>
-
-                      {/* Phone Number */}
-                      <td className="p-3.5">
-                        <div className="inline-flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-lg">
+                        <div className="inline-flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-lg">
                           <span className="font-mono font-bold text-gray-800 text-xs">
                             {phone}
                           </span>
@@ -542,37 +790,19 @@ export default function DialerPage() {
                               title="Copy Phone"
                             >
                               {copiedPhone === phone ? (
-                                <Check size={12} className="text-emerald-600" />
+                                <Check size={11} className="text-emerald-600" />
                               ) : (
-                                <Copy size={12} />
+                                <Copy size={11} />
                               )}
                             </button>
                           )}
                         </div>
                       </td>
 
-                      {/* Agent */}
-                      <td className="p-3.5">
-                        {log.agent_name ? (
-                          <div>
-                            <span className="font-semibold text-gray-800">
-                              {log.agent_name}
-                            </span>
-                            {log.employee_code && (
-                              <span className="text-[10px] text-gray-400 block font-mono">
-                                ({log.employee_code})
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-gray-400 italic">--</span>
-                        )}
-                      </td>
-
                       {/* Call Type */}
                       <td className="p-3.5">
                         <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
                             log.CallType === "System Dispose"
                               ? "bg-slate-100 text-slate-700"
                               : log.CallType === "Manual" || log.CallType === "Outbound"
@@ -584,58 +814,115 @@ export default function DialerPage() {
                         </span>
                       </td>
 
-                      {/* Hangup Cause */}
-                      <td className="p-3.5">
+                      {/* Status */}
+                      <td className="p-3.5 text-center">
                         <span
-                          className={`inline-block px-2 py-0.5 rounded-lg text-xs font-semibold ${
-                            isAnswered
-                              ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                              : "bg-rose-50 text-rose-800 border border-rose-200"
+                          className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                            log.Status === "A"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : "bg-slate-100 text-slate-700"
                           }`}
                         >
-                          {log.HangupCause || log.disposition || "--"}
+                          {log.Status || "--"}
                         </span>
                       </td>
 
-                      {/* Duration */}
-                      <td className="p-3.5 font-mono text-xs font-bold text-gray-700">
-                        {log.call_duration || log.crm_duration || "00:00:00"}
+                      {/* Attempts */}
+                      <td className="p-3.5 text-center font-mono font-semibold text-gray-700">
+                        {log.NoOfAttempts || "1"}
                       </td>
 
-                      {/* Audio Recording */}
-                      <td className="p-3.5 text-center">
-                        {hasRecording ? (
-                          <button
-                            type="button"
-                            onClick={() => handlePlayAudio(log)}
-                            className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl border transition active:scale-95 cursor-pointer shadow-2xs ${
-                              isThisActiveAudio
-                                ? "bg-indigo-600 text-white border-indigo-600 shadow-indigo-200"
-                                : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-indigo-200"
-                            }`}
-                          >
-                            {isThisAudioPlaying ? (
-                              <>
-                                <Pause size={13} className="text-white fill-white" />
-                                <span>Pause</span>
-                              </>
-                            ) : (
-                              <>
-                                <Play
-                                  size={13}
-                                  className={
-                                    isThisActiveAudio
-                                      ? "text-white fill-white"
-                                      : "text-indigo-600 fill-indigo-600"
-                                  }
-                                />
-                                <span>{isThisActiveAudio ? "Resume" : "Play"}</span>
-                              </>
+                      {/* Campaign */}
+                      <td className="p-3.5">
+                        <span className="inline-block px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-100 text-indigo-700 font-semibold text-[11px]">
+                          {log.campaign_name || "--"}
+                        </span>
+                      </td>
+
+                      {/* DID No */}
+                      <td className="p-3.5 font-mono text-gray-600 font-medium">
+                        {log.DID_No || "--"}
+                      </td>
+
+                      {/* Agent (Code & Name) */}
+                      <td className="p-3.5">
+                        {agentName || agentCode ? (
+                          <div className="flex flex-col">
+                            <span className="font-bold text-gray-900 text-xs">
+                              {agentName || `Agent ${agentCode}`}
+                            </span>
+                            {agentCode && (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-gray-500 font-mono">
+                                Ext: <strong className="text-gray-700">{agentCode}</strong>
+                              </span>
                             )}
-                          </button>
+                          </div>
                         ) : (
-                          <span className="text-gray-300 text-xs">--</span>
+                          <span className="text-gray-300 italic">--</span>
                         )}
+                      </td>
+
+                      {/* CRM Durn */}
+                      <td className="p-3.5 font-mono text-xs font-semibold text-gray-800">
+                        {log.crm_duration || "--"}
+                      </td>
+
+                      {/* Call Durn */}
+                      <td className="p-3.5 font-mono text-xs font-bold text-indigo-700">
+                        {log.call_duration || "--"}
+                      </td>
+
+                      {/* Wrapup Durn */}
+                      <td className="p-3.5 font-mono text-xs text-gray-500">
+                        {log.Wrapup_Durn || "--"}
+                      </td>
+
+                      {/* Start Time */}
+                      <td className="p-3.5 text-gray-700 font-medium text-[11px]">
+                        {log.start_time || "--"}
+                      </td>
+
+                      {/* End Time */}
+                      <td className="p-3.5 text-gray-700 font-medium text-[11px]">
+                        {log.end_time || "--"}
+                      </td>
+
+                      {/* Disposition */}
+                      <td className="p-3.5">
+                        {log.disposition ? (
+                          <span className="inline-block px-2 py-0.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            {log.disposition}
+                          </span>
+                        ) : (
+                          <span className="text-gray-300">--</span>
+                        )}
+                      </td>
+
+                      {/* Sub Disposition */}
+                      <td className="p-3.5 text-gray-600 text-xs">
+                        {log.sub_disposition || "--"}
+                      </td>
+
+                      {/* Customer Name */}
+                      <td className="p-3.5 font-bold text-gray-900">
+                        {log.Customer_Name || "--"}
+                      </td>
+
+                      {/* Location */}
+                      <td className="p-3.5 text-gray-600">
+                        {log.Location ? (
+                          <div className="flex items-center gap-1 text-xs">
+                            <MapPin size={11} className="text-indigo-400 shrink-0" />
+                            <span>{log.Location}</span>
+                          </div>
+                        ) : (
+                          "--"
+                        )}
+                      </td>
+
+                      {/* Remark */}
+                      <td className="p-3.5 text-gray-500 text-xs max-w-[200px] truncate" title={log.Remark || ""}>
+                        {log.Remark || "--"}
                       </td>
                     </tr>
                   );
@@ -645,15 +932,123 @@ export default function DialerPage() {
           </table>
         </div>
 
-        {/* Footer with Summary count */}
-        <div className="bg-slate-50/60 p-3.5 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500 font-medium">
-          <span>
-            Showing <strong className="text-gray-800">{filteredLogs.length}</strong> of{" "}
-            <strong className="text-gray-800">{logs.length}</strong> loaded call logs
-          </span>
-          <span className="text-[11px] text-gray-400">
-            F2 Dialer Integration
-          </span>
+        {/* Footer with Pagination Controls */}
+        <div className="bg-slate-50/70 p-3.5 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-600 font-medium">
+          <div className="flex flex-wrap items-center gap-3">
+            <span>
+              Showing{" "}
+              <strong className="text-gray-900 font-bold">
+                {filteredLogs.length === 0 ? 0 : (validPage - 1) * pageSize + 1}
+              </strong>{" "}
+              to{" "}
+              <strong className="text-gray-900 font-bold">
+                {Math.min(validPage * pageSize, filteredLogs.length)}
+              </strong>{" "}
+              of{" "}
+              <strong className="text-gray-900 font-bold">
+                {filteredLogs.length}
+              </strong>{" "}
+              call logs
+            </span>
+
+            {/* Rows per page selector */}
+            <div className="flex items-center gap-1.5 pl-3 border-l border-gray-200">
+              <span className="text-gray-400 text-[11px]">Rows per page:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-white border border-gray-200 rounded-lg px-2 py-1 text-xs font-semibold text-gray-700 focus:outline-none focus:border-indigo-500 shadow-2xs cursor-pointer"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Page Navigation Buttons */}
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setCurrentPage(1)}
+                disabled={validPage <= 1 || loading}
+                title="First Page"
+                className="p-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"
+              >
+                <ChevronsLeft size={15} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={validPage <= 1 || loading}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 font-semibold hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"
+              >
+                <ChevronLeft size={14} />
+                <span>Prev</span>
+              </button>
+
+              {/* Numbered Page Buttons */}
+              <div className="flex items-center gap-1 px-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter((p) => {
+                    if (p === 1 || p === totalPages) return true;
+                    if (Math.abs(p - validPage) <= 1) return true;
+                    return false;
+                  })
+                  .reduce<(number | string)[]>((acc, p, idx, arr) => {
+                    if (idx > 0 && p - (arr[idx - 1] as number) > 1) {
+                      acc.push("...");
+                    }
+                    acc.push(p);
+                    return acc;
+                  }, [])
+                  .map((item, idx) =>
+                    typeof item === "string" ? (
+                      <span key={`dots-${idx}`} className="px-1.5 text-gray-400 font-bold">
+                        ...
+                      </span>
+                    ) : (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => setCurrentPage(item)}
+                        className={`min-w-[28px] h-7 px-2 rounded-lg text-xs font-bold transition cursor-pointer ${
+                          item === validPage
+                            ? "bg-indigo-600 text-white shadow-xs"
+                            : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        {item}
+                      </button>
+                    )
+                  )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={validPage >= totalPages || loading}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 font-semibold hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"
+              >
+                <span>Next</span>
+                <ChevronRight size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={validPage >= totalPages || loading}
+                title="Last Page"
+                className="p-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"
+              >
+                <ChevronsRight size={15} />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -679,7 +1074,7 @@ export default function DialerPage() {
                     <span>
                       Agent:{" "}
                       <strong className="text-slate-200">
-                        {activeAudioLog.agent_name || "Auto"}
+                        {activeAudioLog.employee_code || activeAudioLog.agent_name || "Auto"}
                       </strong>
                     </span>
                     <span>•</span>
