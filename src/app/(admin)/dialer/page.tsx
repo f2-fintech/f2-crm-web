@@ -62,7 +62,7 @@ export default function DialerPage() {
   const [searchPhone, setSearchPhone] = useState<string>("");
   const [selectedAgent, setSelectedAgent] = useState<string>("");
   const [selectedCallType, setSelectedCallType] = useState<string>("");
-  const [limit, setLimit] = useState<number>(250);
+  const [limit, setLimit] = useState<number>(1000);
 
   // Client-side pagination state
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -117,6 +117,7 @@ export default function DialerPage() {
         from_date: from,
         from_date_to: to,
         phone_number: searchPhone.trim() || undefined,
+        agent: selectedAgent.trim() || undefined,
         limit,
       });
 
@@ -138,7 +139,7 @@ export default function DialerPage() {
     } finally {
       setLoading(false);
     }
-  }, [fromDate, toDate, searchPhone, limit]);
+  }, [fromDate, toDate, searchPhone, selectedAgent, limit]);
 
   useEffect(() => {
     fetchCallLogs();
@@ -519,10 +520,11 @@ export default function DialerPage() {
             onChange={(e) => setLimit(Number(e.target.value))}
             className="rounded-xl border border-gray-200 bg-gray-50/50 hover:bg-white px-3 py-2 text-xs font-semibold text-gray-700 focus:border-indigo-500 focus:outline-none transition shadow-2xs"
           >
-            <option value={100}>Limit 100</option>
             <option value={250}>Limit 250</option>
             <option value={500}>Limit 500</option>
-            <option value={1000}>Limit 1000</option>
+            <option value={1000}>Limit 1,000 (Default)</option>
+            <option value={2500}>Limit 2,500</option>
+            <option value={5000}>Limit 5,000</option>
           </select>
 
           {/* Apply Filter Button */}
