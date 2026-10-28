@@ -189,23 +189,23 @@ export default function TeamsPage() {
                         >
                           <Eye size={16} />
                         </Link>
+                        {(isSuperAdmin || isAdmin || isManager) && (
+                          <button
+                            onClick={() => setTeamToEdit(team)}
+                            title="Edit Team"
+                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 dark:border-gray-700 dark:text-gray-400 dark:hover:border-blue-800 dark:hover:bg-blue-500/10 cursor-pointer"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                        )}
                         {(isSuperAdmin || isAdmin) && (
-                          <>
-                            <button
-                              onClick={() => setTeamToEdit(team)}
-                              title="Edit Team"
-                              className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 dark:border-gray-700 dark:text-gray-400 dark:hover:border-blue-800 dark:hover:bg-blue-500/10"
-                            >
-                              <Pencil size={16} />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(team._id, team.name)}
-                              title="Delete Team"
-                              className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:border-error-300 hover:bg-error-50 hover:text-error-600 dark:border-gray-700 dark:text-gray-400 dark:hover:border-error-800 dark:hover:bg-error-500/10"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </>
+                          <button
+                            onClick={() => handleDelete(team._id, team.name)}
+                            title="Delete Team"
+                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:border-error-300 hover:bg-error-50 hover:text-error-600 dark:border-gray-700 dark:text-gray-400 dark:hover:border-error-800 dark:hover:bg-error-500/10 cursor-pointer"
+                          >
+                            <Trash2 size={16} />
+                          </button>
                         )}
                       </div>
                     </td>
