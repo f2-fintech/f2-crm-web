@@ -41,6 +41,11 @@ const navItems: NavItem[] = [
     path: "/dialer",
   },
   {
+    icon: <GroupIcon />,
+    name: "Teams",
+    path: "/teams",
+  },
+  {
     icon: <Calculator size={20} className="text-green-500" />,
     name: "EMI Calculator",
     path: "/emi-calculator",
@@ -325,7 +330,7 @@ const AppSidebar: React.FC = () => {
 
   const filteredNavItems = React.useMemo(() => {
     const baseItems = navItems.filter((item) =>
-      ["Dashboard", "Dialer Call Logs", "CRM", "EMI Calculator"].includes(item.name)
+      ["Dashboard", "Dialer Call Logs", "Teams", "CRM", "EMI Calculator"].includes(item.name)
     );
     return filterItems(baseItems);
   }, [filterItems]);

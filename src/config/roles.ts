@@ -24,7 +24,7 @@ export const ROUTE_PERMISSIONS: Record<string, string[]> = {
   "/permissions": [ROLES.SUPER_ADMIN, ROLES.ADMIN],
   "/departments": [ROLES.SUPER_ADMIN, ROLES.ADMIN],
   "/branches": [ROLES.SUPER_ADMIN, ROLES.ADMIN],
-  "/teams": [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+  "/teams": [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER, ROLES.TEAM_LEADER],
   "/settings": [ROLES.SUPER_ADMIN, ROLES.ADMIN],
   "/integrations": [ROLES.SUPER_ADMIN, ROLES.ADMIN],
   "/drive-allocation": [ROLES.SUPER_ADMIN, ROLES.ADMIN],

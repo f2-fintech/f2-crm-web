@@ -34,11 +34,13 @@ import {
   dialerService,
   CallLogItem,
   CallLogsResponse,
+  TeamMember,
 } from "@/services/dialerService";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function DialerPage() {
   const [logs, setLogs] = useState<CallLogItem[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [stats, setStats] = useState({
     totalCalls: 0,
     answeredCalls: 0,
@@ -126,6 +128,9 @@ export default function DialerPage() {
         if (res.stats) {
           setStats(res.stats);
         }
+        if (res.teamMembers) {
+          setTeamMembers(res.teamMembers);
+        }
       } else {
         setLogs([]);
       }
@@ -145,45 +150,63 @@ export default function DialerPage() {
     fetchCallLogs();
   }, [fetchCallLogs]);
 
-  // Unique agents list combining both Agent Name (employee_code) and Agent Code (agent_name / extension_no)
+  // Unique agents combining all team members + agents in logs
   const uniqueAgents = useMemo(() => {
-    const map = new Map<string, { code: string; name: string }>();
+    const map = new Map<
+      string,
+      { code: string; name: string; callCount: number; role?: string }
+    >();
 
+    // 1. Add all known team members from Manager/TL team roster
+    teamMembers.forEach((member) => {
+      const name = (member.name || "").trim();
+      const code = (member.dialerExtension || "").trim();
+      const key = (name || code).toLowerCase();
+      if (key) {
+        map.set(key, { code, name, callCount: 0, role: member.role });
+      }
+    });
+
+    // 2. Count calls from logs and add any agents discovered in logs
     logs.forEach((log) => {
       const code = (log.agent_name || log.extension_no || "").trim();
       const name = (log.employee_code || "").trim();
+      const key = (name || code).toLowerCase();
 
-      if (code || name) {
-        const key = code || name;
+      if (key) {
         if (!map.has(key)) {
-          map.set(key, { code, name });
+          map.set(key, { code, name: name || `Agent ${code}`, callCount: 1 });
         } else {
           const item = map.get(key)!;
-          if (!item.name && name) item.name = name;
+          item.callCount += 1;
           if (!item.code && code) item.code = code;
+          if (!item.name && name) item.name = name;
         }
       }
     });
 
     return Array.from(map.values())
       .map((ag) => {
-        let label = "";
-        if (ag.name && ag.code) {
-          label = `${ag.name} (${ag.code})`;
-        } else if (ag.name) {
-          label = ag.name;
+        let label = ag.name;
+        if (ag.code) {
+          label += ` (${ag.code})`;
+        }
+        if (ag.callCount > 0) {
+          label += ` — ${ag.callCount} calls`;
         } else {
-          label = `Agent ${ag.code}`;
+          label += ` — 0 calls`;
         }
         return {
           id: ag.code || ag.name,
           code: ag.code,
           name: ag.name,
+          role: ag.role,
           label,
+          callCount: ag.callCount,
         };
       })
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [logs]);
+      .sort((a, b) => b.callCount - a.callCount || a.name.localeCompare(b.name));
+  }, [logs, teamMembers]);
 
   // Unique call types
   const uniqueCallTypes = useMemo(() => {
@@ -432,14 +455,87 @@ export default function DialerPage() {
           </div>
           <div>
             <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-              Active Agents
+              {teamMembers.length > 0 ? "Team Size" : "Active Agents"}
             </span>
             <p className="text-xl font-extrabold text-purple-600 mt-0.5">
-              {uniqueAgents.length > 0 ? uniqueAgents.length : stats.uniqueAgents}
+              {teamMembers.length > 0 ? teamMembers.length : uniqueAgents.length}
             </p>
           </div>
         </div>
       </div>
+
+      {/* Team Roster Bar for Manager & TL */}
+      {teamMembers.length > 0 && (
+        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600">
+                <Users size={16} />
+              </div>
+              <span className="font-bold text-gray-900 text-xs">
+                My Team Roster ({teamMembers.length} Members)
+              </span>
+            </div>
+            <span className="text-[11px] text-gray-400">
+              Click any agent pill to filter their calls
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setSelectedAgent("")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                !selectedAgent
+                  ? "bg-indigo-600 text-white shadow-2xs"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              All Team ({logs.length} calls)
+            </button>
+
+            {uniqueAgents.map((ag) => {
+              const isSelected =
+                selectedAgent === ag.id ||
+                selectedAgent === ag.name ||
+                selectedAgent === ag.code;
+
+              return (
+                <button
+                  key={ag.id}
+                  onClick={() =>
+                    setSelectedAgent(isSelected ? "" : (ag.code || ag.name))
+                  }
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+                    isSelected
+                      ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs"
+                      : ag.callCount > 0
+                      ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
+                      : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
+                  }`}
+                >
+                  <span>{ag.name}</span>
+                  {ag.code && (
+                    <span className="text-[10px] font-mono opacity-75">
+                      ({ag.code})
+                    </span>
+                  )}
+                  <span
+                    className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                      isSelected
+                        ? "bg-white/20 text-white"
+                        : ag.callCount > 0
+                        ? "bg-emerald-200/70 text-emerald-900"
+                        : "bg-gray-200 text-gray-600"
+                    }`}
+                  >
+                    {ag.callCount} calls
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Filter Toolbar */}
       <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs space-y-3">
@@ -525,6 +621,7 @@ export default function DialerPage() {
             <option value={1000}>Limit 1,000 (Default)</option>
             <option value={2500}>Limit 2,500</option>
             <option value={5000}>Limit 5,000</option>
+            <option value={10000}>Limit 10,000</option>
           </select>
 
           {/* Apply Filter Button */}
