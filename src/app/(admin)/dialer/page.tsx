@@ -230,16 +230,9 @@ export default function DialerPage() {
               <PhoneCall size={22} />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
+              <h1 className="text-xl font-bold text-gray-900 tracking-tight">
                 Dialer Call Logs
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Live (192.168.1.220)
-                </span>
               </h1>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Real-time call data & agent performance from F2 Dialer Process #14
-              </p>
             </div>
           </div>
         </div>
@@ -274,12 +267,7 @@ export default function DialerPage() {
             <span className="font-bold">Dialer Connection Error:</span>
             <p className="mt-0.5 text-rose-700">{error}</p>
             <p className="mt-1 text-[11px] text-rose-500">
-              Please make sure your computer is connected to the office network
-              or that the local dialer at{" "}
-              <code className="bg-rose-100 px-1 py-0.5 rounded font-mono">
-                http://192.168.1.220
-              </code>{" "}
-              is reachable.
+              Please verify your network connection or contact your administrator if the issue persists.
             </p>
           </div>
           <button
@@ -664,7 +652,7 @@ export default function DialerPage() {
             <strong className="text-gray-800">{logs.length}</strong> loaded call logs
           </span>
           <span className="text-[11px] text-gray-400">
-            Source: F2 Dialer API (192.168.1.220)
+            F2 Dialer Integration
           </span>
         </div>
       </div>

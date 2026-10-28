@@ -131,7 +131,7 @@ const AppHeader: React.FC = () => {
             )}
           </button>
 
-          <h1 className="hidden text-xl font-semibold text-gray-800 sm:block">
+          <h1 className="hidden text-xl font-semibold text-gray-800 sm:block whitespace-nowrap shrink-0">
             {pageTitle}
           </h1>
         </div>
