@@ -35,6 +35,7 @@ import {
   CallLogItem,
   CallLogsResponse,
 } from "@/services/dialerService";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function DialerPage() {
   const [logs, setLogs] = useState<CallLogItem[]>([]);
@@ -294,6 +295,9 @@ export default function DialerPage() {
     document.body.removeChild(link);
   };
 
+  const { user, role, isManager, isSuperAdmin, isAdmin } = useAuth();
+  const isTeamLeader = role === "TEAM_LEADER";
+
   return (
     <div className="space-y-5 p-4 sm:p-6 max-w-[1700px] mx-auto">
       {/* Top Header */}
@@ -304,11 +308,32 @@ export default function DialerPage() {
               <PhoneCall size={22} />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900 tracking-tight">
-                Dialer Call Logs
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold text-gray-900 tracking-tight">
+                  Dialer Call Logs
+                </h1>
+                {isManager && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-bold">
+                    My Team View
+                  </span>
+                )}
+                {isTeamLeader && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-purple-50 border border-purple-200 text-purple-700 text-[10px] font-bold">
+                    Direct Reports View
+                  </span>
+                )}
+                {(isAdmin || isSuperAdmin) && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold">
+                    All Company View
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-gray-400 mt-0.5">
-                Live call monitoring and CDR audit from local dialer
+                {isManager
+                  ? "Showing real-time dialer logs for all agents in your team"
+                  : isTeamLeader
+                  ? "Showing real-time dialer logs for your direct reports"
+                  : "Live call monitoring and CDR audit from local dialer"}
               </p>
             </div>
           </div>
