@@ -25,6 +25,10 @@ import {
   AlertCircle,
   Radio,
   X,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import {
   dialerService,
@@ -58,6 +62,10 @@ export default function DialerPage() {
   const [selectedAgent, setSelectedAgent] = useState<string>("");
   const [selectedCallType, setSelectedCallType] = useState<string>("");
   const [limit, setLimit] = useState<number>(100);
+
+  // Client-side pagination state
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(20);
 
   // Audio player state
   const [activeAudioLog, setActiveAudioLog] = useState<CallLogItem | null>(null);
@@ -167,6 +175,19 @@ export default function DialerPage() {
       return true;
     });
   }, [logs, selectedCallType]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [fromDate, toDate, searchPhone, selectedAgent, selectedCallType, limit]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / pageSize));
+  const validPage = Math.min(currentPage, totalPages);
+
+  const paginatedLogs = useMemo(() => {
+    const start = (validPage - 1) * pageSize;
+    return filteredLogs.slice(start, start + pageSize);
+  }, [filteredLogs, validPage, pageSize]);
 
   const handleCopyPhone = (phone: string) => {
     navigator.clipboard.writeText(phone);
@@ -479,7 +500,7 @@ export default function DialerPage() {
                   </td>
                 </tr>
               ) : (
-                filteredLogs.map((log, index) => {
+                paginatedLogs.map((log, index) => {
                   const phone = log.dialed_phone_no || log.phone || "--";
                   const hasRecording = Boolean(log.Recording_Path);
                   const isAnswered =
@@ -500,7 +521,7 @@ export default function DialerPage() {
                       }`}
                     >
                       <td className="p-3.5 text-gray-400 font-mono text-[11px]">
-                        {index + 1}
+                        {(validPage - 1) * pageSize + index + 1}
                       </td>
 
                       {/* Log ID */}
@@ -645,15 +666,123 @@ export default function DialerPage() {
           </table>
         </div>
 
-        {/* Footer with Summary count */}
-        <div className="bg-slate-50/60 p-3.5 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500 font-medium">
-          <span>
-            Showing <strong className="text-gray-800">{filteredLogs.length}</strong> of{" "}
-            <strong className="text-gray-800">{logs.length}</strong> loaded call logs
-          </span>
-          <span className="text-[11px] text-gray-400">
-            F2 Dialer Integration
-          </span>
+        {/* Footer with Pagination Controls */}
+        <div className="bg-slate-50/70 p-3.5 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-600 font-medium">
+          <div className="flex flex-wrap items-center gap-3">
+            <span>
+              Showing{" "}
+              <strong className="text-gray-900 font-bold">
+                {filteredLogs.length === 0 ? 0 : (validPage - 1) * pageSize + 1}
+              </strong>{" "}
+              to{" "}
+              <strong className="text-gray-900 font-bold">
+                {Math.min(validPage * pageSize, filteredLogs.length)}
+              </strong>{" "}
+              of{" "}
+              <strong className="text-gray-900 font-bold">
+                {filteredLogs.length}
+              </strong>{" "}
+              call logs
+            </span>
+
+            {/* Rows per page selector */}
+            <div className="flex items-center gap-1.5 pl-3 border-l border-gray-200">
+              <span className="text-gray-400 text-[11px]">Rows per page:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-white border border-gray-200 rounded-lg px-2 py-1 text-xs font-semibold text-gray-700 focus:outline-none focus:border-indigo-500 shadow-2xs cursor-pointer"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Page Navigation Buttons */}
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setCurrentPage(1)}
+                disabled={validPage <= 1 || loading}
+                title="First Page"
+                className="p-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"
+              >
+                <ChevronsLeft size={15} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={validPage <= 1 || loading}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 font-semibold hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"
+              >
+                <ChevronLeft size={14} />
+                <span>Prev</span>
+              </button>
+
+              {/* Numbered Page Buttons */}
+              <div className="flex items-center gap-1 px-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter((p) => {
+                    if (p === 1 || p === totalPages) return true;
+                    if (Math.abs(p - validPage) <= 1) return true;
+                    return false;
+                  })
+                  .reduce<(number | string)[]>((acc, p, idx, arr) => {
+                    if (idx > 0 && p - (arr[idx - 1] as number) > 1) {
+                      acc.push("...");
+                    }
+                    acc.push(p);
+                    return acc;
+                  }, [])
+                  .map((item, idx) =>
+                    typeof item === "string" ? (
+                      <span key={`dots-${idx}`} className="px-1.5 text-gray-400 font-bold">
+                        ...
+                      </span>
+                    ) : (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => setCurrentPage(item)}
+                        className={`min-w-[28px] h-7 px-2 rounded-lg text-xs font-bold transition cursor-pointer ${
+                          item === validPage
+                            ? "bg-indigo-600 text-white shadow-xs"
+                            : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        {item}
+                      </button>
+                    )
+                  )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={validPage >= totalPages || loading}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 font-semibold hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"
+              >
+                <span>Next</span>
+                <ChevronRight size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={validPage >= totalPages || loading}
+                title="Last Page"
+                className="p-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"
+              >
+                <ChevronsRight size={15} />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
