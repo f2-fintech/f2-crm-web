@@ -36,6 +36,24 @@ const navItems: NavItem[] = [
     path: "/",
   },
   {
+    icon: <PhoneCall size={20} className="text-emerald-500" />,
+    name: "Dialer Call Logs",
+    path: "/dialer",
+  },
+  {
+    icon: <Calculator size={20} className="text-green-500" />,
+    name: "EMI Calculator",
+    path: "/emi-calculator",
+  },
+  {
+    icon: <GroupIcon />,
+    name: "CRM",
+    subItems: [
+      { name: "Notion Workspace", path: "/notion-pages", new: true },
+      { name: "Notion Remarks", path: "/notion-remarks", pro: true },
+    ],
+  },
+  {
     icon: <ListIcon />,
     name: "Workqueue",
     path: "/workqueue",
@@ -61,19 +79,6 @@ const navItems: NavItem[] = [
     path: "/ai-assistant",
   },
   {
-    icon: <Calculator size={20} className="text-green-500" />,
-    name: "EMI Calculator",
-    path: "/emi-calculator",
-  },
-  {
-    icon: <GroupIcon />,
-    name: "CRM",
-    subItems: [
-      { name: "Notion Workspace", path: "/notion-pages", new: true },
-      { name: "Notion Remarks", path: "/notion-remarks", pro: true },
-    ],
-  },
-  {
     icon: <Stethoscope size={20} className="text-teal-600 dark:text-teal-400" />,
     name: "Doctor Network",
     path: "/doctors",
@@ -95,11 +100,6 @@ const othersItems: NavItem[] = [
     icon: <FolderGit2 size={20} className="text-blue-500" />,
     name: "Drive Allocation",
     path: "/drive-allocation",
-  },
-  {
-    icon: <PhoneCall size={20} className="text-emerald-500" />,
-    name: "Dialer Call Logs",
-    path: "/dialer",
   },
   {
     icon: <Search size={20} className="text-cyan-500" />,
@@ -324,7 +324,9 @@ const AppSidebar: React.FC = () => {
   }, [role]);
 
   const filteredNavItems = React.useMemo(() => {
-    const baseItems = navItems.filter(item => ["Dashboard", "CRM", "EMI Calculator"].includes(item.name));
+    const baseItems = navItems.filter((item) =>
+      ["Dashboard", "Dialer Call Logs", "CRM", "EMI Calculator"].includes(item.name)
+    );
     return filterItems(baseItems);
   }, [filterItems]);
 
