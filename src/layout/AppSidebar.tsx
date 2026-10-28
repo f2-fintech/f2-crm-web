@@ -329,11 +329,19 @@ const AppSidebar: React.FC = () => {
   }, [role]);
 
   const filteredNavItems = React.useMemo(() => {
-    const baseItems = navItems.filter((item) =>
-      ["Dashboard", "Dialer Call Logs", "Teams", "CRM", "EMI Calculator"].includes(item.name)
-    );
+    const isManagerOrTL = role === "MANAGER" || role === "TEAM_LEADER";
+    const baseItems = navItems
+      .filter((item) =>
+        ["Dashboard", "Dialer Call Logs", "Teams", "CRM", "EMI Calculator"].includes(item.name)
+      )
+      .map((item) => {
+        if (item.name === "Teams" && isManagerOrTL) {
+          return { ...item, name: "My Team" };
+        }
+        return item;
+      });
     return filterItems(baseItems);
-  }, [filterItems]);
+  }, [filterItems, role]);
 
   const filteredOthersItems = React.useMemo(() => {
     const isAdmin = role === "SUPER_ADMIN" || role === "ADMIN";

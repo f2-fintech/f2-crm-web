@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Plus, Users as UsersIcon, Eye, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import api from "@/lib/axios";
@@ -8,6 +8,7 @@ import toast from "react-hot-toast";
 import CreateTeamModal from "@/components/teams/CreateTeamModal";
 import UpdateTeamModal from "@/components/teams/UpdateTeamModal";
 import Pagination from "@/components/tables/Pagination";
+import { useAuth } from "@/hooks/useAuth";
 
 interface ITeam {
   _id: string;
@@ -26,6 +27,8 @@ export default function TeamsPage() {
   const [loading, setLoading] = useState(false);
   const [openCreateModal, setOpenCreateModal] = useState(false);
   const [teamToEdit, setTeamToEdit] = useState<ITeam | null>(null);
+  const { user, isSuperAdmin, isAdmin, isManager } = useAuth();
+  const isTeamLeader = user?.role === "TEAM_LEADER";
   
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -62,8 +65,22 @@ export default function TeamsPage() {
     }
   };
 
-  const currentTeams = teams.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-  const totalPages = Math.ceil(teams.length / itemsPerPage) || 1;
+  // Restrict teams strictly to the logged-in user's own team if Manager or TL
+  const userAllowedTeams = useMemo(() => {
+    if (isSuperAdmin || isAdmin) return teams;
+    const userIdStr = String(user?._id || user?.id || "");
+    const userTeamIdStr = String(user?.teamId || "");
+
+    return teams.filter((t) => {
+      const managerIdStr = String(t.managerId?._id || t.managerId || "");
+      const isMyManagedTeam = managerIdStr === userIdStr;
+      const isMyAssignedTeam = t._id === userTeamIdStr;
+      return isMyManagedTeam || isMyAssignedTeam;
+    });
+  }, [teams, isSuperAdmin, isAdmin, user]);
+
+  const currentTeams = userAllowedTeams.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPages = Math.ceil(userAllowedTeams.length / itemsPerPage) || 1;
 
   return (
     <div className="space-y-6">
@@ -71,20 +88,24 @@ export default function TeamsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-            Teams Management
+            {isManager || isTeamLeader ? "My Team" : "Teams Management"}
           </h2>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Manage your organization's teams and their hierarchy
+            {isManager || isTeamLeader
+              ? "View your assigned team members, roles, and hierarchy"
+              : "Manage your organization's teams and their hierarchy"}
           </p>
         </div>
 
-        <button
-          onClick={() => setOpenCreateModal(true)}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600"
-        >
-          <Plus size={18} />
-          Create Team
-        </button>
+        {(isSuperAdmin || isAdmin) && (
+          <button
+            onClick={() => setOpenCreateModal(true)}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600"
+          >
+            <Plus size={18} />
+            Create Team
+          </button>
+        )}
       </div>
 
       {/* Table */}
@@ -168,20 +189,24 @@ export default function TeamsPage() {
                         >
                           <Eye size={16} />
                         </Link>
-                        <button
-                          onClick={() => setTeamToEdit(team)}
-                          title="Edit Team"
-                          className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 dark:border-gray-700 dark:text-gray-400 dark:hover:border-blue-800 dark:hover:bg-blue-500/10"
-                        >
-                          <Pencil size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(team._id, team.name)}
-                          title="Delete Team"
-                          className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:border-error-300 hover:bg-error-50 hover:text-error-600 dark:border-gray-700 dark:text-gray-400 dark:hover:border-error-800 dark:hover:bg-error-500/10"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        {(isSuperAdmin || isAdmin) && (
+                          <>
+                            <button
+                              onClick={() => setTeamToEdit(team)}
+                              title="Edit Team"
+                              className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 dark:border-gray-700 dark:text-gray-400 dark:hover:border-blue-800 dark:hover:bg-blue-500/10"
+                            >
+                              <Pencil size={16} />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(team._id, team.name)}
+                              title="Delete Team"
+                              className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:border-error-300 hover:bg-error-50 hover:text-error-600 dark:border-gray-700 dark:text-gray-400 dark:hover:border-error-800 dark:hover:bg-error-500/10"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

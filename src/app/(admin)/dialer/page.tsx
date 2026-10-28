@@ -167,20 +167,42 @@ export default function DialerPage() {
       }
     });
 
-    // 2. Count calls from logs and add any agents discovered in logs
+    // 2. Count calls from logs for team members (or discover agents for unrestricted admin)
     logs.forEach((log) => {
       const code = (log.agent_name || log.extension_no || "").trim();
       const name = (log.employee_code || "").trim();
-      const key = (name || code).toLowerCase();
+      const nameKey = name.toLowerCase();
+      const codeKey = code.toLowerCase();
 
-      if (key) {
-        if (!map.has(key)) {
-          map.set(key, { code, name: name || `Agent ${code}`, callCount: 1 });
-        } else {
-          const item = map.get(key)!;
+      let matched = false;
+      for (const [, item] of map.entries()) {
+        const itemCode = (item.code || "").toLowerCase();
+        const itemName = (item.name || "").toLowerCase();
+
+        if (
+          (code && itemCode && itemCode === codeKey) ||
+          (name &&
+            itemName &&
+            (itemName === nameKey ||
+              itemName.includes(nameKey) ||
+              nameKey.includes(itemName)))
+        ) {
           item.callCount += 1;
           if (!item.code && code) item.code = code;
-          if (!item.name && name) item.name = name;
+          matched = true;
+          break;
+        }
+      }
+
+      // Only for unrestricted admin (teamMembers is empty), discover outside agents
+      if (!matched && teamMembers.length === 0) {
+        const key = (name || code).toLowerCase();
+        if (key) {
+          if (!map.has(key)) {
+            map.set(key, { code, name: name || `Agent ${code}`, callCount: 1 });
+          } else {
+            map.get(key)!.callCount += 1;
+          }
         }
       }
     });
