@@ -5,6 +5,7 @@ import {
   Search,
   UserCheck,
   Zap,
+  Sparkles,
   Phone,
   Building,
   MapPin,
@@ -945,7 +946,7 @@ export default function AvailableRecordsTable({
               onClick={() => onOpenAllocateModal([], quickCount)}
               className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 transition active:scale-95 whitespace-nowrap"
             >
-              <Zap size={14} /> Allocate Top {quickCount.toLocaleString()}{" "}
+              <Sparkles size={14} /> Preview & Allocate Top {quickCount.toLocaleString()}{" "}
               {hasActiveFilters ? "Filtered" : ""}
             </button>
           </div>
