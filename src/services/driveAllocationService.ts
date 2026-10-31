@@ -97,6 +97,31 @@ export interface CustomFilterItem {
   maxAmount?: number;
 }
 
+export interface PreviewRecordsPayload {
+  sourceFileId: string;
+  count?: number;
+  city?: string;
+  state?: string;
+  year?: string;
+  category?: string;
+  cibilMin?: number;
+  lender?: string;
+  customColumn?: string;
+  customValue?: string;
+  minAmount?: number;
+  maxAmount?: number;
+  filters?: CustomFilterItem[] | string;
+}
+
+export interface PreviewRecordsResponse {
+  totalMatching: number;
+  selectedCount: number;
+  stateCounts: Record<string, number>;
+  records: DriveRecordItem[];
+  recordIds: string[];
+  headers: string[];
+}
+
 export interface AllocatePayload {
   sourceFileId: string;
   managerId: string;
@@ -267,6 +292,14 @@ export const driveAllocationService = {
     limit: number;
   }> {
     const res = await api.get("/drive-allocation/allocated", { params });
+    return res.data;
+  },
+
+  // Preview records with balanced state distribution
+  async previewRecords(
+    payload: PreviewRecordsPayload
+  ): Promise<PreviewRecordsResponse> {
+    const res = await api.post("/drive-allocation/preview", payload);
     return res.data;
   },
 

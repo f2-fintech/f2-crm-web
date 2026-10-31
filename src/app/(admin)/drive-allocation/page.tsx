@@ -469,31 +469,47 @@ export default function DriveAllocationPage() {
     remarks?: string;
     targetSheetName?: string;
     targetPageId?: string;
+    recordIds?: string[];
+    count?: number;
   }) => {
     if (!selectedFile) return;
     setAllocatingLoading(true);
     try {
+      const finalRecordIds =
+        payload.recordIds && payload.recordIds.length > 0
+          ? payload.recordIds
+          : allocatingIds.length > 0
+          ? allocatingIds
+          : undefined;
+
+      const finalCount =
+        finalRecordIds && finalRecordIds.length > 0
+          ? finalRecordIds.length
+          : payload.count !== undefined
+          ? payload.count
+          : allocatingCount;
+
       const res = await driveAllocationService.allocateRecords({
         sourceFileId: selectedFile.fileId,
         managerId: payload.managerId,
         employeeId: payload.employeeId,
-        recordIds: allocatingIds.length > 0 ? allocatingIds : undefined,
-        count: allocatingCount,
+        recordIds: finalRecordIds,
+        count: finalCount,
         remarks: payload.remarks,
         targetSheetName: payload.targetSheetName,
         targetPageId: payload.targetPageId,
-        city: allocatingIds.length === 0 ? (availableCity || undefined) : undefined,
-        state: allocatingIds.length === 0 ? (availableState || undefined) : undefined,
-        year: allocatingIds.length === 0 ? (availableYear || undefined) : undefined,
-        category: allocatingIds.length === 0 ? (availableCategory || undefined) : undefined,
-        cibilMin: allocatingIds.length === 0 ? availableCibilMin : undefined,
-        lender: allocatingIds.length === 0 ? (availableLender || undefined) : undefined,
-        customColumn: allocatingIds.length === 0 ? (availableCustomCol || undefined) : undefined,
-        customValue: allocatingIds.length === 0 ? (availableCustomVal || undefined) : undefined,
-        minAmount: allocatingIds.length === 0 ? availableMinAmount : undefined,
-        maxAmount: allocatingIds.length === 0 ? availableMaxAmount : undefined,
+        city: !finalRecordIds ? (availableCity || undefined) : undefined,
+        state: !finalRecordIds ? (availableState || undefined) : undefined,
+        year: !finalRecordIds ? (availableYear || undefined) : undefined,
+        category: !finalRecordIds ? (availableCategory || undefined) : undefined,
+        cibilMin: !finalRecordIds ? availableCibilMin : undefined,
+        lender: !finalRecordIds ? (availableLender || undefined) : undefined,
+        customColumn: !finalRecordIds ? (availableCustomCol || undefined) : undefined,
+        customValue: !finalRecordIds ? (availableCustomVal || undefined) : undefined,
+        minAmount: !finalRecordIds ? availableMinAmount : undefined,
+        maxAmount: !finalRecordIds ? availableMaxAmount : undefined,
         filters:
-          allocatingIds.length === 0
+          !finalRecordIds
             ? (() => {
                 const valid = availableFilters.filter(
                   (f) =>
@@ -955,15 +971,32 @@ export default function DriveAllocationPage() {
           allocatingIds.length > 0 ? allocatingIds.length : allocatingCount || 0
         }
         fileName={selectedFile?.fileName || "Drive File"}
+        fileId={selectedFile?.fileId}
         folderPath={selectedFile?.folderPath || "Root"}
         filtersSummary={{
           city: availableCity,
           state: availableState,
           year: availableYear,
           category: availableCategory,
+          cibilMin: availableCibilMin,
+          lender: availableLender,
+          customColumn: availableCustomCol,
+          customValue: availableCustomVal,
           minAmount: availableMinAmount,
           maxAmount: availableMaxAmount,
+          filters:
+            availableFilters.length > 0
+              ? availableFilters.filter(
+                  (f) =>
+                    Boolean(f.column && f.column.trim()) &&
+                    (Boolean(f.value && f.value.trim()) ||
+                      (f.values && f.values.length > 0) ||
+                      f.minAmount !== undefined ||
+                      f.maxAmount !== undefined)
+                )
+              : undefined,
         }}
+        selectedRecordIds={allocatingIds.length > 0 ? allocatingIds : undefined}
         onConfirm={handleConfirmAllocate}
         loading={allocatingLoading}
       />
