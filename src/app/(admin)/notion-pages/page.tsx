@@ -62,6 +62,7 @@ import TrashDialog from "@/components/notion/dialogs/TrashDialog";
 import ActivityLogDialog from "@/components/notion/dialogs/ActivityLogDialog";
 import NotionDispositionSelect from "@/components/notion/NotionDispositionSelect";
 import NotionSegmentFilterBar from "@/components/notion/NotionSegmentFilterBar";
+import NotionPhoneCell, { detectPhoneNumber } from "@/components/notion/NotionPhoneCell";
 import {
   DispositionCategory,
   getDispositionConfig,
@@ -1609,9 +1610,16 @@ export default function NotionPagesClientPage() {
 
                                   {pageColumns.map((col: any) => {
                                     const val = row[col.key];
+                                    const phoneInfo = detectPhoneNumber(val, col.name || col.key);
+
                                     return (
                                       <TableCell key={col.key} sx={bodyCell}>
-                                        {val ? (
+                                        {phoneInfo.isPhone ? (
+                                          <NotionPhoneCell
+                                            displayPhone={phoneInfo.displayPhone}
+                                            dialPhone={phoneInfo.dialPhone}
+                                          />
+                                        ) : val ? (
                                           String(val)
                                         ) : (
                                           <Box component="span" sx={{ color: c.textFaint }}>

@@ -84,7 +84,7 @@ export default function LeadsPage() {
           stats={stats}
           activeStatus={filters.filters.status || "ALL"}
           onCardClick={(status) => {
-            const updatedFilters = { ...filters.filters };
+            const updatedFilters: Record<string, any> = { ...filters.filters };
             if (!status || status === "ALL") {
               delete updatedFilters.status;
               filters.updateFilter("status", "");
@@ -134,9 +134,10 @@ export default function LeadsPage() {
           onFilter={() =>
             setOpenFilter(true)
           }
-          onImport={() =>
+          onBulkUpload={() =>
             setOpenUpload(true)
           }
+          onExport={() => {}}
           onRefresh={refresh}
           onSyncOms={async () => {
             const monthStr = window.prompt("Enter month to sync (YYYY-MM):", new Date().toISOString().slice(0, 7));
@@ -200,10 +201,18 @@ export default function LeadsPage() {
 
       <LeadFilters
         open={openFilter}
-        onClose={() =>
-          setOpenFilter(false)
-        }
-        {...filters}
+        onClose={() => setOpenFilter(false)}
+        filters={filters.filters}
+        onChange={filters.updateFilter}
+        onApply={() => {
+          applyFilters(filters.filters);
+          setOpenFilter(false);
+        }}
+        onReset={() => {
+          filters.resetFilters();
+          applyFilters({});
+          setOpenFilter(false);
+        }}
       />
 
       {/* Bulk Upload */}

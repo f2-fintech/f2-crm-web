@@ -42,22 +42,22 @@ export default function LeadTable({
   isDoctorView,
 }: LeadTableProps) {
   return (
-    <div className="w-full bg-white rounded-3xl border border-gray-100 shadow-[0_2px_20px_-10px_rgba(0,0,0,0.05)] overflow-hidden font-sans">
+    <div className="w-full bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden font-sans">
       <div className="overflow-x-auto">
         <table className="w-full text-left whitespace-nowrap">
-          <thead className="bg-gray-50/80 border-b border-gray-100">
+          <thead className="bg-slate-50/90 border-b border-slate-200/80">
             <tr>
-              <th className="px-5 py-4 text-xs font-black uppercase tracking-widest text-gray-500">T.ID</th>
-              <th className="px-5 py-4 text-xs font-black uppercase tracking-widest text-gray-500">Source</th>
-              <th className="px-5 py-4 text-xs font-black uppercase tracking-widest text-gray-500">Lead Type</th>
-              <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-gray-500">Customer Details</th>
-              <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-gray-500">Loan Request</th>
-              <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-gray-500">Provider & Status</th>
-              <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-gray-500">{isDoctorView ? "Information" : "Activity"}</th>
-              <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-gray-500 text-center">Actions</th>
+              <th className="px-5 py-3.5 text-[11px] font-black uppercase tracking-wider text-slate-500">T.ID</th>
+              <th className="px-5 py-3.5 text-[11px] font-black uppercase tracking-wider text-slate-500">Source</th>
+              <th className="px-5 py-3.5 text-[11px] font-black uppercase tracking-wider text-slate-500">Lead Type</th>
+              <th className="px-6 py-3.5 text-[11px] font-black uppercase tracking-wider text-slate-500">Customer Details</th>
+              <th className="px-6 py-3.5 text-[11px] font-black uppercase tracking-wider text-slate-500">Loan Request</th>
+              <th className="px-6 py-3.5 text-[11px] font-black uppercase tracking-wider text-slate-500">Provider & Status</th>
+              <th className="px-6 py-3.5 text-[11px] font-black uppercase tracking-wider text-slate-500">{isDoctorView ? "Information" : "Activity"}</th>
+              <th className="px-6 py-3.5 text-[11px] font-black uppercase tracking-wider text-slate-500 text-center">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody className="divide-y divide-slate-100">
             {loading ? (
               [...Array(5)].map((_, i) => (
                 <tr key={i} className="animate-pulse">
@@ -248,17 +248,19 @@ export default function LeadTable({
 
                     <td className="px-6 py-4">
                       <button 
+                        type="button"
                         onClick={() => onViewJourney?.(row)}
-                        className="flex items-center gap-2 group/btn"
+                        className="inline-flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-blue-50/70 hover:bg-blue-100/90 text-blue-700 border border-blue-200/60 shadow-2xs hover:shadow-xs transition-all cursor-pointer group/btn"
+                        title="View Full OMS Journey & Activity Trail"
                       >
-                        <div className="h-8 w-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center group-hover/btn:bg-blue-600 group-hover/btn:text-white transition-colors">
-                          {isDoctorView ? <User size={14} className="stroke-[3px]" /> : <Activity size={14} className="stroke-[3px]" />}
+                        <div className="h-7 w-7 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-2xs group-hover/btn:scale-105 transition-transform">
+                          {isDoctorView ? <User size={13} strokeWidth={2.5} /> : <Activity size={13} strokeWidth={2.5} />}
                         </div>
-                        <div className="flex flex-col items-start">
-                          <span className="text-xs font-bold text-gray-700 group-hover/btn:text-blue-600">
+                        <div className="flex flex-col items-start text-left">
+                          <span className="text-xs font-bold leading-tight group-hover/btn:text-blue-800">
                             {isDoctorView ? "Basic Details" : `${row.touchpointsCount || 0} Actions`}
                           </span>
-                          <span className="text-[10px] font-semibold text-gray-400">
+                          <span className="text-[10px] font-semibold text-blue-500/80 leading-tight">
                             {isDoctorView ? "View Info" : "View Journey"}
                           </span>
                         </div>
@@ -266,7 +268,7 @@ export default function LeadTable({
                     </td>
 
                     <td className="px-6 py-4 text-center">
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="opacity-80 group-hover:opacity-100 transition-opacity">
                         <LeadRowActions 
                           lead={row} 
                           onViewJourney={onViewJourney}

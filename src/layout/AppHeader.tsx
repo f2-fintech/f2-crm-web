@@ -101,7 +101,7 @@ const AppHeader: React.FC = () => {
   }, []);
 
   return (
-    <header className="sticky top-0 z-[9999] flex h-16 w-full items-center border-b border-gray-200 bg-white px-3 lg:px-6">
+    <header className="sticky top-0 z-30 flex h-16 w-full items-center border-b border-gray-200 bg-white px-3 lg:px-6">
       <div className="flex w-full items-center justify-between gap-3">
         {/* Left: sidebar toggle + page title */}
         <div className="flex items-center gap-3">
