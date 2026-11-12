@@ -16,6 +16,7 @@ import {
 } from "@mui/material";
 import { Plus, MoreHorizontal, Search, Table as TableIcon, FileText } from "lucide-react";
 import { notionColors } from "./NotionSidebar";
+import NotionPhoneCell, { detectPhoneNumber } from "./NotionPhoneCell";
 
 interface NotionPageViewProps {
   selectedPageTitle: string;
@@ -157,7 +158,19 @@ export default function NotionPageView({
                   {paginatedRows.map((row, idx) => (
                     <TableRow key={idx} sx={{ "&:hover": { bgcolor: notionColors.sidebarHover } }}>
                       <TableCell sx={{ color: notionColors.textMain, fontSize: "14px", fontWeight: 500, py: 1 }}>{row.col2 || row.id}</TableCell>
-                      <TableCell sx={{ color: notionColors.textMain, fontSize: "14px", py: 1 }}>{row.col1}</TableCell>
+                      <TableCell sx={{ color: notionColors.textMain, fontSize: "14px", py: 1 }}>
+                        {(() => {
+                          const phoneInfo = detectPhoneNumber(row.col1, "phone");
+                          return phoneInfo.isPhone ? (
+                            <NotionPhoneCell
+                              displayPhone={phoneInfo.displayPhone}
+                              dialPhone={phoneInfo.dialPhone}
+                            />
+                          ) : (
+                            row.col1 || "—"
+                          );
+                        })()}
+                      </TableCell>
                       <TableCell sx={{ color: notionColors.textMain, fontSize: "14px", py: 1 }}>{row.col4} {row.col6}</TableCell>
                       <TableCell sx={{ color: notionColors.textMuted, fontSize: "14px", py: 1 }}>{row.col3}</TableCell>
                       <TableCell sx={{ py: 1 }}>

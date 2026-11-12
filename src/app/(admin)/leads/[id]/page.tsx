@@ -88,8 +88,10 @@ export default function LeadDetailsPage() {
         <Stack
           direction={{ xs: 'column', md: 'row' }}
           spacing={2}
-          justifyContent="space-between"
-          alignItems={{ xs: 'stretch', md: 'center' }}
+          sx={{
+            justifyContent: 'space-between',
+            alignItems: { xs: 'stretch', md: 'center' },
+          }}
         >
           <Button
             startIcon={<ArrowBack />}
@@ -100,7 +102,7 @@ export default function LeadDetailsPage() {
             Back
           </Button>
 
-          <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }} useFlexGap alignItems="center">
+          <Stack direction="row" spacing={1.5} useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
             <AiLeadSummary leadId={id} />
 {/* 
             <Button
