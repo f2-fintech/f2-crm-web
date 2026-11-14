@@ -399,7 +399,11 @@ export default function NotionPagesClientPage() {
 
   const breadcrumbs = useMemo(() => {
     if (!selectedPageId) return [];
-    const allRoots = [...(treeData?.shared || []), ...(treeData?.private || [])];
+    const allRoots = [
+      ...(treeData?.shared || []),
+      ...(treeData?.workspace || []),
+      ...(treeData?.private || []),
+    ];
     return findPath(allRoots, selectedPageId) || [];
   }, [treeData, selectedPageId, findPath]);
 
@@ -1024,6 +1028,13 @@ export default function NotionPagesClientPage() {
             <Typography sx={{ px: 2, fontSize: "12.5px", color: c.textFaint }}>
               Nothing here yet
             </Typography>
+          )}
+
+          {Array.isArray(treeData?.workspace) && treeData.workspace.length > 0 && (
+            <Box sx={{ mt: 2.5 }}>
+              {sectionLabel("Workspace")}
+              {renderTreeNodes(treeData.workspace)}
+            </Box>
           )}
 
           <Box sx={{ mt: 2.5 }}>
