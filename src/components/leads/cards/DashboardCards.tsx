@@ -20,6 +20,8 @@ interface DashboardCardsProps {
       rejectedLeads?: number;
       followUpLeads?: number;
       disbursedLeads?: number;
+      notionLeads?: number;
+      dialerLeads?: number;
     };
     performance?: {
       todayLeads?: number;
@@ -95,10 +97,10 @@ export default function DashboardCards({ stats, onCardClick, activeStatus, varia
                 <item.Icon fontSize="small" />
               </Box>
               <Box>
-                <Typography variant="h6" fontWeight={700} color="#111827" mb={0.5} sx={{ lineHeight: 1 }}>
+                <Typography variant="h6" sx={{ fontWeight: 700, color: "#111827", mb: 0.5, lineHeight: 1 }}>
                   {item.value}
                 </Typography>
-                <Typography variant="caption" color="text.secondary" fontWeight={500} sx={{ display: 'block', lineHeight: 1 }}>
+                <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 500, display: "block", lineHeight: 1 }}>
                   {item.label}
                 </Typography>
               </Box>

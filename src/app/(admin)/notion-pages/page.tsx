@@ -121,9 +121,10 @@ function parseFeedback(notes?: string): FeedbackEntry[] {
 }
 
 function matchesQuery(node: NotionPageItem, q: string): boolean {
+  if (!node) return false;
   if (!q) return true;
   if (node.title?.toLowerCase().includes(q)) return true;
-  return (node.children || []).some((child) => matchesQuery(child, q));
+  return Array.isArray(node.children) && node.children.some((child) => matchesQuery(child, q));
 }
 
 /* ------------------------------------------------------------------ *
@@ -624,7 +625,8 @@ export default function NotionPagesClientPage() {
     if (!activePage || !selectedPageId) return;
     const remark = value.trim();
 
-    const updatedRows = [...activePage.rows];
+    const updatedRows = [...(activePage?.rows || [])];
+    if (!updatedRows[rowIndex]) return;
     const row = { ...updatedRows[rowIndex] };
 
     if ((row.feedback_notes || "") === remark) return;
@@ -701,11 +703,11 @@ export default function NotionPagesClientPage() {
 
   /* ---------------- derived ---------------- */
 
-  const pageColumns = activePage?.columns || [];
+  const pageColumns = Array.isArray(activePage?.columns) ? activePage.columns : [];
 
   const categoryCounts = useMemo(() => {
     const counts: Record<DispositionCategory, number> = {
-      ALL: rowsData.length,
+      ALL: Array.isArray(rowsData) ? rowsData.length : 0,
       INTERESTED: 0,
       FOLLOWUP: 0,
       RINGING: 0,
@@ -713,7 +715,8 @@ export default function NotionPagesClientPage() {
       PENDING: 0,
     };
 
-    rowsData.forEach((row) => {
+    (Array.isArray(rowsData) ? rowsData : []).forEach((row) => {
+      if (!row || typeof row !== "object") return;
       const cat = getDispositionConfig(row.disposition).category;
       counts[cat] = (counts[cat] || 0) + 1;
     });
@@ -723,13 +726,15 @@ export default function NotionPagesClientPage() {
 
   const filteredRows = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    return rowsData
+    const safeRows = Array.isArray(rowsData) ? rowsData : [];
+    return safeRows
       .map((row, i) => ({ row, i }))
       .filter(({ row }) => {
+        if (!row || typeof row !== "object") return false;
         // 1. Search Query
         if (q) {
           const inColumns = pageColumns.some((col: any) =>
-            String(row[col.key] ?? "").toLowerCase().includes(q)
+            col && col.key && String(row[col.key] ?? "").toLowerCase().includes(q)
           );
           const inDisp = String(row.disposition ?? "").toLowerCase().includes(q);
           const inRemarks = String(row.feedback_notes ?? "").toLowerCase().includes(q);
@@ -753,6 +758,7 @@ export default function NotionPagesClientPage() {
   const avatarColor = hashColor(currentUser?.firstName || "workspace");
 
   const paginatedRows = useMemo(() => {
+    if (!Array.isArray(filteredRows)) return [];
     return filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   }, [filteredRows, page, rowsPerPage]);
 
@@ -777,11 +783,12 @@ export default function NotionPagesClientPage() {
   /* ---------------- sidebar tree ---------------- */
 
   const renderTreeNodes = (nodes: NotionPageItem[], depth = 0) => {
+    if (!Array.isArray(nodes)) return null;
     const q = sidebarQuery.trim().toLowerCase();
     return nodes
-      .filter((node) => matchesQuery(node, q))
+      .filter((node) => node && matchesQuery(node, q))
       .map((node) => {
-        const nodeKey = node._id || node.id;
+        const nodeKey = node._id || node.id || `node-${Math.random()}`;
         const hasChildren = !!node.children?.length;
         const isExpanded = q ? true : expandedNodes[nodeKey] === true;
         const isSelected = selectedPageId === nodeKey;
@@ -1582,12 +1589,13 @@ export default function NotionPagesClientPage() {
                             ))
                           ) : (
                             paginatedRows.map(({ row, i }) => {
+                              if (!row) return null;
                               const isPending = isDispositionPending(row.disposition);
                               const dispConfig = getDispositionConfig(row.disposition);
 
                               return (
                                 <TableRow
-                                  key={row.id || i}
+                                  key={row.id || `row-${i}`}
                                   sx={{
                                     "&:hover": { bgcolor: c.hover },
                                     "&:last-child td": { borderBottom: 0 },
@@ -1609,17 +1617,18 @@ export default function NotionPagesClientPage() {
                                   </TableCell>
 
                                   {pageColumns.map((col: any) => {
+                                    if (!col) return null;
                                     const val = row[col.key];
                                     const phoneInfo = detectPhoneNumber(val, col.name || col.key);
 
                                     return (
-                                      <TableCell key={col.key} sx={bodyCell}>
+                                      <TableCell key={col.key || `col-${Math.random()}`} sx={bodyCell}>
                                         {phoneInfo.isPhone ? (
                                           <NotionPhoneCell
                                             displayPhone={phoneInfo.displayPhone}
                                             dialPhone={phoneInfo.dialPhone}
                                           />
-                                        ) : val ? (
+                                        ) : val !== undefined && val !== null && String(val).trim() !== "" ? (
                                           String(val)
                                         ) : (
                                           <Box component="span" sx={{ color: c.textFaint }}>

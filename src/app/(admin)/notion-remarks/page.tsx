@@ -107,54 +107,75 @@ export default function NotionAdminDashboard() {
     const teamMap: Record<string, { positive: number; negative: number; neutral: number; empty: number; total: number }> = {};
     const allRemarks: RemarkItem[] = [];
 
+    if (!Array.isArray(pages)) {
+      return {
+        teams: [],
+        totalLeads: 0,
+        positive: 0,
+        negative: 0,
+        neutral: 0,
+        empty: 0,
+        teamMap: {},
+        allRemarks: [],
+      };
+    }
+
     pages.forEach(page => {
-      teams.add(page.teamName);
-      if (!teamMap[page.teamName]) {
-        teamMap[page.teamName] = { positive: 0, negative: 0, neutral: 0, empty: 0, total: 0 };
+      if (!page) return;
+      const teamName = page.teamName || "Unassigned";
+      teams.add(teamName);
+      if (!teamMap[teamName]) {
+        teamMap[teamName] = { positive: 0, negative: 0, neutral: 0, empty: 0, total: 0 };
       }
       
-      totalLeads += page.totalRows || 0;
-      teamMap[page.teamName].total += page.totalRows || 0;
+      const pageTotal = Number(page.totalRows) || 0;
+      totalLeads += pageTotal;
+      teamMap[teamName].total += pageTotal;
       
-      empty += page.remarksEmpty || 0;
-      teamMap[page.teamName].empty += page.remarksEmpty || 0;
+      const pageEmpty = Number(page.remarksEmpty) || 0;
+      empty += pageEmpty;
+      teamMap[teamName].empty += pageEmpty;
 
-      page.rows.forEach(row => {
+      const safeRows = Array.isArray(page.rows) ? page.rows : [];
+      const remarkCols = Array.isArray(page.remarkColumnNames) ? page.remarkColumnNames : [];
+
+      safeRows.forEach(row => {
+        if (!row || typeof row !== "object") return;
         // Get remark value
-        const remarkText = page.remarkColumnNames
+        const remarkText = remarkCols
           .map(k => String(row[k] || ""))
           .find(v => v.trim() !== "") || row.feedback_notes || "";
           
         const disposition = row.disposition || row.Disposition || "";
         const textToAnalyze = remarkText || disposition;
 
-        // Get lead name
+        // Get lead name safely
         const leadName = Object.entries(row)
-          .filter(([k]) => !k.startsWith('_') && k !== 'id')
+          .filter(([k]) => k && !k.startsWith('_') && k !== 'id')
           .find(([k]) => k.toLowerCase().includes('name'))?.[1] 
-          || `Lead #${row._rowId?.slice(-4) || '?'}`;
+          || `Lead #${row._rowId ? String(row._rowId).slice(-4) : '?'}`;
 
-        const sentiment = classifyRemark(textToAnalyze);
+        const sentiment = classifyRemark(String(textToAnalyze || ""));
         if (sentiment === "positive") {
           positive++;
-          teamMap[page.teamName].positive++;
+          teamMap[teamName].positive++;
         } else if (sentiment === "negative") {
           negative++;
-          teamMap[page.teamName].negative++;
+          teamMap[teamName].negative++;
         } else if (sentiment === "neutral") {
           neutral++;
-          teamMap[page.teamName].neutral++;
+          teamMap[teamName].neutral++;
         }
 
         if (remarkText || disposition) {
           allRemarks.push({
-            team: page.teamName,
-            sheet: page.title,
-            assignedTo: page.assignedTo,
-            text: remarkText,
+            team: teamName,
+            sheet: page.title || "Untitled Sheet",
+            assignedTo: page.assignedTo || "Unassigned",
+            text: String(remarkText),
             sentiment,
             lead: String(leadName),
-            disposition,
+            disposition: String(disposition),
           });
         }
       });
@@ -203,14 +224,16 @@ export default function NotionAdminDashboard() {
 
   // ── Filtered & Paginated Sheets ─────────────────────────────────────────────
   const filteredPages = useMemo(() => {
+    if (!Array.isArray(pages)) return [];
     return pages.filter(p => {
-      if (selectedTeam !== "All" && p.teamName !== selectedTeam) return false;
+      if (!p) return false;
+      if (selectedTeam !== "All" && (p.teamName || "Unassigned") !== selectedTeam) return false;
       if (search) {
         const s = search.toLowerCase();
         return (
-          p.title.toLowerCase().includes(s) ||
-          p.teamName.toLowerCase().includes(s) ||
-          p.assignedTo.toLowerCase().includes(s)
+          (p.title && p.title.toLowerCase().includes(s)) ||
+          (p.teamName && p.teamName.toLowerCase().includes(s)) ||
+          (p.assignedTo && p.assignedTo.toLowerCase().includes(s))
         );
       }
       return true;
@@ -772,10 +795,12 @@ function SheetRowTable({
 }) {
   const [rowPage, setRowPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(15);
-  const total = page.rows.length;
+  const rows = Array.isArray(page?.rows) ? page.rows : [];
+  const remarkCols = Array.isArray(page?.remarkColumnNames) ? page.remarkColumnNames : [];
+  const total = rows.length;
   const totalPages = Math.max(1, Math.ceil(total / rowsPerPage));
   const currentPage = Math.min(rowPage, totalPages);
-  const pagedRows = page.rows.slice(
+  const pagedRows = rows.slice(
     (currentPage - 1) * rowsPerPage,
     currentPage * rowsPerPage
   );
@@ -787,18 +812,18 @@ function SheetRowTable({
           <thead className="sticky top-0 bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="px-4 py-3 font-bold text-xs uppercase text-slate-400 w-12 text-center">#</th>
-              {Object.keys(page.rows[0] || {})
+              {Object.keys(rows[0] || {})
                 .filter((k) => k !== "_rowId")
                 .map((col) => (
                   <th
                     key={col}
                     className={`px-4 py-3 font-bold text-xs uppercase tracking-wider whitespace-nowrap ${
-                      page.remarkColumnNames.includes(col)
+                      remarkCols.includes(col)
                         ? "text-indigo-600"
                         : "text-slate-500"
                     }`}
                   >
-                    {page.remarkColumnNames.includes(col) ? "💬 " : ""}
+                    {remarkCols.includes(col) ? "💬 " : ""}
                     {col}
                   </th>
                 ))}
@@ -808,26 +833,26 @@ function SheetRowTable({
             {pagedRows.map((row, idx) => {
               const globalIndex = (currentPage - 1) * rowsPerPage + idx + 1;
               const remarkText =
-                page.remarkColumnNames
-                  .map((k) => row[k] || "")
-                  .find((v) => String(v).trim() !== "") || row.feedback_notes || "";
+                remarkCols
+                  .map((k) => row?.[k] || "")
+                  .find((v) => String(v).trim() !== "") || row?.feedback_notes || "";
               const sentiment = classifyRemark(String(remarkText));
               return (
                 <tr key={idx} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3 text-xs font-mono text-slate-400 text-center">{globalIndex}</td>
-                  {Object.entries(row)
+                  {Object.entries(row || {})
                     .filter(([k]) => k !== "_rowId")
                     .map(([k, v]) => (
                       <td key={k} className="px-4 py-3 whitespace-nowrap">
-                        {page.remarkColumnNames.includes(k) ? (
+                        {remarkCols.includes(k) ? (
                           <div className="flex items-center gap-2">
                             <SentimentBadge s={sentiment} />
                             <span className="text-slate-700 font-medium text-xs max-w-[250px] truncate">
-                              {String(v) || "—"}
+                              {v !== undefined && v !== null ? String(v) : "—"}
                             </span>
                           </div>
                         ) : (
-                          <span className="text-slate-600 text-xs">{String(v) || "—"}</span>
+                          <span className="text-slate-600 text-xs">{v !== undefined && v !== null ? String(v) : "—"}</span>
                         )}
                       </td>
                     ))}
