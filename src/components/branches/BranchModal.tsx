@@ -125,7 +125,7 @@ export default function BranchModal({
               payload
             );
 
-      alert(res.data.message);
+      alert(res.data?.message || (mode === "create" ? "Branch created successfully" : "Branch updated successfully"));
 
       onSuccess();
 

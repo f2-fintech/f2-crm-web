@@ -233,6 +233,7 @@ export default function useLeads() {
     setLimit,
     setSearch,
     setFilters,
+    setLoading,
 
     // Methods
     refresh,

@@ -79,7 +79,7 @@ export default function LeadFollowUps({
           direction="row"
           justifyContent="space-between"
           alignItems="center"
-          mb={3}
+          sx={{ mb: 3 }}
         >
           <Typography variant="h6">
             Follow Ups
@@ -123,12 +123,12 @@ export default function LeadFollowUps({
                     justifyContent="space-between"
                     alignItems="flex-start"
                   >
-                    <Box flex={1}>
+                    <Box sx={{ flex: 1 }}>
                       <Stack
                         direction="row"
                         spacing={1}
                         alignItems="center"
-                        mb={2}
+                        sx={{ mb: 2 }}
                       >
                         <Chip
                           size="small"
@@ -161,7 +161,7 @@ export default function LeadFollowUps({
 
                       <Typography
                         color="text.secondary"
-                        mt={1}
+                        sx={{ mt: 1 }}
                       >
                         {item.remarks ||
                           "-"}

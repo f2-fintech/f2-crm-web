@@ -18,6 +18,7 @@ import {
   PersonAddAlt,
   PublishedWithChanges,
   Delete,
+  Timeline,
 } from "@mui/icons-material";
 
 import { useRouter } from "next/navigation";
@@ -28,6 +29,7 @@ interface LeadRowActionsProps {
   onAssign?: (lead: any) => void;
   onStatusChange?: (lead: any) => void;
   onDelete?: (lead: any) => void;
+  onViewJourney?: (lead: any) => void;
 }
 
 export default function LeadRowActions({
@@ -35,6 +37,7 @@ export default function LeadRowActions({
   onAssign,
   onStatusChange,
   onDelete,
+  onViewJourney,
 }: LeadRowActionsProps) {
   const router = useRouter();
 
@@ -66,11 +69,13 @@ export default function LeadRowActions({
         anchorEl={anchorEl}
         open={open}
         onClose={handleClose}
-        PaperProps={{
-          elevation: 3,
-          sx: {
-            minWidth: 220,
-            borderRadius: 2,
+        slotProps={{
+          paper: {
+            elevation: 3,
+            sx: {
+              minWidth: 220,
+              borderRadius: 2,
+            },
           },
         }}
       >
@@ -86,6 +91,21 @@ export default function LeadRowActions({
 
           <ListItemText>
             View Lead
+          </ListItemText>
+        </MenuItem>
+
+        {/* <MenuItem
+          onClick={() => {
+            onViewJourney?.(lead);
+            handleClose();
+          }}
+        >
+          <ListItemIcon>
+            <Timeline fontSize="small" sx={{ color: "#4f46e5" }} />
+          </ListItemIcon>
+
+          <ListItemText sx={{ color: "#4f46e5", fontWeight: 600 }}>
+            View Journey
           </ListItemText>
         </MenuItem>
 
@@ -136,7 +156,7 @@ export default function LeadRowActions({
           <ListItemText>
             Change Status
           </ListItemText>
-        </MenuItem>
+        </MenuItem> */}
 
         <Divider />
 

@@ -7,39 +7,46 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
 const menus = [
   {
     id: 1,
     title: "Chats",
     icon: MessageCircle,
-    active: true,
+    path: "/chat",
   },
   {
     id: 2,
     title: "Channels",
     icon: Users,
-    active: false,
+    path: "/channels",
   },
   {
     id: 3,
     title: "Contacts",
     icon: ContactRound,
-    active: false,
+    path: "/contacts",
   },
 ];
 
 const FooterMenu = () => {
+  const pathname = usePathname();
+
   return (
     <div className="flex h-full">
       {menus.map((item) => {
         const Icon = item.icon;
+        const isActive = pathname === item.path;
 
         return (
-          <button
+          <Link
             key={item.id}
+            href={item.path}
             className={clsx(
               "flex h-full w-24 flex-col items-center justify-center border-r border-gray-200 transition-all duration-200",
-              item.active
+              isActive
                 ? "bg-gray-100 text-indigo-600"
                 : "text-gray-500 hover:bg-gray-50 hover:text-indigo-600"
             )}
@@ -49,7 +56,7 @@ const FooterMenu = () => {
             <span className="mt-1 text-[11px] font-medium">
               {item.title}
             </span>
-          </button>
+          </Link>
         );
       })}
     </div>

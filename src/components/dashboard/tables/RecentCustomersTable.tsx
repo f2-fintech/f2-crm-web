@@ -72,7 +72,7 @@ export default function RecentCustomersTable({
       <CardContent>
         <Typography
           variant="h6"
-          mb={3}
+          sx={{ mb: 3 }}
         >
           Recent Customers
         </Typography>

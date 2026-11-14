@@ -45,5 +45,7 @@ export const useAuth = () => {
     isManager: role === ROLES.MANAGER,
     isTeamLeader: role === ROLES.TEAM_LEADER,
     isEmployee: role === ROLES.EMPLOYEE,
+    isSourcer: role === ROLES.SOURCER,
+    isChannelPartner: role === ROLES.CHANNEL_PARTNER,
   };
 };

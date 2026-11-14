@@ -36,6 +36,8 @@ interface LeadToolbarProps {
   onExport: () => void;
 
   onBulkUpload: () => void;
+
+  onSyncOms?: () => void;
 }
 
 export default function LeadToolbar({
@@ -46,6 +48,7 @@ export default function LeadToolbar({
   onFilter,
   onExport,
   onBulkUpload,
+  onSyncOms,
 }: LeadToolbarProps) {
   return (
     <Stack
@@ -54,12 +57,12 @@ export default function LeadToolbar({
         md: "row",
       }}
       spacing={2}
-      alignItems={{
-        xs: "stretch",
-        md: "center",
-      }}
-      justifyContent="space-between"
       sx={{
+        alignItems: {
+          xs: "stretch",
+          md: "center",
+        },
+        justifyContent: "space-between",
         mb: 3,
       }}
     >
@@ -80,14 +83,16 @@ export default function LeadToolbar({
             md: 350,
           },
         }}
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <Search
-                fontSize="small"
-              />
-            </InputAdornment>
-          ),
+        slotProps={{
+          input: {
+            startAdornment: (
+              <InputAdornment position="start">
+                <Search
+                  fontSize="small"
+                />
+              </InputAdornment>
+            ),
+          },
         }}
       />
 
@@ -96,7 +101,7 @@ export default function LeadToolbar({
       <Stack
         direction="row"
         spacing={1}
-        flexWrap="wrap"
+        sx={{ flexWrap: "wrap" }}
       >
         <Tooltip title="Refresh">
           <IconButton
@@ -118,7 +123,7 @@ export default function LeadToolbar({
           </IconButton>
         </Tooltip>
 
-        <Button
+        {/* <Button
           variant="outlined"
           startIcon={
             <Download />
@@ -128,9 +133,9 @@ export default function LeadToolbar({
           }
         >
           Export
-        </Button>
+        </Button> */}
 
-        <Button
+        {/* <Button
           variant="outlined"
           startIcon={
             <FileUpload />
@@ -140,15 +145,27 @@ export default function LeadToolbar({
           }
         >
           Bulk Upload
-        </Button>
+        </Button> */}
 
-        <Button
+        {/* <Button
+          variant="outlined"
+          startIcon={
+            <Refresh />
+          }
+          onClick={
+            onSyncOms
+          }
+        >
+          Sync OMS
+        </Button> */}
+
+        {/* <Button
           variant="contained"
           startIcon={<Add />}
           onClick={onCreate}
         >
           New Lead
-        </Button>
+        </Button> */}
       </Stack>
     </Stack>
   );

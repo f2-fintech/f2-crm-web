@@ -2,10 +2,10 @@
 
 import Chip from "@mui/material/Chip";
 
-import { LeadSource } from "@/types/leads/lead";
+import { LeadSource } from "@/types/lead";
 
 interface Props {
-  source: LeadSource;
+  source: LeadSource | string;
 }
 
 const sourceConfig: Record<
@@ -64,23 +64,39 @@ const sourceConfig: Record<
 
   OMS: {
     label: "OMS",
-    color: "error",
+    color: "success",
+  },
+
+  LENDGRID: {
+    label: "Lendgrid",
+    color: "secondary",
   },
 };
 
 export default function SourceChip({
   source,
 }: Props) {
-  const config =
-    sourceConfig[source] ??
-    sourceConfig.MANUAL;
+  const upperSource = (source || "").toUpperCase() as LeadSource;
+  const config = sourceConfig[upperSource];
+
+  if (config) {
+    return (
+      <Chip
+        size="small"
+        label={config.label}
+        color={config.color}
+        variant="outlined"
+      />
+    );
+  }
 
   return (
     <Chip
       size="small"
-      label={config.label}
-      color={config.color}
+      label={source || "Unknown"}
+      color="default"
       variant="outlined"
+      sx={{ textTransform: "capitalize" }}
     />
   );
 }

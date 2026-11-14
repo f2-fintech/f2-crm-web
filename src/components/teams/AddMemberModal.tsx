@@ -2,12 +2,21 @@
 
 import { useEffect, useState } from "react";
 import api from "@/lib/axios";
+import toast from "react-hot-toast";
+import SingleSelect from "@/components/ui/SingleSelect";
 
 interface AddMemberModalProps {
   open: boolean;
   teamId: string;
   onClose: () => void;
   onSuccess: () => void;
+}
+
+interface IUserOption {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
 }
 
 export default function AddMemberModal({
@@ -17,14 +26,11 @@ export default function AddMemberModal({
   onSuccess,
 }: AddMemberModalProps) {
   const [loading, setLoading] = useState(false);
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<IUserOption[]>([]);
   
-  // We can fetch existing team members to populate the 'Reports To' dropdown
-  // For simplicity, we might just fetch all users or use the team's hierarchy to flatten members.
-  // But let's just fetch users.
   const fetchUsers = async () => {
     try {
-      const res = await api.get("/users?limit=100");
+      const res = await api.get("/users?limit=200");
       let usersList = [];
       if (Array.isArray(res.data)) {
         usersList = res.data;
@@ -52,16 +58,6 @@ export default function AddMemberModal({
     reportsTo: "",
   });
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLSelectElement>
-  ) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
   const handleClose = () => {
     setForm({
       userId: "",
@@ -72,7 +68,7 @@ export default function AddMemberModal({
 
   const handleSubmit = async () => {
     if (!form.userId) {
-      alert("Please select a user to add.");
+      toast.error("Please select a user to add.");
       return;
     }
 
@@ -85,12 +81,12 @@ export default function AddMemberModal({
       }
 
       await api.post(`/teams/${teamId}/members`, payload);
-      alert("Member added successfully");
+      toast.success("Member added successfully");
       onSuccess();
       handleClose();
     } catch (err: any) {
       console.error(err);
-      alert(
+      toast.error(
         err?.response?.data?.message ||
           "Something went wrong while adding the member."
       );
@@ -101,74 +97,65 @@ export default function AddMemberModal({
 
   if (!open) return null;
 
+  const userOptions = users.map(u => ({
+    value: u._id,
+    label: `${u.firstName} ${u.lastName} (${u.email})`
+  }));
+
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity"
       onClick={handleClose}
     >
       <div
-        className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl bg-white p-6 dark:bg-gray-900 border dark:border-gray-800"
+        className="w-full max-w-lg max-h-[90vh] overflow-visible rounded-2xl bg-white shadow-2xl dark:bg-gray-900 border border-gray-100 dark:border-gray-800 flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-xl font-semibold dark:text-white">Add Team Member</h2>
-
+        <div className="flex items-center justify-between border-b px-6 py-5 dark:border-gray-800">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Add Team Member</h2>
+            <p className="text-sm text-gray-500 mt-1">Search and assign an employee to this team.</p>
+          </div>
           <button
             onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300 transition-colors"
             aria-label="Close"
           >
             ✕
           </button>
         </div>
 
-        <div className="flex flex-col gap-5">
-          <div>
-            <label className="mb-2 block text-sm font-medium dark:text-gray-300">
-              Select User <span className="text-error-500">*</span>
-            </label>
-            <select
-              name="userId"
-              value={form.userId}
-              onChange={handleChange}
-              className="w-full rounded-lg border p-3 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
-            >
-              <option value="">Select User</option>
-              {users.map((user) => (
-                <option key={user._id} value={user._id}>
-                  {user.firstName} {user.lastName} ({user.email})
-                </option>
-              ))}
-            </select>
-          </div>
+        <div className="flex-1 overflow-visible px-6 py-6">
+          <div className="flex flex-col gap-5">
+            <div>
+              <SingleSelect
+                label="Select User *"
+                options={userOptions}
+                value={form.userId}
+                onChange={(val) => setForm(prev => ({ ...prev, userId: val }))}
+                placeholder="Search employee..."
+              />
+            </div>
 
-          <div>
-            <label className="mb-2 block text-sm font-medium dark:text-gray-300">
-              Reports To (Optional)
-            </label>
-            <select
-              name="reportsTo"
-              value={form.reportsTo}
-              onChange={handleChange}
-              className="w-full rounded-lg border p-3 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
-            >
-              <option value="">Select Manager/Leader</option>
-              {users.map((user) => (
-                <option key={user._id} value={user._id}>
-                  {user.firstName} {user.lastName}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-xs text-gray-500">
-              Leave blank to report directly to the team manager.
-            </p>
+            <div>
+              <SingleSelect
+                label="Reports To (Optional)"
+                options={userOptions}
+                value={form.reportsTo}
+                onChange={(val) => setForm(prev => ({ ...prev, reportsTo: val }))}
+                placeholder="Search manager/TL..."
+              />
+              <p className="mt-2 text-xs text-gray-500">
+                Leave empty to use default team hierarchy reporting.
+              </p>
+            </div>
           </div>
         </div>
 
-        <div className="mt-8 flex justify-end gap-3">
+        <div className="flex items-center justify-end gap-3 border-t bg-gray-50 px-6 py-4 dark:border-gray-800 dark:bg-gray-800/50 rounded-b-2xl">
           <button
             onClick={handleClose}
-            className="rounded-lg border px-5 py-2 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+            className="rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-600 shadow-sm transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
           >
             Cancel
           </button>
@@ -177,9 +164,19 @@ export default function AddMemberModal({
             type="button"
             onClick={handleSubmit}
             disabled={loading}
-            className="rounded-lg bg-brand-500 px-6 py-2 text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-xl bg-brand-500 px-6 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500/50 disabled:cursor-not-allowed disabled:opacity-60 flex items-center gap-2"
           >
-            {loading ? "Adding..." : "Add Member"}
+            {loading ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Adding...
+              </>
+            ) : (
+              "Add Member"
+            )}
           </button>
         </div>
       </div>

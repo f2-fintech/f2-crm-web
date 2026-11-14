@@ -186,9 +186,77 @@ export default function useNotionPages() {
     }
   };
 
-  useEffect(() => {
-    fetchTree();
-  }, [fetchTree]);
+  // 9. Delete Page directly in MongoDB
+  const deletePage = async (pageId: string) => {
+    try {
+      setLoading(true);
+      const response = await api.delete(`/notion-pages/${pageId}`);
+      const res = unpackData(response);
+      await fetchTree();
+      setSelectedPageId(null);
+      setActivePage(null);
+      return res;
+    } catch (err: any) {
+      console.error("Error deleting page:", err);
+      setError(err?.response?.data?.message || "Failed to delete page");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 10. Assign Page to Employee directly in MongoDB
+  const assignPage = async (pageId: string, assignedMemberId: string) => {
+    try {
+      setLoading(true);
+      const response = await api.patch(`/notion-pages/${pageId}`, { assignedMemberId });
+      const updatedDoc = unpackData(response);
+      setActivePage(updatedDoc);
+      await fetchTree();
+      return updatedDoc;
+    } catch (err: any) {
+      console.error("Error assigning page:", err);
+      setError(err?.response?.data?.message || "Failed to assign page");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 11. Fetch Deleted Pages
+  const fetchDeletedPages = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/notion-pages/deleted');
+      return unpackData(response);
+    } catch (err: any) {
+      console.error("Error fetching deleted pages:", err);
+      setError(err?.response?.data?.message || "Failed to fetch deleted pages");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 12. Restore Page
+  const restorePage = async (pageId: string) => {
+    try {
+      setLoading(true);
+      const response = await api.patch(`/notion-pages/${pageId}/restore`);
+      const res = unpackData(response);
+      await fetchTree();
+      return res;
+    } catch (err: any) {
+      console.error("Error restoring page:", err);
+      setError(err?.response?.data?.message || "Failed to restore page");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Removed automatic fetchTree on mount to prevent double calls. 
+  // Components should call fetchTree() manually if they need the tree on load.
 
   return {
     loading,
@@ -204,6 +272,10 @@ export default function useNotionPages() {
     cloneFormat,
     addRecord,
     updatePageTitle,
+    deletePage,
+    assignPage,
+    fetchDeletedPages,
+    restorePage,
     setSelectedPageId,
     setActivePage,
   };

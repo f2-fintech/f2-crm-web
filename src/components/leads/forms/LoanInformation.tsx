@@ -45,7 +45,7 @@ export default function LoanInformation({
       <CardContent>
         <Typography
           variant="h6"
-          mb={3}
+          sx={{ mb: 3 }}
         >
           Loan Information
         </Typography>

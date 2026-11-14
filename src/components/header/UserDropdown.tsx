@@ -14,6 +14,7 @@ interface User {
   roleId?: {
     displayName: string;
   };
+  role?: string;
 }
 
 const getInitials = (firstName?: string, lastName?: string) => {
@@ -108,7 +109,7 @@ export default function UserDropdown() {
           </div>
         )}
 
-        <span className="block mr-1 font-medium text-theme-sm">
+        <span className="hidden sm:block mr-1 font-medium text-theme-sm">
           {user
             ? `${user.firstName} ${user.lastName}`
             : "Guest"}
@@ -136,7 +137,7 @@ export default function UserDropdown() {
       <Dropdown
         isOpen={isOpen}
         onClose={closeDropdown}
-        className="absolute right-0 mt-[17px] flex w-[260px] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark"
+        className="absolute right-0 mt-[17px] flex w-64 max-w-[calc(100vw-24px)] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark"
       >
         <div>
           <span className="block font-medium text-gray-700 text-theme-sm dark:text-gray-400">
@@ -147,11 +148,15 @@ export default function UserDropdown() {
             {user?.email}
           </span>
 
-          {user?.roleId?.displayName && (
+          {user?.role ? (
+            <span className="mt-1 block text-theme-xs text-brand-500 capitalize">
+              {String(user.role).toLowerCase().replace('_', ' ')}
+            </span>
+          ) : user?.roleId?.displayName ? (
             <span className="mt-1 block text-theme-xs text-brand-500">
               {user.roleId.displayName}
             </span>
-          )}
+          ) : null}
         </div>
 
         <ul className="flex flex-col gap-1 pt-4 pb-3 border-b border-gray-200 dark:border-gray-800">
