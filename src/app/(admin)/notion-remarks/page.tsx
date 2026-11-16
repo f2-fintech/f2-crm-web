@@ -43,7 +43,7 @@ function classifyRemark(text: string): "positive" | "negative" | "neutral" | "em
   if (!text || text.trim() === "" || text.trim() === "-") return "empty";
   const t = text.toLowerCase();
   const neg = [
-    'not interested', 'wrong number', 'fake', 'no response', 'not picking', 
+    'not interested', 'not eligible', 'ineligible', 'wrong number', 'fake', 'no response', 'not picking', 
     'switch off', 'switched off', 'busy', 'hang up', 'abusive', 'block', 
     'reject', 'invalid', 'call cut', 'cut'
   ];

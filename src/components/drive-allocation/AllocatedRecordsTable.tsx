@@ -435,7 +435,7 @@ export default function AllocatedRecordsTable({
                                   className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                                     ["Interested", "Login", "Follow up"].includes(r.disposition)
                                       ? "bg-emerald-100 text-emerald-800"
-                                      : ["Not interested", "Switch off", "Call cut", "Wrong number"].includes(r.disposition)
+                                      : ["Not interested", "Not eligible", "Switch off", "Call cut", "Wrong number"].includes(r.disposition)
                                       ? "bg-rose-100 text-rose-800"
                                       : "bg-amber-100 text-amber-800"
                                   }`}

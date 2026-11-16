@@ -431,7 +431,7 @@ export default function AllocationHistoryTable({
                           {Object.entries(log.dispositionSummary).map(([disp, count]) => {
                             if (!disp || (disp === "Pending" && count === 0)) return null;
                             const isPos = ["Interested", "Login", "Follow up"].includes(disp);
-                            const isNeg = ["Not interested", "Switch off", "Call cut", "Wrong number"].includes(disp);
+                            const isNeg = ["Not interested", "Not eligible", "Switch off", "Call cut", "Wrong number"].includes(disp);
                             return (
                               <span
                                 key={disp}
@@ -581,7 +581,7 @@ export default function AllocationHistoryTable({
                                 className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
                                   ["Interested", "Login", "Follow up"].includes(r.disposition)
                                     ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                                    : ["Not interested", "Switch off", "Call cut", "Wrong number"].includes(r.disposition)
+                                    : ["Not interested", "Not eligible", "Switch off", "Call cut", "Wrong number"].includes(r.disposition)
                                     ? "bg-rose-100 text-rose-800 border border-rose-200"
                                     : "bg-amber-100 text-amber-800 border border-amber-200"
                                 }`}
