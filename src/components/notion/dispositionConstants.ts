@@ -80,6 +80,15 @@ export const DISPOSITION_CONFIGS: Record<string, DispositionItemConfig> = {
     dot: "#ef4444",
     category: "NOT_INTERESTED",
   },
+  "Not eligible": {
+    value: "Not eligible",
+    label: "Not eligible",
+    bg: "#ffedd5",
+    text: "#c2410c",
+    border: "#fed7aa",
+    dot: "#ea580c",
+    category: "NOT_INTERESTED",
+  },
   "Switch off": {
     value: "Switch off",
     label: "Switch off",
@@ -141,6 +150,9 @@ export function getDispositionConfig(val?: string | null): DispositionItemConfig
   if (
     lower.startsWith("not") ||
     lower.includes("not interested") ||
+    lower.includes("not eligible") ||
+    lower.includes("ineligible") ||
+    lower.includes("eligible") ||
     lower.includes("switch off") ||
     lower.includes("call cut") ||
     lower.includes("reject") ||
@@ -148,6 +160,7 @@ export function getDispositionConfig(val?: string | null): DispositionItemConfig
     lower.includes("invalid") ||
     lower.includes("wrong")
   ) {
+    if (lower.includes("eligible") || lower.includes("ineligible")) return DISPOSITION_CONFIGS["Not eligible"];
     if (lower.includes("switch")) return DISPOSITION_CONFIGS["Switch off"];
     if (lower.includes("cut")) return DISPOSITION_CONFIGS["Call cut"];
     if (lower.includes("connected")) return DISPOSITION_CONFIGS["Not connected"];
