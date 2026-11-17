@@ -6,7 +6,8 @@ import {
   LayoutDashboard, Users, FileSpreadsheet, MessageSquare,
   TrendingUp, CheckCircle2, XCircle, Clock, Search,
   ChevronDown, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight,
-  BarChart2, RefreshCw, AlertCircle, X
+  BarChart2, RefreshCw, AlertCircle, X, Flame, Phone, MessageCircle,
+  Copy, Check, Sparkles, Filter, ExternalLink, UserCheck
 } from "lucide-react";
 import api from "@/lib/axios";
 
@@ -29,16 +30,32 @@ interface SheetPage {
 }
 
 interface RemarkItem {
+  id: string;
   team: string;
   sheet: string;
+  sheetId: string;
   assignedTo: string;
   text: string;
   sentiment: "positive" | "negative" | "neutral" | "empty";
   lead: string;
+  phone: string;
+  cleanPhone: string;
   disposition: string;
+  isHot: boolean;
+  isFollowup: boolean;
+  hasNote: boolean;
 }
 
-// ─── Remark Classifier ────────────────────────────────────────────────────────
+interface CallerStat {
+  name: string;
+  team: string;
+  hot: number;
+  followup: number;
+  withNotes: number;
+  totalWorked: number;
+}
+
+// ─── Remark & Disposition Classifiers ──────────────────────────────────────────
 function classifyRemark(text: string): "positive" | "negative" | "neutral" | "empty" {
   if (!text || text.trim() === "" || text.trim() === "-") return "empty";
   const t = text.toLowerCase();
@@ -57,6 +74,41 @@ function classifyRemark(text: string): "positive" | "negative" | "neutral" | "em
   return "neutral";
 }
 
+function isHotDisposition(disp: string, text: string): boolean {
+  const d = (disp || "").toLowerCase().trim();
+  const t = (text || "").toLowerCase().trim();
+  if (d.includes("not interested") || d.includes("not eligible")) return false;
+  return (
+    d === "interested" ||
+    d === "login" ||
+    d.includes("interested") ||
+    d.includes("login") ||
+    t.includes("interested") ||
+    t.includes("login")
+  );
+}
+
+function isFollowupDisposition(disp: string, text: string): boolean {
+  const d = (disp || "").toLowerCase().trim();
+  const t = (text || "").toLowerCase().trim();
+  return (
+    d.includes("follow up") ||
+    d.includes("followup") ||
+    d.includes("call back") ||
+    d.includes("callback") ||
+    d.includes("meeting") ||
+    t.includes("follow up") ||
+    t.includes("call back")
+  );
+}
+
+function formatPhoneDisplay(clean: string, raw: string): string {
+  if (clean.length === 10) {
+    return `+91 ${clean.slice(0, 5)} ${clean.slice(5)}`;
+  }
+  return raw || clean;
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function NotionAdminDashboard() {
   const [pages, setPages] = useState<SheetPage[]>([]);
@@ -73,11 +125,13 @@ export default function NotionAdminDashboard() {
   const [sheetsPage, setSheetsPage] = useState(1);
   const [sheetsPerPage, setSheetsPerPage] = useState(8);
 
-  // Remarks Feed State & Pagination
-  const [remarkFilter, setRemarkFilter] = useState<"all" | "positive" | "negative" | "neutral">("all");
+  // Action Hub State & Pagination
+  const [actionFilter, setActionFilter] = useState<"all_actionable" | "hot" | "followup" | "notes" | "all">("all_actionable");
+  const [callerFilter, setCallerFilter] = useState<string>("All");
   const [remarksSearch, setRemarksSearch] = useState("");
   const [remarksPage, setRemarksPage] = useState(1);
-  const [remarksPerPage, setRemarksPerPage] = useState(25);
+  const [remarksPerPage, setRemarksPerPage] = useState(20);
+  const [copiedPhone, setCopiedPhone] = useState<string | null>(null);
 
   const fetchData = async () => {
     try {
@@ -100,11 +154,22 @@ export default function NotionAdminDashboard() {
     fetchData();
   }, []);
 
+  const handleCopy = (phone: string) => {
+    if (!phone) return;
+    navigator.clipboard.writeText(phone);
+    setCopiedPhone(phone);
+    setTimeout(() => {
+      setCopiedPhone(prev => (prev === phone ? null : prev));
+    }, 2000);
+  };
+
   // ── Derived Analytics ──────────────────────────────────────────────────────
   const analytics = useMemo(() => {
     const teams = new Set<string>();
     let totalLeads = 0, positive = 0, negative = 0, neutral = 0, empty = 0;
+    let hotCount = 0, followupCount = 0, notesCount = 0;
     const teamMap: Record<string, { positive: number; negative: number; neutral: number; empty: number; total: number }> = {};
+    const callerMap: Record<string, CallerStat> = {};
     const allRemarks: RemarkItem[] = [];
 
     if (!Array.isArray(pages)) {
@@ -115,6 +180,10 @@ export default function NotionAdminDashboard() {
         negative: 0,
         neutral: 0,
         empty: 0,
+        hotCount: 0,
+        followupCount: 0,
+        notesCount: 0,
+        callerStats: [],
         teamMap: {},
         allRemarks: [],
       };
@@ -128,32 +197,100 @@ export default function NotionAdminDashboard() {
         teamMap[teamName] = { positive: 0, negative: 0, neutral: 0, empty: 0, total: 0 };
       }
       
-      const pageTotal = Number(page.totalRows) || 0;
+      const pageTotal = Number(page.totalRows) || (Array.isArray(page.rows) ? page.rows.length : 0);
+      const pageFilled = Number(page.remarksFilled) || 0;
+      const pageEmpty = Number(page.remarksEmpty) || Math.max(0, pageTotal - pageFilled);
+
       totalLeads += pageTotal;
       teamMap[teamName].total += pageTotal;
       
-      const pageEmpty = Number(page.remarksEmpty) || 0;
       empty += pageEmpty;
       teamMap[teamName].empty += pageEmpty;
 
       const safeRows = Array.isArray(page.rows) ? page.rows : [];
       const remarkCols = Array.isArray(page.remarkColumnNames) ? page.remarkColumnNames : [];
 
-      safeRows.forEach(row => {
+      safeRows.forEach((row, rowIdx) => {
         if (!row || typeof row !== "object") return;
-        // Get remark value
-        const remarkText = remarkCols
-          .map(k => String(row[k] || ""))
-          .find(v => v.trim() !== "") || row.feedback_notes || "";
-          
-        const disposition = row.disposition || row.Disposition || "";
+        
+        // 1. Get real remark text from feedback_notes or dynamic remark columns (NEVER from disposition)
+        let remarkText = "";
+        if (row.feedback_notes && String(row.feedback_notes).trim()) {
+          remarkText = String(row.feedback_notes).trim();
+        } else if (row.Remarks && String(row.Remarks).trim()) {
+          remarkText = String(row.Remarks).trim();
+        } else if (row.remarks && String(row.remarks).trim()) {
+          remarkText = String(row.remarks).trim();
+        } else {
+          const found = remarkCols
+            .filter(k => k && k.toLowerCase() !== "disposition")
+            .map(k => String(row[k] || "").trim())
+            .find(v => v !== "");
+          if (found) remarkText = found;
+        }
+
+        const disposition = String(row.disposition || row.Disposition || "").trim();
         const textToAnalyze = remarkText || disposition;
 
-        // Get lead name safely
-        const leadName = Object.entries(row)
-          .filter(([k]) => k && !k.startsWith('_') && k !== 'id')
-          .find(([k]) => k.toLowerCase().includes('name'))?.[1] 
-          || `Lead #${row._rowId ? String(row._rowId).slice(-4) : '?'}`;
+        // 2. Extract Lead Phone
+        let rawPhone = "";
+        for (const [k, v] of Object.entries(row)) {
+          if (!k || k.startsWith("_") || !v) continue;
+          const kl = k.toLowerCase().replace(/[^a-z0-9]/g, "");
+          if (
+            kl.includes("mobile") ||
+            kl.includes("phone") ||
+            kl.includes("contact") ||
+            kl.includes("whatsapp") ||
+            kl.includes("mob")
+          ) {
+            rawPhone = String(v).trim();
+            break;
+          }
+        }
+        if (!rawPhone) {
+          for (const v of Object.values(row)) {
+            if (!v) continue;
+            const digits = String(v).replace(/\D/g, "");
+            if (digits.length === 10 || (digits.length === 12 && digits.startsWith("91"))) {
+              rawPhone = String(v).trim();
+              break;
+            }
+          }
+        }
+        const digitsOnly = rawPhone.replace(/\D/g, "");
+        const cleanPhone = digitsOnly.length === 12 && digitsOnly.startsWith("91") ? digitsOnly.slice(2) : digitsOnly;
+
+        // 3. Extract Lead Name
+        let leadName = "";
+        for (const [k, v] of Object.entries(row)) {
+          if (!k || k.startsWith("_") || !v) continue;
+          const kl = k.toLowerCase().replace(/[^a-z0-9]/g, "");
+          if (
+            kl === "id" ||
+            kl === "disposition" ||
+            kl.includes("remark") ||
+            kl.includes("note") ||
+            kl.includes("feedback") ||
+            kl.includes("phone") ||
+            kl.includes("mobile")
+          ) {
+            continue;
+          }
+          if (
+            kl.includes("name") ||
+            kl.includes("candidate") ||
+            kl.includes("customer") ||
+            kl.includes("client") ||
+            kl.includes("lead")
+          ) {
+            leadName = String(v).trim();
+            break;
+          }
+        }
+        if (!leadName) {
+          leadName = row.Name || row.name || row.CANDIDATE_NAME || `Lead #${row._rowId ? String(row._rowId).slice(-4) : rowIdx + 1}`;
+        }
 
         const sentiment = classifyRemark(String(textToAnalyze || ""));
         if (sentiment === "positive") {
@@ -167,18 +304,60 @@ export default function NotionAdminDashboard() {
           teamMap[teamName].neutral++;
         }
 
+        const hasNote = Boolean(remarkText && remarkText.trim() !== "");
+        const isHot = isHotDisposition(disposition, remarkText);
+        const isFollowup = !isHot && isFollowupDisposition(disposition, remarkText);
+
+        if (isHot) hotCount++;
+        if (isFollowup) followupCount++;
+        if (hasNote) notesCount++;
+
+        // Caller Stats
+        const callerName = page.assignedTo || "Unassigned";
+        if (callerName && callerName !== "Unassigned") {
+          if (!callerMap[callerName]) {
+            callerMap[callerName] = {
+              name: callerName,
+              team: teamName,
+              hot: 0,
+              followup: 0,
+              withNotes: 0,
+              totalWorked: 0,
+            };
+          }
+          if (remarkText || disposition) {
+            callerMap[callerName].totalWorked++;
+            if (isHot) callerMap[callerName].hot++;
+            if (isFollowup) callerMap[callerName].followup++;
+            if (hasNote) callerMap[callerName].withNotes++;
+          }
+        }
+
         if (remarkText || disposition) {
           allRemarks.push({
+            id: `${page._id}-${row._rowId || rowIdx}`,
             team: teamName,
             sheet: page.title || "Untitled Sheet",
-            assignedTo: page.assignedTo || "Unassigned",
+            sheetId: page._id,
+            assignedTo: callerName,
             text: String(remarkText),
             sentiment,
             lead: String(leadName),
+            phone: rawPhone,
+            cleanPhone,
             disposition: String(disposition),
+            isHot,
+            isFollowup,
+            hasNote,
           });
         }
       });
+    });
+
+    const callerStats = Object.values(callerMap).sort((a, b) => {
+      const scoreA = a.hot * 5 + a.followup * 2 + a.totalWorked;
+      const scoreB = b.hot * 5 + b.followup * 2 + b.totalWorked;
+      return scoreB - scoreA;
     });
 
     return {
@@ -188,6 +367,10 @@ export default function NotionAdminDashboard() {
       negative,
       neutral,
       empty,
+      hotCount,
+      followupCount,
+      notesCount,
+      callerStats,
       teamMap,
       allRemarks,
     };
@@ -248,31 +431,41 @@ export default function NotionAdminDashboard() {
     return filteredPages.slice(start, start + sheetsPerPage);
   }, [filteredPages, currentSheetsPage, sheetsPerPage]);
 
-  // ── Filtered & Paginated Remarks ───────────────────────────────────────────
-  const filteredRemarks = useMemo(() => {
+  // ── Filtered & Paginated Action Hub Leads ───────────────────────────────────
+  const filteredActionLeads = useMemo(() => {
     return analytics.allRemarks.filter(r => {
-      if (remarkFilter !== "all" && r.sentiment !== remarkFilter) return false;
+      // 1. Caller Filter
+      if (callerFilter !== "All" && r.assignedTo !== callerFilter) return false;
+
+      // 2. Action Category Filter
+      if (actionFilter === "all_actionable" && !r.isHot && !r.isFollowup) return false;
+      if (actionFilter === "hot" && !r.isHot) return false;
+      if (actionFilter === "followup" && !r.isFollowup) return false;
+      if (actionFilter === "notes" && !r.hasNote) return false;
+
+      // 3. Search Query Filter
       if (remarksSearch.trim()) {
         const q = remarksSearch.toLowerCase().trim();
         const inLead = r.lead.toLowerCase().includes(q);
+        const inPhone = r.phone.toLowerCase().includes(q) || r.cleanPhone.includes(q);
         const inText = r.text.toLowerCase().includes(q);
         const inDisp = (r.disposition || "").toLowerCase().includes(q);
         const inSheet = r.sheet.toLowerCase().includes(q);
         const inTeam = r.team.toLowerCase().includes(q);
         const inAssigned = r.assignedTo.toLowerCase().includes(q);
-        if (!inLead && !inText && !inDisp && !inSheet && !inTeam && !inAssigned) return false;
+        if (!inLead && !inPhone && !inText && !inDisp && !inSheet && !inTeam && !inAssigned) return false;
       }
       return true;
     });
-  }, [analytics.allRemarks, remarkFilter, remarksSearch]);
+  }, [analytics.allRemarks, actionFilter, callerFilter, remarksSearch]);
 
-  const totalRemarks = filteredRemarks.length;
-  const totalRemarksPages = Math.max(1, Math.ceil(totalRemarks / remarksPerPage));
-  const currentRemarksPage = Math.min(remarksPage, totalRemarksPages);
-  const pagedRemarks = useMemo(() => {
-    const start = (currentRemarksPage - 1) * remarksPerPage;
-    return filteredRemarks.slice(start, start + remarksPerPage);
-  }, [filteredRemarks, currentRemarksPage, remarksPerPage]);
+  const totalActionLeads = filteredActionLeads.length;
+  const totalActionPages = Math.max(1, Math.ceil(totalActionLeads / remarksPerPage));
+  const currentActionPage = Math.min(remarksPage, totalActionPages);
+  const pagedActionLeads = useMemo(() => {
+    const start = (currentActionPage - 1) * remarksPerPage;
+    return filteredActionLeads.slice(start, start + remarksPerPage);
+  }, [filteredActionLeads, currentActionPage, remarksPerPage]);
 
   // ── Sentiment Badge Helper ─────────────────────────────────────────────────
   const SentimentBadge = ({ s }: { s: string }) => {
@@ -340,7 +533,7 @@ export default function NotionAdminDashboard() {
           <div>
             <h1 className="text-xl font-black text-slate-900">Notion Master Remarks</h1>
             <p className="text-xs text-slate-400 font-medium">
-              {pages.length} active sheets · {analytics.totalLeads.toLocaleString()} total leads · {analytics.allRemarks.length.toLocaleString()} remarks
+              {pages.length} active sheets · {analytics.totalLeads.toLocaleString()} total leads · {analytics.allRemarks.length.toLocaleString()} remarks worked
             </p>
           </div>
         </div>
@@ -388,7 +581,15 @@ export default function NotionAdminDashboard() {
             >
               {tab === "overview" && <><BarChart2 size={13} className="inline mr-1.5 mb-0.5" />Overview</>}
               {tab === "sheets" && <><FileSpreadsheet size={13} className="inline mr-1.5 mb-0.5" />Sheets ({filteredPages.length})</>}
-              {tab === "remarks" && <><MessageSquare size={13} className="inline mr-1.5 mb-0.5" />Remarks Feed ({analytics.allRemarks.length})</>}
+              {tab === "remarks" && (
+                <>
+                  <Flame size={13} className="inline mr-1.5 mb-0.5 text-amber-500" />
+                  Action Hub
+                  <span className="ml-1.5 px-2 py-0.5 rounded-full text-[10px] bg-amber-100 text-amber-800 font-extrabold border border-amber-200">
+                    {analytics.hotCount + analytics.followupCount} Hot
+                  </span>
+                </>
+              )}
             </button>
           ))}
         </div>
@@ -467,7 +668,10 @@ export default function NotionAdminDashboard() {
               <div className="space-y-3">
                 {pagedSheets.map(page => {
                   const isOpen = expandedPage === page._id;
-                  const pct = page.totalRows > 0 ? Math.round((page.remarksFilled / page.totalRows) * 100) : 0;
+                  const total = Number(page.totalRows) || (Array.isArray(page.rows) ? page.rows.length : 0);
+                  const filled = Number(page.remarksFilled) || 0;
+                  const empty = Number(page.remarksEmpty) || Math.max(0, total - filled);
+                  const pct = total > 0 ? Math.min(100, Math.round((filled / total) * 100)) : 0;
                   return (
                     <div key={page._id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                       {/* Sheet Header Row */}
@@ -486,23 +690,32 @@ export default function NotionAdminDashboard() {
                               <span>·</span>
                               <span>Assigned: <span className="text-slate-700">{page.assignedTo}</span></span>
                               <span>·</span>
-                              <span>{page.totalRows} leads</span>
+                              <span>{total} leads</span>
                             </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-6 flex-shrink-0 ml-4">
                           {/* Progress Bar */}
-                          <div className="hidden md:block w-32">
-                            <div className="text-xs text-slate-400 font-semibold mb-1 flex justify-between">
-                              <span>Remarks</span><span>{pct}%</span>
+                          <div className="hidden md:block w-36">
+                            <div className="text-xs text-slate-500 font-bold mb-1.5 flex justify-between">
+                              <span>Progress</span><span>{pct}%</span>
                             </div>
-                            <div className="w-full bg-slate-100 rounded-full h-2">
-                              <div className="bg-indigo-500 h-2 rounded-full transition-all" style={{ width: `${pct}%` }}></div>
+                            <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden border border-slate-200/60">
+                              <div
+                                className={`h-full rounded-full transition-all duration-300 ${
+                                  pct >= 75 ? "bg-emerald-500" : pct >= 35 ? "bg-indigo-500" : pct > 0 ? "bg-amber-500" : "bg-slate-300"
+                                }`}
+                                style={{ width: `${Math.max(0, pct)}%` }}
+                              />
                             </div>
                           </div>
                           <div className="flex gap-2">
-                            <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">{page.remarksFilled} filled</span>
-                            <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-slate-100 text-slate-500 border border-slate-200">{page.remarksEmpty} empty</span>
+                            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              {filled} filled
+                            </span>
+                            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                              {empty} empty
+                            </span>
                           </div>
                           {isOpen ? <ChevronDown size={18} className="text-slate-400" /> : <ChevronRight size={18} className="text-slate-400" />}
                         </div>
@@ -565,215 +778,431 @@ export default function NotionAdminDashboard() {
           </div>
         )}
 
-        {/* ══════════════════ REMARKS FEED TAB (PAGINATED) ══════════════════ */}
+        {/* ══════════════════ ACTION HUB TAB (REVAMPED REMARKS FEED) ══════════════════ */}
         {activeTab === "remarks" && (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            {/* Header Toolbar */}
-            <div className="p-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                  <MessageSquare size={16} className="text-indigo-500" />
-                  All Remarks Feed — {filteredRemarks.length} {remarkFilter !== "all" ? `(${remarkFilter})` : ""} of {analytics.allRemarks.length}
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Page {currentRemarksPage} of {totalRemarksPages} · {remarksPerPage} per page
-                </p>
+          <div className="space-y-4">
+            {/* Top Action Summary Banner */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-white p-4 rounded-2xl border border-emerald-200 shadow-2xs flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider flex items-center gap-1">
+                    <Flame size={13} className="text-emerald-600" /> Hot Leads
+                  </p>
+                  <p className="text-2xl font-black text-slate-900 mt-1">{analytics.hotCount}</p>
+                  <p className="text-[10.5px] text-slate-400 font-medium">Interested & Login</p>
+                </div>
+                <div className="bg-emerald-500 text-white p-2.5 rounded-xl shadow-xs">
+                  <Flame size={20} />
+                </div>
               </div>
 
-              {/* Search Inside Remarks */}
-              <div className="relative flex-grow max-w-sm">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Filter by lead, remark text, sheet..."
-                  value={remarksSearch}
-                  onChange={e => {
-                    setRemarksSearch(e.target.value);
-                    setRemarksPage(1);
-                  }}
-                  className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-slate-50"
-                />
-                {remarksSearch && (
-                  <button
-                    onClick={() => {
-                      setRemarksSearch("");
-                      setRemarksPage(1);
-                    }}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  >
-                    <X size={13} />
-                  </button>
-                )}
+              <div className="bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-white p-4 rounded-2xl border border-amber-200 shadow-2xs flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-bold text-amber-700 uppercase tracking-wider flex items-center gap-1">
+                    <Clock size={13} className="text-amber-600" /> Follow-Up Queue
+                  </p>
+                  <p className="text-2xl font-black text-slate-900 mt-1">{analytics.followupCount}</p>
+                  <p className="text-[10.5px] text-slate-400 font-medium">Callbacks scheduled</p>
+                </div>
+                <div className="bg-amber-500 text-white p-2.5 rounded-xl shadow-xs">
+                  <Clock size={20} />
+                </div>
               </div>
 
-              {/* Sentiment Filter Chips */}
-              <div className="flex flex-wrap items-center gap-1.5 text-xs font-bold">
+              <div className="bg-gradient-to-br from-blue-500/10 via-blue-500/5 to-white p-4 rounded-2xl border border-blue-200 shadow-2xs flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-bold text-blue-700 uppercase tracking-wider flex items-center gap-1">
+                    <MessageSquare size={13} className="text-blue-600" /> Notes Written
+                  </p>
+                  <p className="text-2xl font-black text-slate-900 mt-1">{analytics.notesCount}</p>
+                  <p className="text-[10.5px] text-slate-400 font-medium">Remarks notes logged</p>
+                </div>
+                <div className="bg-blue-600 text-white p-2.5 rounded-xl shadow-xs">
+                  <MessageSquare size={20} />
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-indigo-500/10 via-indigo-500/5 to-white p-4 rounded-2xl border border-indigo-200 shadow-2xs flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-bold text-indigo-700 uppercase tracking-wider flex items-center gap-1">
+                    <UserCheck size={13} className="text-indigo-600" /> Active Callers
+                  </p>
+                  <p className="text-2xl font-black text-slate-900 mt-1">{analytics.callerStats.length}</p>
+                  <p className="text-[10.5px] text-slate-400 font-medium">Telecallers working</p>
+                </div>
+                <div className="bg-indigo-600 text-white p-2.5 rounded-xl shadow-xs">
+                  <UserCheck size={20} />
+                </div>
+              </div>
+            </div>
+
+            {/* Telecaller Activity Filter Strip */}
+            {analytics.callerStats.length > 0 && (
+              <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm flex items-center gap-2 overflow-x-auto text-xs">
+                <span className="font-bold text-slate-400 uppercase text-[10px] tracking-wider whitespace-nowrap pl-1">
+                  Telecaller:
+                </span>
                 <button
-                  onClick={() => { setRemarkFilter("all"); setRemarksPage(1); }}
-                  className={`px-3 py-1 rounded-full border transition ${
-                    remarkFilter === "all" ? "bg-slate-800 text-white border-slate-800" : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                  onClick={() => { setCallerFilter("All"); setRemarksPage(1); }}
+                  className={`px-3 py-1 rounded-xl font-bold transition-all whitespace-nowrap ${
+                    callerFilter === "All"
+                      ? "bg-slate-900 text-white shadow-xs"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   }`}
                 >
                   All ({analytics.allRemarks.length})
                 </button>
-                <button
-                  onClick={() => { setRemarkFilter("positive"); setRemarksPage(1); }}
-                  className={`px-3 py-1 rounded-full border transition ${
-                    remarkFilter === "positive" ? "bg-emerald-600 text-white border-emerald-600" : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-                  }`}
-                >
-                  {analytics.positive} Positive
-                </button>
-                <button
-                  onClick={() => { setRemarkFilter("negative"); setRemarksPage(1); }}
-                  className={`px-3 py-1 rounded-full border transition ${
-                    remarkFilter === "negative" ? "bg-rose-600 text-white border-rose-600" : "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
-                  }`}
-                >
-                  {analytics.negative} Negative
-                </button>
-                <button
-                  onClick={() => { setRemarkFilter("neutral"); setRemarksPage(1); }}
-                  className={`px-3 py-1 rounded-full border transition ${
-                    remarkFilter === "neutral" ? "bg-amber-600 text-white border-amber-600" : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
-                  }`}
-                >
-                  {analytics.neutral} Neutral
-                </button>
-              </div>
-            </div>
-
-            {/* Paginated Remarks Cards */}
-            <div className="divide-y divide-slate-100 min-h-[200px]">
-              {pagedRemarks.length === 0 ? (
-                <EmptyState message="No remarks match your search criteria" />
-              ) : (
-                pagedRemarks.map((r, i) => {
-                  const sentimentColor: Record<string, string> = {
-                    positive: "border-l-4 border-emerald-500 bg-emerald-50/20",
-                    negative: "border-l-4 border-red-500 bg-red-50/20",
-                    neutral: "border-l-4 border-amber-500 bg-amber-50/15",
-                    empty: "border-l-4 border-slate-200",
-                  };
-                  return (
-                    <div key={i} className={`px-6 py-4 hover:bg-slate-50/70 transition-colors ${sentimentColor[r.sentiment]}`}>
-                      <div className="flex justify-between items-start gap-4">
-                        <div className="flex-grow min-w-0">
-                          <div className="font-bold text-slate-800 text-sm mb-1">{r.lead}</div>
-                          <div className="flex items-center gap-2 mb-2 flex-wrap">
-                            {r.disposition && (
-                              <span className="bg-indigo-100 text-indigo-700 text-[10.5px] font-bold px-2 py-0.5 rounded-md border border-indigo-200">
-                                {r.disposition}
-                              </span>
-                            )}
-                            {r.text && (
-                              <div className="text-slate-700 text-xs bg-white px-3 py-1.5 rounded-xl border border-slate-200 font-medium shadow-2xs">
-                                &quot;{r.text}&quot;
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-3 text-[11px] text-slate-400 font-semibold">
-                            <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full border border-blue-100">{r.team}</span>
-                            <span>Sheet: <strong className="text-slate-600">{r.sheet}</strong></span>
-                            <span>· Assigned: <strong className="text-slate-600">{r.assignedTo}</strong></span>
-                          </div>
-                        </div>
-                        <div className="flex-shrink-0">
-                          <SentimentBadge s={r.sentiment} />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            {/* Pagination Controls Bar */}
-            <div className="flex flex-wrap items-center justify-between px-6 py-3.5 bg-slate-50 border-t border-slate-100 text-xs text-slate-600 gap-4">
-              <div className="flex items-center gap-3">
-                <span>
-                  Showing <strong>{totalRemarks > 0 ? (currentRemarksPage - 1) * remarksPerPage + 1 : 0}</strong> to{" "}
-                  <strong>{Math.min(currentRemarksPage * remarksPerPage, totalRemarks)}</strong> of{" "}
-                  <strong>{totalRemarks}</strong> remarks
-                </span>
-
-                {/* Per Page Selector */}
-                <div className="flex items-center gap-1.5 ml-2">
-                  <span className="text-slate-400">Rows:</span>
-                  <select
-                    value={remarksPerPage}
-                    onChange={(e) => {
-                      setRemarksPerPage(Number(e.target.value));
+                {analytics.callerStats.map(caller => (
+                  <button
+                    key={caller.name}
+                    onClick={() => {
+                      setCallerFilter(callerFilter === caller.name ? "All" : caller.name);
                       setRemarksPage(1);
                     }}
-                    className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    className={`px-3 py-1 rounded-xl font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 border ${
+                      callerFilter === caller.name
+                        ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
+                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                    }`}
                   >
-                    <option value={15}>15</option>
-                    <option value={25}>25</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
-                  </select>
+                    <span>{caller.name}</span>
+                    {caller.hot > 0 && (
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${callerFilter === caller.name ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-800"}`}>
+                        🔥 {caller.hot}
+                      </span>
+                    )}
+                    {caller.followup > 0 && (
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${callerFilter === caller.name ? "bg-white/20 text-white" : "bg-amber-100 text-amber-800"}`}>
+                        ⏰ {caller.followup}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Main Action Hub Container */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              {/* Header & Filter Controls */}
+              <div className="p-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                    <Sparkles size={16} className="text-amber-500" />
+                    Action Hub — {totalActionLeads} lead{totalActionLeads === 1 ? "" : "s"} ready for action
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Filter hot prospects, follow-up calls, and reach out via Call or WhatsApp instantly.
+                  </p>
+                </div>
+
+                {/* Search Bar */}
+                <div className="relative flex-grow max-w-sm">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search name, phone, notes, caller, sheet..."
+                    value={remarksSearch}
+                    onChange={e => {
+                      setRemarksSearch(e.target.value);
+                      setRemarksPage(1);
+                    }}
+                    className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-slate-50"
+                  />
+                  {remarksSearch && (
+                    <button
+                      onClick={() => {
+                        setRemarksSearch("");
+                        setRemarksPage(1);
+                      }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Category Action Pills */}
+                <div className="flex flex-wrap items-center gap-1.5 text-xs font-bold">
+                  <button
+                    onClick={() => { setActionFilter("all_actionable"); setRemarksPage(1); }}
+                    className={`px-3 py-1 rounded-full border transition flex items-center gap-1 ${
+                      actionFilter === "all_actionable" ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs" : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    <Sparkles size={12} /> Hot & Follow-up ({analytics.hotCount + analytics.followupCount})
+                  </button>
+                  <button
+                    onClick={() => { setActionFilter("hot"); setRemarksPage(1); }}
+                    className={`px-3 py-1 rounded-full border transition flex items-center gap-1 ${
+                      actionFilter === "hot" ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs" : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                    }`}
+                  >
+                    <Flame size={12} /> Hot ({analytics.hotCount})
+                  </button>
+                  <button
+                    onClick={() => { setActionFilter("followup"); setRemarksPage(1); }}
+                    className={`px-3 py-1 rounded-full border transition flex items-center gap-1 ${
+                      actionFilter === "followup" ? "bg-amber-600 text-white border-amber-600 shadow-2xs" : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                    }`}
+                  >
+                    <Clock size={12} /> Follow-ups ({analytics.followupCount})
+                  </button>
+                  <button
+                    onClick={() => { setActionFilter("notes"); setRemarksPage(1); }}
+                    className={`px-3 py-1 rounded-full border transition flex items-center gap-1 ${
+                      actionFilter === "notes" ? "bg-blue-600 text-white border-blue-600 shadow-2xs" : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
+                    }`}
+                  >
+                    <MessageSquare size={12} /> Notes ({analytics.notesCount})
+                  </button>
+                  <button
+                    onClick={() => { setActionFilter("all"); setRemarksPage(1); }}
+                    className={`px-3 py-1 rounded-full border transition ${
+                      actionFilter === "all" ? "bg-slate-800 text-white border-slate-800" : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    All Feed ({analytics.allRemarks.length})
+                  </button>
                 </div>
               </div>
 
-              {/* Numbered Page Buttons */}
-              <div className="flex items-center gap-1">
-                <button
-                  disabled={currentRemarksPage <= 1}
-                  onClick={() => setRemarksPage(1)}
-                  title="First Page"
-                  className="p-1.5 rounded-lg border border-slate-200 bg-white font-semibold text-slate-600 disabled:opacity-30 hover:bg-slate-100 transition"
-                >
-                  <ChevronsLeft size={14} />
-                </button>
-                <button
-                  disabled={currentRemarksPage <= 1}
-                  onClick={() => setRemarksPage(p => Math.max(1, p - 1))}
-                  title="Previous Page"
-                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold text-slate-600 disabled:opacity-30 hover:bg-slate-100 transition flex items-center gap-1"
-                >
-                  <ChevronLeft size={13} /> Prev
-                </button>
+              {/* Lead Cards List */}
+              <div className="divide-y divide-slate-100 min-h-[220px]">
+                {pagedActionLeads.length === 0 ? (
+                  <EmptyState message="No actionable leads found matching your criteria" />
+                ) : (
+                  pagedActionLeads.map((r) => {
+                    const initials = r.lead
+                      .split(" ")
+                      .filter(Boolean)
+                      .slice(0, 2)
+                      .map(w => w[0].toUpperCase())
+                      .join("") || "L";
 
-                {/* Page numbers window */}
-                {Array.from({ length: totalRemarksPages }, (_, i) => i + 1)
-                  .filter(p => p === 1 || p === totalRemarksPages || Math.abs(p - currentRemarksPage) <= 2)
-                  .map((p, idx, arr) => {
-                    const prevP = arr[idx - 1];
-                    const showEllipsis = prevP && p - prevP > 1;
+                    const isHot = r.isHot;
+                    const isFollow = r.isFollowup;
+
                     return (
-                      <React.Fragment key={p}>
-                        {showEllipsis && <span className="px-1 text-slate-400">...</span>}
-                        <button
-                          onClick={() => setRemarksPage(p)}
-                          className={`w-7 h-7 rounded-lg text-xs font-bold transition ${
-                            p === currentRemarksPage
-                              ? "bg-indigo-600 text-white shadow-xs"
-                              : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
-                          }`}
-                        >
-                          {p}
-                        </button>
-                      </React.Fragment>
-                    );
-                  })}
+                      <div
+                        key={r.id}
+                        className={`px-6 py-4 hover:bg-slate-50/80 transition-colors ${
+                          isHot
+                            ? "border-l-4 border-emerald-500 bg-emerald-50/15"
+                            : isFollow
+                            ? "border-l-4 border-amber-500 bg-amber-50/15"
+                            : "border-l-4 border-slate-200"
+                        }`}
+                      >
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                          {/* Left: Lead Details */}
+                          <div className="flex items-start gap-3.5 min-w-0 flex-grow">
+                            {/* Initials Avatar */}
+                            <div
+                              className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs flex-shrink-0 shadow-2xs ${
+                                isHot
+                                  ? "bg-emerald-600 text-white"
+                                  : isFollow
+                                  ? "bg-amber-500 text-white"
+                                  : "bg-slate-200 text-slate-700"
+                              }`}
+                            >
+                              {initials}
+                            </div>
 
-                <button
-                  disabled={currentRemarksPage >= totalRemarksPages}
-                  onClick={() => setRemarksPage(p => Math.min(totalRemarksPages, p + 1))}
-                  title="Next Page"
-                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold text-slate-600 disabled:opacity-30 hover:bg-slate-100 transition flex items-center gap-1"
-                >
-                  Next <ChevronRight size={13} />
-                </button>
-                <button
-                  disabled={currentRemarksPage >= totalRemarksPages}
-                  onClick={() => setRemarksPage(totalRemarksPages)}
-                  title="Last Page"
-                  className="p-1.5 rounded-lg border border-slate-200 bg-white font-semibold text-slate-600 disabled:opacity-30 hover:bg-slate-100 transition"
-                >
-                  <ChevronsRight size={14} />
-                </button>
+                            {/* Info */}
+                            <div className="min-w-0 flex-grow">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-bold text-slate-900 text-sm">{r.lead}</span>
+
+                                {/* Disposition Pill */}
+                                {r.disposition && (
+                                  <span
+                                    className={`text-[10.5px] font-extrabold px-2.5 py-0.5 rounded-full border ${
+                                      isHot
+                                        ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                                        : isFollow
+                                        ? "bg-amber-100 text-amber-800 border-amber-300"
+                                        : "bg-slate-100 text-slate-700 border-slate-200"
+                                    }`}
+                                  >
+                                    {isHot ? "🔥 " : isFollow ? "⏰ " : ""}
+                                    {r.disposition}
+                                  </span>
+                                )}
+
+                                <SentimentBadge s={r.sentiment} />
+                              </div>
+
+                              {/* Sheet & Caller Tags */}
+                              <div className="flex items-center gap-2.5 mt-1 text-[11px] text-slate-400 font-semibold flex-wrap">
+                                <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md border border-slate-200/80">
+                                  {r.team}
+                                </span>
+                                <span>Sheet: <strong className="text-slate-700">{r.sheet}</strong></span>
+                                <span>·</span>
+                                <span>Caller: <strong className="text-slate-700">{r.assignedTo}</strong></span>
+                              </div>
+
+                              {/* Remark Notes Speech Box */}
+                              {r.text ? (
+                                <div className="mt-2.5 bg-white p-2.5 rounded-xl border border-slate-200 text-xs text-slate-700 font-medium shadow-2xs inline-block max-w-xl">
+                                  <span className="text-slate-400 font-bold mr-1">💬 Remark Note:</span>
+                                  &quot;{r.text}&quot;
+                                </div>
+                              ) : (
+                                <div className="mt-1 text-[11px] text-slate-400 italic">
+                                  No written remark notes
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Right: Quick Action Buttons (Call / WhatsApp / Copy) */}
+                          <div className="flex items-center gap-2 flex-shrink-0 self-start md:self-center">
+                            {r.cleanPhone ? (
+                              <>
+                                {/* Display Phone & Copy */}
+                                <div className="text-right mr-1">
+                                  <div className="text-xs font-mono font-bold text-slate-800">
+                                    {formatPhoneDisplay(r.cleanPhone, r.phone)}
+                                  </div>
+                                  <div className="text-[10px] text-slate-400">Direct Contact</div>
+                                </div>
+
+                                {/* Call Action */}
+                                <a
+                                  href={`tel:${r.cleanPhone}`}
+                                  title={`Call ${r.lead}`}
+                                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 text-xs font-bold transition-all shadow-2xs"
+                                >
+                                  <Phone size={13} />
+                                  <span>Call</span>
+                                </a>
+
+                                {/* WhatsApp Action */}
+                                <a
+                                  href={`https://wa.me/91${r.cleanPhone}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title={`WhatsApp ${r.lead}`}
+                                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white border border-emerald-200 text-xs font-bold transition-all shadow-2xs"
+                                >
+                                  <MessageCircle size={13} />
+                                  <span>WhatsApp</span>
+                                </a>
+
+                                {/* Copy Button */}
+                                <button
+                                  onClick={() => handleCopy(r.cleanPhone)}
+                                  title="Copy phone number"
+                                  className="p-1.5 rounded-xl bg-slate-50 text-slate-500 hover:bg-slate-200 border border-slate-200 transition-colors"
+                                >
+                                  {copiedPhone === r.cleanPhone ? (
+                                    <Check size={14} className="text-emerald-600" />
+                                  ) : (
+                                    <Copy size={14} />
+                                  )}
+                                </button>
+                              </>
+                            ) : (
+                              <span className="text-[11px] text-slate-400 bg-slate-100 px-2.5 py-1 rounded-xl border border-slate-200">
+                                No phone in sheet
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Pagination Controls Bar */}
+              <div className="flex flex-wrap items-center justify-between px-6 py-3.5 bg-slate-50 border-t border-slate-100 text-xs text-slate-600 gap-4">
+                <div className="flex items-center gap-3">
+                  <span>
+                    Showing <strong>{totalActionLeads > 0 ? (currentActionPage - 1) * remarksPerPage + 1 : 0}</strong> to{" "}
+                    <strong>{Math.min(currentActionPage * remarksPerPage, totalActionLeads)}</strong> of{" "}
+                    <strong>{totalActionLeads}</strong> leads
+                  </span>
+
+                  {/* Per Page Selector */}
+                  <div className="flex items-center gap-1.5 ml-2">
+                    <span className="text-slate-400">Rows:</span>
+                    <select
+                      value={remarksPerPage}
+                      onChange={(e) => {
+                        setRemarksPerPage(Number(e.target.value));
+                        setRemarksPage(1);
+                      }}
+                      className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    >
+                      <option value={15}>15</option>
+                      <option value={20}>20</option>
+                      <option value={35}>35</option>
+                      <option value={50}>50</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Numbered Page Buttons */}
+                <div className="flex items-center gap-1">
+                  <button
+                    disabled={currentActionPage <= 1}
+                    onClick={() => setRemarksPage(1)}
+                    title="First Page"
+                    className="p-1.5 rounded-lg border border-slate-200 bg-white font-semibold text-slate-600 disabled:opacity-30 hover:bg-slate-100 transition"
+                  >
+                    <ChevronsLeft size={14} />
+                  </button>
+                  <button
+                    disabled={currentActionPage <= 1}
+                    onClick={() => setRemarksPage(p => Math.max(1, p - 1))}
+                    title="Previous Page"
+                    className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold text-slate-600 disabled:opacity-30 hover:bg-slate-100 transition flex items-center gap-1"
+                  >
+                    <ChevronLeft size={13} /> Prev
+                  </button>
+
+                  {Array.from({ length: totalActionPages }, (_, i) => i + 1)
+                    .filter(p => p === 1 || p === totalActionPages || Math.abs(p - currentActionPage) <= 2)
+                    .map((p, idx, arr) => {
+                      const prevP = arr[idx - 1];
+                      const showEllipsis = prevP && p - prevP > 1;
+                      return (
+                        <React.Fragment key={p}>
+                          {showEllipsis && <span className="px-1 text-slate-400">...</span>}
+                          <button
+                            onClick={() => setRemarksPage(p)}
+                            className={`w-7 h-7 rounded-lg text-xs font-bold transition ${
+                              p === currentActionPage
+                                ? "bg-indigo-600 text-white shadow-xs"
+                                : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
+                            }`}
+                          >
+                            {p}
+                          </button>
+                        </React.Fragment>
+                      );
+                    })}
+
+                  <button
+                    disabled={currentActionPage >= totalActionPages}
+                    onClick={() => setRemarksPage(p => Math.min(totalActionPages, p + 1))}
+                    title="Next Page"
+                    className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold text-slate-600 disabled:opacity-30 hover:bg-slate-100 transition flex items-center gap-1"
+                  >
+                    Next <ChevronRight size={13} />
+                  </button>
+                  <button
+                    disabled={currentActionPage >= totalActionPages}
+                    onClick={() => setRemarksPage(totalActionPages)}
+                    title="Last Page"
+                    className="p-1.5 rounded-lg border border-slate-200 bg-white font-semibold text-slate-600 disabled:opacity-30 hover:bg-slate-100 transition"
+                  >
+                    <ChevronsRight size={14} />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -813,49 +1242,63 @@ function SheetRowTable({
             <tr>
               <th className="px-4 py-3 font-bold text-xs uppercase text-slate-400 w-12 text-center">#</th>
               {Object.keys(rows[0] || {})
-                .filter((k) => k !== "_rowId")
-                .map((col) => (
-                  <th
-                    key={col}
-                    className={`px-4 py-3 font-bold text-xs uppercase tracking-wider whitespace-nowrap ${
-                      remarkCols.includes(col)
-                        ? "text-indigo-600"
-                        : "text-slate-500"
-                    }`}
-                  >
-                    {remarkCols.includes(col) ? "💬 " : ""}
-                    {col}
-                  </th>
-                ))}
+                .filter((k) => k !== "_rowId" && k !== "feedback_notes")
+                .map((col) => {
+                  const isRemark = col === "Remarks" || col.toLowerCase().includes("remark") || (remarkCols.includes(col) && col.toLowerCase() !== "disposition");
+                  const isDisp = col.toLowerCase() === "disposition";
+                  return (
+                    <th
+                      key={col}
+                      className={`px-4 py-3 font-bold text-xs uppercase tracking-wider whitespace-nowrap ${
+                        isRemark
+                          ? "text-indigo-600"
+                          : isDisp
+                          ? "text-purple-600"
+                          : "text-slate-500"
+                      }`}
+                    >
+                      {isRemark ? "💬 " : isDisp ? "📌 " : ""}
+                      {col === "disposition" ? "Disposition" : col}
+                    </th>
+                  );
+                })}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {pagedRows.map((row, idx) => {
               const globalIndex = (currentPage - 1) * rowsPerPage + idx + 1;
-              const remarkText =
-                remarkCols
-                  .map((k) => row?.[k] || "")
-                  .find((v) => String(v).trim() !== "") || row?.feedback_notes || "";
-              const sentiment = classifyRemark(String(remarkText));
               return (
                 <tr key={idx} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3 text-xs font-mono text-slate-400 text-center">{globalIndex}</td>
                   {Object.entries(row || {})
-                    .filter(([k]) => k !== "_rowId")
-                    .map(([k, v]) => (
-                      <td key={k} className="px-4 py-3 whitespace-nowrap">
-                        {remarkCols.includes(k) ? (
-                          <div className="flex items-center gap-2">
-                            <SentimentBadge s={sentiment} />
-                            <span className="text-slate-700 font-medium text-xs max-w-[250px] truncate">
-                              {v !== undefined && v !== null ? String(v) : "—"}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-slate-600 text-xs">{v !== undefined && v !== null ? String(v) : "—"}</span>
-                        )}
-                      </td>
-                    ))}
+                    .filter(([k]) => k !== "_rowId" && k !== "feedback_notes")
+                    .map(([k, v]) => {
+                      const isRemark = k === "Remarks" || k.toLowerCase().includes("remark") || (remarkCols.includes(k) && k.toLowerCase() !== "disposition");
+                      const isDisp = k.toLowerCase() === "disposition";
+                      const valStr = v !== undefined && v !== null && String(v).trim() !== "" ? String(v).trim() : "—";
+                      return (
+                        <td key={k} className="px-4 py-3 whitespace-nowrap">
+                          {isRemark ? (
+                            <div className="flex items-center gap-2">
+                              {valStr !== "—" ? <SentimentBadge s={classifyRemark(valStr)} /> : null}
+                              <span className="text-slate-700 font-medium text-xs max-w-[280px] truncate" title={valStr}>
+                                {valStr}
+                              </span>
+                            </div>
+                          ) : isDisp ? (
+                            valStr !== "—" ? (
+                              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                {valStr}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-xs italic">—</span>
+                            )
+                          ) : (
+                            <span className="text-slate-600 text-xs">{valStr}</span>
+                          )}
+                        </td>
+                      );
+                    })}
                 </tr>
               );
             })}
