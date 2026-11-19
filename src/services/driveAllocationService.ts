@@ -175,6 +175,7 @@ export interface AllocationHistoryItem {
   performedBy?: string;
   remarks?: string;
   dispositionSummary?: Record<string, number>;
+  headers?: string[];
   recordsSummary?: Array<{
     rowIndex?: number;
     customerName?: string;
@@ -184,6 +185,7 @@ export interface AllocationHistoryItem {
     eligibilityAmount?: number;
     disposition?: string;
     remarks?: string;
+    rawData?: Record<string, any>;
   }>;
   createdAt: string;
   updatedAt: string;
