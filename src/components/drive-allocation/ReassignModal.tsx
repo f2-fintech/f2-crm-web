@@ -62,8 +62,16 @@ export default function ReassignModal({
     }
 
     const currentMgr = hierarchy?.managers.find((m) => m._id === mId);
-    if (currentMgr && currentMgr.employees && currentMgr.employees.length > 0) {
-      setFilteredEmployees(currentMgr.employees);
+    if (currentMgr) {
+      const selfAsEmp: EmployeeInfo = {
+        _id: currentMgr._id,
+        fullName: `${currentMgr.fullName} (Self / Manager)`,
+        email: currentMgr.email,
+        role: currentMgr.role,
+      };
+      const baseEmployees = currentMgr.employees || [];
+      const withoutSelf = baseEmployees.filter((e) => e._id !== mId);
+      setFilteredEmployees([selfAsEmp, ...withoutSelf]);
     } else {
       setFilteredEmployees(hierarchy?.allEmployees || []);
     }

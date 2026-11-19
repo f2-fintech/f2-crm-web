@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Search,
   UserCheck,
@@ -66,6 +66,121 @@ export default function AllocationHistoryTable({
 }: AllocationHistoryTableProps) {
   const [selectedLogForDetails, setSelectedLogForDetails] =
     useState<AllocationHistoryItem | null>(null);
+
+  // Dynamic columns for snapshot modal based on source file headers
+  const dynamicSnapshotColumns = useMemo(() => {
+    if (!selectedLogForDetails) return [];
+    if (selectedLogForDetails.headers && selectedLogForDetails.headers.length > 0) {
+      return selectedLogForDetails.headers;
+    }
+    const firstWithRaw = selectedLogForDetails.recordsSummary?.find(
+      (r) => r.rawData && Object.keys(r.rawData).length > 0
+    );
+    if (firstWithRaw?.rawData) {
+      const keys = Object.keys(firstWithRaw.rawData);
+      if (keys.length > 0) return keys;
+    }
+    return ["Customer Name", "Phone", "Branch & State", "Eligibility"];
+  }, [selectedLogForDetails]);
+
+  // Helper to render cell content nicely based on column type
+  const renderCellContent = (record: any, colName: string) => {
+    const rawVal =
+      record.rawData?.[colName] !== undefined
+        ? String(record.rawData[colName]).trim()
+        : "";
+
+    const lowerCol = colName.toLowerCase();
+
+    // 1. Phone number
+    if (
+      lowerCol.includes("phone") ||
+      lowerCol.includes("mobile") ||
+      lowerCol.includes("contact no") ||
+      lowerCol.includes("mob no") ||
+      lowerCol.includes("number 1")
+    ) {
+      const val = rawVal || record.phone;
+      if (!val || val === "--" || val === "-") return <span className="text-gray-400">--</span>;
+      return (
+        <span className="font-mono text-indigo-600 dark:text-indigo-400 font-semibold whitespace-nowrap">
+          {val}
+        </span>
+      );
+    }
+
+    // 2. Amount / Eligibility
+    if (
+      lowerCol.includes("amount") ||
+      lowerCol.includes("eligib") ||
+      lowerCol.includes("loan") ||
+      lowerCol.includes("salary") ||
+      lowerCol.includes("income")
+    ) {
+      const numVal = rawVal
+        ? Number(rawVal.replace(/[^0-9.-]+/g, ""))
+        : record.eligibilityAmount;
+      if (!numVal || isNaN(numVal)) {
+        return rawVal ? (
+          <span className="text-gray-700 dark:text-gray-300 font-medium whitespace-nowrap">{rawVal}</span>
+        ) : (
+          <span className="text-gray-400">--</span>
+        );
+      }
+      return (
+        <span className="text-emerald-600 dark:text-emerald-400 font-bold whitespace-nowrap">
+          ₹{numVal.toLocaleString("en-IN")}
+        </span>
+      );
+    }
+
+    // 3. State
+    if (lowerCol === "state") {
+      const val = rawVal || record.state;
+      if (!val || val === "--" || val === "-") return <span className="text-gray-400">--</span>;
+      return (
+        <span className="bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-md text-[11px] font-bold whitespace-nowrap">
+          {val}
+        </span>
+      );
+    }
+
+    // 4. Person / Customer / Applicant name
+    if (
+      lowerCol.includes("name") ||
+      lowerCol.includes("person") ||
+      lowerCol.includes("applicant") ||
+      lowerCol.includes("candidate")
+    ) {
+      const val = rawVal || record.customerName;
+      return (
+        <span className="font-semibold text-gray-900 dark:text-gray-100 max-w-[200px] truncate block whitespace-nowrap">
+          {val || <span className="text-gray-400">--</span>}
+        </span>
+      );
+    }
+
+    // 5. Branch / City / District
+    if (
+      lowerCol.includes("city") ||
+      lowerCol.includes("branch") ||
+      lowerCol.includes("district")
+    ) {
+      const val = rawVal || record.branch;
+      return val ? (
+        <span className="text-gray-700 dark:text-gray-300 font-medium whitespace-nowrap">{val}</span>
+      ) : (
+        <span className="text-gray-400">--</span>
+      );
+    }
+
+    // Default cell text
+    return rawVal ? (
+      <span className="text-gray-700 dark:text-gray-300 font-medium whitespace-nowrap">{rawVal}</span>
+    ) : (
+      <span className="text-gray-400">--</span>
+    );
+  };
 
   const totalPages = Math.ceil(total / limit) || 1;
 
@@ -542,40 +657,34 @@ export default function AllocationHistoryTable({
                 </p>
               ) : (
                 <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
-                  <table className="w-full text-left border-collapse text-xs">
+                  <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
                     <thead>
-                      <tr className="bg-gray-50 dark:bg-gray-750 text-gray-600 dark:text-gray-300 font-semibold border-b border-gray-200 dark:border-gray-700">
-                        <th className="py-2.5 px-3">#</th>
-                        <th className="py-2.5 px-3">Customer Name</th>
-                        <th className="py-2.5 px-3">Phone</th>
-                        <th className="py-2.5 px-3">Branch & State</th>
-                        <th className="py-2.5 px-3 text-right">Eligibility</th>
-                        <th className="py-2.5 px-3">Calling Disposition</th>
-                        <th className="py-2.5 px-3">User Calling Remarks</th>
+                      <tr className="bg-gray-50 dark:bg-gray-750 text-gray-600 dark:text-gray-300 font-semibold border-b border-gray-200 dark:border-gray-700 text-[11px] uppercase tracking-wider">
+                        <th className="py-2.5 px-3 whitespace-nowrap">#</th>
+                        {dynamicSnapshotColumns.map((col) => (
+                          <th key={col} className="py-2.5 px-3 whitespace-nowrap">
+                            {col}
+                          </th>
+                        ))}
+                        <th className="py-2.5 px-3 whitespace-nowrap">Calling Disposition</th>
+                        <th className="py-2.5 px-3 whitespace-nowrap">User Calling Remarks</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700 text-gray-700 dark:text-gray-300">
                       {selectedLogForDetails.recordsSummary.map((r, i) => (
                         <tr
                           key={i}
-                          className="hover:bg-gray-50 dark:hover:bg-gray-700/30"
+                          className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition"
                         >
-                          <td className="py-2 px-3 text-gray-400">{i + 1}</td>
-                          <td className="py-2 px-3 font-medium text-gray-900 dark:text-gray-100">
-                            {r.customerName || "Lead"}
+                          <td className="py-2 px-3 text-gray-400 font-mono text-[11px] whitespace-nowrap">
+                            {r.rowIndex || i + 1}
                           </td>
-                          <td className="py-2 px-3 text-gray-600 dark:text-gray-300">
-                            <span className="font-mono">{r.phone || "-"}</span>
-                          </td>
-                          <td className="py-2 px-3 text-gray-600 dark:text-gray-400">
-                            {[r.branch, r.state].filter(Boolean).join(", ") || "-"}
-                          </td>
-                          <td className="py-2 px-3 text-right font-medium text-emerald-600 dark:text-emerald-400">
-                            {r.eligibilityAmount
-                              ? `₹${r.eligibilityAmount.toLocaleString()}`
-                              : "-"}
-                          </td>
-                          <td className="py-2 px-3">
+                          {dynamicSnapshotColumns.map((col) => (
+                            <td key={col} className="py-2 px-3 whitespace-nowrap">
+                              {renderCellContent(r, col)}
+                            </td>
+                          ))}
+                          <td className="py-2 px-3 whitespace-nowrap">
                             {r.disposition ? (
                               <span
                                 className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${

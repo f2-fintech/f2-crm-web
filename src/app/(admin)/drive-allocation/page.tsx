@@ -973,6 +973,7 @@ export default function DriveAllocationPage() {
         fileName={selectedFile?.fileName || "Drive File"}
         fileId={selectedFile?.fileId}
         folderPath={selectedFile?.folderPath || "Root"}
+        fileHeaders={fileHeaders}
         filtersSummary={{
           city: availableCity,
           state: availableState,

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   UserCheck,
   Users,
@@ -35,6 +35,7 @@ interface AllocateModalProps {
   fileName: string;
   fileId?: string;
   folderPath?: string;
+  fileHeaders?: string[];
   filtersSummary?: {
     city?: string;
     state?: string;
@@ -69,6 +70,7 @@ export default function AllocateModal({
   fileName,
   fileId,
   folderPath,
+  fileHeaders,
   filtersSummary,
   selectedRecordIds,
   onConfirm,
@@ -91,6 +93,7 @@ export default function AllocateModal({
   const [previewStateCounts, setPreviewStateCounts] = useState<Record<string, number>>({});
   const [previewRecords, setPreviewRecords] = useState<DriveRecordItem[]>([]);
   const [previewRecordIds, setPreviewRecordIds] = useState<string[]>([]);
+  const [previewHeaders, setPreviewHeaders] = useState<string[]>([]);
 
   // Subordinate employees under selected manager
   const [filteredEmployees, setFilteredEmployees] = useState<EmployeeInfo[]>([]);
@@ -101,6 +104,102 @@ export default function AllocateModal({
   const [sheetMode, setSheetMode] = useState<"new" | "existing">("new");
   const [targetSheetName, setTargetSheetName] = useState("");
   const [selectedPageId, setSelectedPageId] = useState("");
+
+  // Determine dynamic columns based on actual Excel sheet headers
+  const dynamicColumns = useMemo(() => {
+    if (fileHeaders && fileHeaders.length > 0) return fileHeaders;
+    if (previewHeaders && previewHeaders.length > 0) return previewHeaders;
+    if (previewRecords.length > 0 && previewRecords[0].rawData) {
+      const keys = Object.keys(previewRecords[0].rawData);
+      if (keys.length > 0) return keys;
+    }
+    return ["Customer Name", "Phone Number", "State", "City", "Amount"];
+  }, [fileHeaders, previewHeaders, previewRecords]);
+
+  // Helper to render cell content nicely based on column type
+  const renderCellContent = (record: DriveRecordItem, colName: string) => {
+    const rawVal =
+      record.rawData?.[colName] !== undefined
+        ? String(record.rawData[colName]).trim()
+        : "";
+
+    const lowerCol = colName.toLowerCase();
+
+    // 1. Phone number column
+    if (
+      lowerCol.includes("phone") ||
+      lowerCol.includes("mobile") ||
+      lowerCol.includes("contact no") ||
+      lowerCol.includes("mob no") ||
+      lowerCol.includes("number 1")
+    ) {
+      const val = rawVal || record.phone;
+      if (!val || val === "--") return <span className="text-slate-400">--</span>;
+      return (
+        <span className="font-mono text-indigo-600 font-bold whitespace-nowrap">
+          {val}
+        </span>
+      );
+    }
+
+    // 2. Eligibility / Amount column
+    if (
+      lowerCol.includes("amount") ||
+      lowerCol.includes("eligib") ||
+      lowerCol.includes("loan") ||
+      lowerCol.includes("salary") ||
+      lowerCol.includes("income")
+    ) {
+      const numVal = rawVal
+        ? Number(rawVal.replace(/[^0-9.-]+/g, ""))
+        : record.eligibilityAmount;
+      if (!numVal || isNaN(numVal)) {
+        return rawVal ? (
+          <span className="text-slate-700 font-medium whitespace-nowrap">{rawVal}</span>
+        ) : (
+          <span className="text-slate-400">--</span>
+        );
+      }
+      return (
+        <span className="text-emerald-700 font-bold whitespace-nowrap">
+          ₹{numVal.toLocaleString("en-IN")}
+        </span>
+      );
+    }
+
+    // 3. State column
+    if (lowerCol === "state") {
+      const val = rawVal || record.state;
+      if (!val || val === "--") return <span className="text-slate-400">--</span>;
+      return (
+        <span className="bg-purple-50 border border-purple-200 text-purple-700 px-2 py-0.5 rounded-md text-[11px] font-bold whitespace-nowrap">
+          {val}
+        </span>
+      );
+    }
+
+    // 4. Person / Customer / Applicant name
+    if (
+      lowerCol.includes("name") ||
+      lowerCol.includes("person") ||
+      lowerCol.includes("applicant") ||
+      lowerCol.includes("candidate")
+    ) {
+      const val = rawVal || record.customerName;
+      return (
+        <span className="font-semibold text-slate-900 max-w-[200px] truncate block whitespace-nowrap">
+          {val || <span className="text-slate-400">--</span>}
+        </span>
+      );
+    }
+
+    // Default cell text
+    return rawVal ? (
+      <span className="text-slate-700 font-medium whitespace-nowrap">{rawVal}</span>
+    ) : (
+      <span className="text-slate-400">--</span>
+    );
+  };
 
   // Function to load balanced preview from backend
   const loadBalancedPreview = useCallback(
@@ -143,6 +242,9 @@ export default function AllocateModal({
         setPreviewStateCounts(cleanedStateCounts);
         setPreviewRecords(res.records || []);
         setPreviewRecordIds(res.recordIds || []);
+        if (res.headers && res.headers.length > 0) {
+          setPreviewHeaders(res.headers);
+        }
       } catch (err: any) {
         setError(
           err.response?.data?.message ||
@@ -165,6 +267,11 @@ export default function AllocateModal({
       setEmployeeSheets([]);
       setSheetMode("new");
       setSelectedPageId("");
+      if (fileHeaders && fileHeaders.length > 0) {
+        setPreviewHeaders(fileHeaders);
+      } else {
+        setPreviewHeaders([]);
+      }
       const count = selectedCount > 0 ? selectedCount : 50;
       setBatchCount(count);
 
@@ -181,9 +288,10 @@ export default function AllocateModal({
         loadBalancedPreview(count);
       }
     }
-  }, [open, fileName, fileId, selectedCount, selectedRecordIds, loadBalancedPreview]);
+  }, [open, fileName, fileId, selectedCount, selectedRecordIds, fileHeaders, loadBalancedPreview]);
 
   // When Manager changes, dynamically filter employees reporting to that manager
+  // And include the selected Manager in the list so data can be allocated directly to them
   const handleManagerChange = (managerId: string) => {
     setSelectedManagerId(managerId);
     setSelectedEmployeeId("");
@@ -197,8 +305,16 @@ export default function AllocateModal({
     }
 
     const currentMgr = hierarchy?.managers.find((m) => m._id === managerId);
-    if (currentMgr && currentMgr.employees && currentMgr.employees.length > 0) {
-      setFilteredEmployees(currentMgr.employees);
+    if (currentMgr) {
+      const selfAsEmp: EmployeeInfo = {
+        _id: currentMgr._id,
+        fullName: `${currentMgr.fullName} (Self / Manager)`,
+        email: currentMgr.email,
+        role: currentMgr.role,
+      };
+      const baseEmployees = currentMgr.employees || [];
+      const withoutSelf = baseEmployees.filter((e) => e._id !== managerId);
+      setFilteredEmployees([selfAsEmp, ...withoutSelf]);
     } else {
       setFilteredEmployees(hierarchy?.allEmployees || []);
     }
@@ -540,53 +656,30 @@ export default function AllocateModal({
                   <table className="w-full text-left border-collapse">
                     <thead className="sticky top-0 bg-slate-50 text-[11px] uppercase tracking-wider text-slate-600 font-bold border-b border-slate-200">
                       <tr>
-                        <th className="py-2.5 px-3"># Row</th>
-                        <th className="py-2.5 px-3">Phone</th>
-                        <th className="py-2.5 px-3">Customer Name</th>
-                        <th className="py-2.5 px-3">State</th>
-                        <th className="py-2.5 px-3">City / Branch</th>
-                        <th className="py-2.5 px-3">Eligibility</th>
-                        <th className="py-2.5 px-3">CIBIL</th>
-                        <th className="py-2.5 px-3">PAN</th>
+                        <th className="py-2.5 px-3 whitespace-nowrap"># Row</th>
+                        {dynamicColumns.map((col) => (
+                          <th key={col} className="py-2.5 px-3 whitespace-nowrap">
+                            {col}
+                          </th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-700">
-                      {previewRecords.map((r, index) => {
-                        const raw = r.rawData || {};
-                        const cibil =
-                          raw.CIBIL || raw.Cibil || raw.cibil || raw.SCORE || raw.Score || "--";
-                        const pan = raw.PAN || raw.Pan || raw.pan || "--";
-                        const city = r.branch || raw.City || raw.CITY || raw.District || "--";
-                        const st = r.state || raw.State || raw.STATE || "--";
-
-                        return (
-                          <tr
-                            key={r._id || index}
-                            className="hover:bg-slate-50/80 transition text-xs"
-                          >
-                            <td className="py-2 px-3 text-slate-400 font-mono font-medium">
-                              {r.rowIndex || index + 1}
+                      {previewRecords.map((r, index) => (
+                        <tr
+                          key={r._id || index}
+                          className="hover:bg-slate-50/80 transition text-xs"
+                        >
+                          <td className="py-2 px-3 text-slate-400 font-mono font-medium whitespace-nowrap">
+                            {r.rowIndex || index + 1}
+                          </td>
+                          {dynamicColumns.map((colName) => (
+                            <td key={colName} className="py-2 px-3 whitespace-nowrap">
+                              {renderCellContent(r, colName)}
                             </td>
-                            <td className="py-2 px-3 font-mono font-bold text-indigo-600">{r.phone || "--"}</td>
-                            <td className="py-2 px-3 font-semibold text-slate-900 max-w-[160px] truncate">
-                              {r.customerName || raw.Name || raw.NAME || "--"}
-                            </td>
-                            <td className="py-2 px-3">
-                              <span className="bg-purple-50 border border-purple-200 text-purple-700 px-2 py-0.5 rounded-md text-[11px] font-bold">
-                                {st}
-                              </span>
-                            </td>
-                            <td className="py-2 px-3 text-slate-600">{city}</td>
-                            <td className="py-2 px-3 font-bold text-emerald-700">
-                              {r.eligibilityAmount
-                                ? `₹${Number(r.eligibilityAmount).toLocaleString("en-IN")}`
-                                : raw.Eligibility || raw.ELIGIBILITY || "--"}
-                            </td>
-                            <td className="py-2 px-3 font-semibold text-slate-600">{cibil}</td>
-                            <td className="py-2 px-3 font-mono text-slate-500">{pan}</td>
-                          </tr>
-                        );
-                      })}
+                          ))}
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 )}
