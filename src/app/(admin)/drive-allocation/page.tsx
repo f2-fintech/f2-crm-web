@@ -462,10 +462,11 @@ export default function DriveAllocationPage() {
     setAllocateModalOpen(true);
   };
 
-  // Confirm Allocate (Manager -> Employee)
+  // Confirm Allocate (Manager -> Employee / Multiple Employees)
   const handleConfirmAllocate = async (payload: {
     managerId: string;
-    employeeId: string;
+    employeeId?: string;
+    employeeIds?: string[];
     remarks?: string;
     targetSheetName?: string;
     targetPageId?: string;
@@ -493,6 +494,7 @@ export default function DriveAllocationPage() {
         sourceFileId: selectedFile.fileId,
         managerId: payload.managerId,
         employeeId: payload.employeeId,
+        employeeIds: payload.employeeIds,
         recordIds: finalRecordIds,
         count: finalCount,
         remarks: payload.remarks,
