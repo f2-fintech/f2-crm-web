@@ -125,7 +125,8 @@ export interface PreviewRecordsResponse {
 export interface AllocatePayload {
   sourceFileId: string;
   managerId: string;
-  employeeId: string;
+  employeeId?: string;
+  employeeIds?: string[];
   recordIds?: string[];
   count?: number;
   remarks?: string;

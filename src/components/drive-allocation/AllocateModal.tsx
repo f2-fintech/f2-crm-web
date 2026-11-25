@@ -52,7 +52,8 @@ interface AllocateModalProps {
   selectedRecordIds?: string[];
   onConfirm: (payload: {
     managerId: string;
-    employeeId: string;
+    employeeId?: string;
+    employeeIds?: string[];
     remarks?: string;
     targetSheetName?: string;
     targetPageId?: string;
@@ -77,7 +78,7 @@ export default function AllocateModal({
   loading,
 }: AllocateModalProps) {
   const [selectedManagerId, setSelectedManagerId] = useState("");
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
   const [remarks, setRemarks] = useState("");
   const [error, setError] = useState("");
 
@@ -260,7 +261,7 @@ export default function AllocateModal({
   useEffect(() => {
     if (open) {
       setSelectedManagerId("");
-      setSelectedEmployeeId("");
+      setSelectedEmployeeIds([]);
       setRemarks("");
       setError("");
       setFilteredEmployees([]);
@@ -294,7 +295,7 @@ export default function AllocateModal({
   // And include the selected Manager in the list so data can be allocated directly to them
   const handleManagerChange = (managerId: string) => {
     setSelectedManagerId(managerId);
-    setSelectedEmployeeId("");
+    setSelectedEmployeeIds([]);
     setEmployeeSheets([]);
     setSelectedPageId("");
     setError("");
@@ -320,20 +321,11 @@ export default function AllocateModal({
     }
   };
 
-  // When Employee changes, fetch their Notion sheets/files
-  const handleEmployeeChange = async (employeeId: string) => {
-    setSelectedEmployeeId(employeeId);
-    setSelectedPageId("");
-    setError("");
-
-    if (!employeeId) {
-      setEmployeeSheets([]);
-      return;
-    }
-
+  // Helper to fetch sheets when exactly 1 employee is selected
+  const fetchSingleEmployeeSheets = async (empId: string) => {
     setLoadingSheets(true);
     try {
-      const sheets = await driveAllocationService.getEmployeeSheets(employeeId);
+      const sheets = await driveAllocationService.getEmployeeSheets(empId);
       setEmployeeSheets(sheets);
       setSheetMode("new");
     } catch {
@@ -343,20 +335,55 @@ export default function AllocateModal({
     }
   };
 
+  // Toggle selection for an employee
+  const toggleEmployeeSelection = (empId: string) => {
+    setError("");
+    setSelectedEmployeeIds((prev) => {
+      const exists = prev.includes(empId);
+      const updated = exists ? prev.filter((id) => id !== empId) : [...prev, empId];
+      if (updated.length === 1) {
+        fetchSingleEmployeeSheets(updated[0]);
+      } else {
+        setEmployeeSheets([]);
+        setSheetMode("new");
+        setSelectedPageId("");
+      }
+      return updated;
+    });
+  };
+
+  // Select all employees of this manager
+  const handleSelectAllEmployees = () => {
+    setError("");
+    const allIds = filteredEmployees.map((e) => e._id);
+    setSelectedEmployeeIds(allIds);
+    setEmployeeSheets([]);
+    setSheetMode("new");
+    setSelectedPageId("");
+  };
+
+  // Clear all employee selections
+  const handleClearAllEmployees = () => {
+    setError("");
+    setSelectedEmployeeIds([]);
+    setEmployeeSheets([]);
+    setSelectedPageId("");
+  };
+
   const handleAllocate = async () => {
     if (!selectedManagerId) {
       setError("Pehle Manager select kijiye!");
       return;
     }
-    if (!selectedEmployeeId) {
-      setError("Manager ke kis Employee ko dena hai? Employee select kijiye!");
+    if (selectedEmployeeIds.length === 0) {
+      setError("Kam se kam ek Employee select kijiye!");
       return;
     }
     if (sheetMode === "new" && !targetSheetName.trim()) {
       setError("Target file / sheet ka naam enter kijiye!");
       return;
     }
-    if (sheetMode === "existing" && !selectedPageId) {
+    if (selectedEmployeeIds.length === 1 && sheetMode === "existing" && !selectedPageId) {
       setError("Kripya user ki existing file select kijiye!");
       return;
     }
@@ -364,10 +391,11 @@ export default function AllocateModal({
     setError("");
     await onConfirm({
       managerId: selectedManagerId,
-      employeeId: selectedEmployeeId,
+      employeeId: selectedEmployeeIds.length === 1 ? selectedEmployeeIds[0] : undefined,
+      employeeIds: selectedEmployeeIds,
       remarks,
       targetSheetName: sheetMode === "new" ? targetSheetName.trim() : undefined,
-      targetPageId: sheetMode === "existing" ? selectedPageId : undefined,
+      targetPageId: selectedEmployeeIds.length === 1 && sheetMode === "existing" ? selectedPageId : undefined,
       recordIds:
         previewRecordIds.length > 0
           ? previewRecordIds
@@ -381,16 +409,19 @@ export default function AllocateModal({
   if (!open) return null;
 
   const currentMgr = hierarchy?.managers.find((m) => m._id === selectedManagerId);
-  const currentEmp =
-    filteredEmployees.find((e) => e._id === selectedEmployeeId) ||
-    hierarchy?.allEmployees.find((e) => e._id === selectedEmployeeId);
+  const selectedEmployeesList = filteredEmployees.filter((e) =>
+    selectedEmployeeIds.includes(e._id)
+  );
+
+  const employeeMultiplier = Math.max(1, selectedEmployeeIds.length);
+  const calculatedTotal = batchCount * employeeMultiplier;
 
   const finalAllocCount =
     previewRecordIds.length > 0
       ? previewRecordIds.length
       : selectedRecordIds && selectedRecordIds.length > 0
       ? selectedRecordIds.length
-      : batchCount;
+      : calculatedTotal;
 
   const stateEntries = Object.entries(previewStateCounts);
 
@@ -481,15 +512,15 @@ export default function AllocateModal({
           )}
 
           {/* Section 1: Team Selection & Quantity (Clean Light SaaS Card) */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs space-y-3">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs space-y-4">
             <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-[11px] font-bold">1</span>
-              Select Manager, Employee & Allocation Volume
+              Select Manager, Employee(s) & Allocation Volume
             </h4>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3.5 items-end">
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5 items-end">
               {/* Manager Dropdown */}
-              <div className="lg:col-span-4">
+              <div className="sm:col-span-5">
                 <label className="text-xs font-semibold text-slate-700 block mb-1">
                   Manager <span className="text-rose-500">*</span>
                 </label>
@@ -509,43 +540,17 @@ export default function AllocateModal({
                 </div>
               </div>
 
-              {/* Employee Dropdown */}
-              <div className="lg:col-span-4">
-                <label className="text-xs font-semibold text-slate-700 block mb-1">
-                  Employee <span className="text-rose-500">*</span>
-                </label>
-                <select
-                  value={selectedEmployeeId}
-                  onChange={(e) => handleEmployeeChange(e.target.value)}
-                  disabled={!selectedManagerId}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-xs focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:bg-slate-100 disabled:text-slate-400"
-                >
-                  <option value="">
-                    {!selectedManagerId
-                      ? "-- Pehle Manager Select Kijiye --"
-                      : filteredEmployees.length === 0
-                      ? "-- Showing all active employees --"
-                      : "-- Choose Employee --"}
-                  </option>
-                  {filteredEmployees.map((emp) => (
-                    <option key={emp._id} value={emp._id}>
-                      {emp.fullName} ({emp.role})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
               {/* How Many Rows Input & Preview Button */}
-              <div className="lg:col-span-4 flex items-end gap-2">
+              <div className="sm:col-span-7 flex items-end gap-2">
                 <div className="flex-1">
                   <label className="text-xs font-semibold text-slate-700 block mb-1">
-                    How many rows
+                    Rows per employee <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="number"
-                    min={0}
+                    min={1}
                     value={batchCount}
-                    onChange={(e) => setBatchCount(Math.max(0, parseInt(e.target.value) || 0))}
+                    onChange={(e) => setBatchCount(Math.max(1, parseInt(e.target.value) || 1))}
                     placeholder="50"
                     className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-900 shadow-xs focus:border-indigo-500 focus:outline-none"
                   />
@@ -553,9 +558,9 @@ export default function AllocateModal({
 
                 <button
                   type="button"
-                  onClick={() => loadBalancedPreview(batchCount)}
+                  onClick={() => loadBalancedPreview(batchCount * Math.max(1, selectedEmployeeIds.length))}
                   disabled={loadingPreview}
-                  className="flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white px-4 py-2 text-xs font-bold shadow-sm transition active:scale-95 disabled:opacity-50 whitespace-nowrap h-[36px]"
+                  className="flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white px-4 py-2 text-xs font-bold shadow-sm transition active:scale-95 disabled:opacity-50 whitespace-nowrap h-[36px] cursor-pointer"
                   title="Randomly picks matching rows with equal state distribution"
                 >
                   {loadingPreview ? (
@@ -563,13 +568,102 @@ export default function AllocateModal({
                   ) : (
                     <Sparkles size={14} />
                   )}
-                  <span>Preview & Mix</span>
+                  <span>
+                    Preview & Mix ({batchCount * Math.max(1, selectedEmployeeIds.length)})
+                  </span>
                 </button>
               </div>
             </div>
 
+            {/* Employee Multi-Selection Box */}
+            <div className="rounded-xl border border-slate-200/90 bg-slate-50/70 p-3.5 space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Users size={14} className="text-indigo-600" />
+                    Select Employees / Team <span className="text-rose-500">*</span>
+                  </label>
+                  <span className="text-[11px] font-bold text-indigo-700 bg-indigo-100 border border-indigo-200 px-2 py-0.5 rounded-full">
+                    {selectedEmployeeIds.length} of {filteredEmployees.length} Selected
+                  </span>
+                </div>
+
+                {filteredEmployees.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSelectAllEmployees}
+                      className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 bg-white border border-indigo-200 hover:border-indigo-300 px-2.5 py-1 rounded-lg shadow-2xs transition active:scale-95 cursor-pointer"
+                    >
+                      ✓ Select All Team ({filteredEmployees.length})
+                    </button>
+                    {selectedEmployeeIds.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleClearAllEmployees}
+                        className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 px-2 py-1 rounded-lg hover:bg-slate-200/60 transition cursor-pointer"
+                      >
+                        Clear Selection
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {!selectedManagerId ? (
+                <p className="text-xs text-slate-400 italic py-1">
+                  Pehle upar Manager select kijiye taaki unki team ke employees yahan show ho sakein.
+                </p>
+              ) : filteredEmployees.length === 0 ? (
+                <p className="text-xs text-slate-500 py-1">
+                  Is Manager ke under koi active employees nahi mile.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto pr-1">
+                  {filteredEmployees.map((emp) => {
+                    const isSelected = selectedEmployeeIds.includes(emp._id);
+                    return (
+                      <button
+                        key={emp._id}
+                        type="button"
+                        onClick={() => toggleEmployeeSelection(emp._id)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs transition cursor-pointer border ${
+                          isSelected
+                            ? "bg-indigo-600 text-white border-indigo-700 font-bold shadow-xs scale-[1.02]"
+                            : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-100/60 font-medium"
+                        }`}
+                      >
+                        <span>{isSelected ? "✓" : "+"}</span>
+                        <span>{emp.fullName}</span>
+                        <span
+                          className={`text-[10px] px-1.5 py-0.2 rounded-md ${
+                            isSelected
+                              ? "bg-white/20 text-white"
+                              : "bg-slate-100 text-slate-500"
+                          }`}
+                        >
+                          {emp.role}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {selectedEmployeeIds.length > 0 && (
+                <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1.5 border-t border-slate-200/70">
+                  <span>
+                    Har employee ko <strong>{batchCount} unique rows</strong> milengi.
+                  </span>
+                  <span className="font-extrabold text-indigo-700">
+                    Total: {batchCount * selectedEmployeeIds.length} leads
+                  </span>
+                </div>
+              )}
+            </div>
+
             <p className="text-[11px] text-slate-400">
-              Rows are picked at random. If fewer rows match, you get all of them. Enter 0 to take every matching row.
+              Rows are picked at random without duplicates. Each selected employee receives their own unique non-overlapping slice and Notion Sheet.
             </p>
           </div>
 
@@ -598,7 +692,7 @@ export default function AllocateModal({
 
                 <button
                   type="button"
-                  onClick={() => loadBalancedPreview(batchCount)}
+                  onClick={() => loadBalancedPreview(batchCount * Math.max(1, selectedEmployeeIds.length))}
                   disabled={loadingPreview}
                   className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1 font-semibold transition ml-2 cursor-pointer"
                 >
@@ -607,6 +701,34 @@ export default function AllocateModal({
                 </button>
               </div>
             </div>
+
+            {/* Multi-employee allocation breakdown */}
+            {selectedEmployeeIds.length > 1 && (
+              <div className="space-y-1.5 p-3 bg-indigo-50/60 rounded-xl border border-indigo-100">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-indigo-900 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                    <Users size={13} className="text-indigo-600" />
+                    Employee Lead Distribution ({selectedEmployeeIds.length} Employees):
+                  </span>
+                  <span className="text-[11px] font-bold text-indigo-700 bg-white border border-indigo-200 px-2 py-0.5 rounded-md">
+                    {batchCount} leads each
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                  {selectedEmployeesList.map((emp) => (
+                    <span
+                      key={emp._id}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-white border border-indigo-200/90 px-2.5 py-1 text-xs text-slate-800 shadow-2xs"
+                    >
+                      <span className="font-semibold text-slate-800">{emp.fullName}</span>
+                      <span className="bg-indigo-600 text-white px-1.5 py-0.2 rounded font-extrabold text-[11px]">
+                        {batchCount}
+                      </span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* State Breakdown Pills (Clean, Structured, Scrollable Box) */}
             <div className="space-y-1.5">
@@ -688,7 +810,7 @@ export default function AllocateModal({
           </div>
 
           {/* Section 3: Target File in Notion & Remarks */}
-          {selectedEmployeeId && (
+          {selectedEmployeeIds.length > 0 && (
             <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs space-y-3">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
@@ -702,7 +824,7 @@ export default function AllocateModal({
                 )}
               </div>
 
-              {employeeSheets.length > 0 && (
+              {selectedEmployeeIds.length === 1 && employeeSheets.length > 0 && (
                 <div className="flex rounded-xl bg-slate-100 p-1 text-xs font-semibold">
                   <button
                     type="button"
@@ -734,17 +856,38 @@ export default function AllocateModal({
                 </div>
               )}
 
-              {sheetMode === "new" ? (
+              {sheetMode === "new" || selectedEmployeeIds.length > 1 ? (
                 <div>
+                  <label className="text-[11px] font-semibold text-slate-600 block mb-1">
+                    {selectedEmployeeIds.length > 1
+                      ? "Base Sheet / File Name (Each employee gets a personalized sheet):"
+                      : "Sheet / File Name:"}
+                  </label>
                   <input
                     type="text"
                     value={targetSheetName}
                     onChange={(e) => setTargetSheetName(e.target.value)}
-                    placeholder="Enter sheet / file name for user"
+                    placeholder="Enter sheet / file name"
                     className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-medium text-slate-800 shadow-xs focus:border-indigo-500 focus:outline-none"
                   />
                   <p className="mt-1 text-[11px] text-slate-500">
-                    📄 Yeh sheet Notion Workspace me <strong>{currentEmp?.fullName}</strong> ke account me banegi aur allocated leads enter honge.
+                    {selectedEmployeeIds.length > 1 ? (
+                      <>
+                        📄 Har selected employee ke liye Notion Workspace me unki alag sheet banegi (jaise:{" "}
+                        <strong>
+                          "{targetSheetName} - {selectedEmployeesList[0]?.fullName?.split(" ")[0] || "Emp1"}"
+                        </strong>
+                        ,{" "}
+                        <strong>
+                          "{targetSheetName} - {selectedEmployeesList[1]?.fullName?.split(" ")[0] || "Emp2"}"
+                        </strong>
+                        ).
+                      </>
+                    ) : (
+                      <>
+                        📄 Yeh sheet Notion Workspace me <strong>{selectedEmployeesList[0]?.fullName}</strong> ke account me banegi aur allocated leads enter honge.
+                      </>
+                    )}
                   </p>
                 </div>
               ) : (
@@ -784,19 +927,31 @@ export default function AllocateModal({
           </div>
 
           {/* Allocation Target Confirmation Badge */}
-          {selectedManagerId && selectedEmployeeId && (
+          {selectedManagerId && selectedEmployeeIds.length > 0 && (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 text-xs text-emerald-900 flex items-center gap-2.5">
               <CheckCircle2 size={17} className="text-emerald-600 shrink-0" />
               <div>
-                Ready to assign <strong>{finalAllocCount} leads</strong> to:{" "}
-                <strong>{currentEmp?.fullName}</strong> (Manager:{" "}
-                <strong>{currentMgr?.fullName}</strong>) into Notion sheet:{" "}
-                <strong>
-                  {sheetMode === "new"
-                    ? targetSheetName
-                    : employeeSheets.find((s) => s._id === selectedPageId)?.title || "Selected file"}
-                </strong>
-                .
+                {selectedEmployeeIds.length === 1 ? (
+                  <>
+                    Ready to assign <strong>{finalAllocCount} leads</strong> to:{" "}
+                    <strong>{selectedEmployeesList[0]?.fullName}</strong> (Manager:{" "}
+                    <strong>{currentMgr?.fullName}</strong>) into Notion sheet:{" "}
+                    <strong>
+                      {sheetMode === "new"
+                        ? targetSheetName
+                        : employeeSheets.find((s) => s._id === selectedPageId)?.title || "Selected file"}
+                    </strong>
+                    .
+                  </>
+                ) : (
+                  <>
+                    Ready to assign <strong>{finalAllocCount} unique leads</strong> across{" "}
+                    <strong>{selectedEmployeeIds.length} employees</strong> (
+                    <strong>{batchCount} leads each</strong>:{" "}
+                    {selectedEmployeesList.map((e) => e.fullName).join(", ")}) under Manager{" "}
+                    <strong>{currentMgr?.fullName}</strong> into their individual Notion sheets.
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -808,6 +963,11 @@ export default function AllocateModal({
             {finalAllocCount > 0 ? (
               <span>
                 Total to allocate: <strong className="text-slate-900 font-bold">{finalAllocCount} leads</strong>
+                {selectedEmployeeIds.length > 1 && (
+                  <span className="text-indigo-600 font-bold ml-1.5">
+                    ({batchCount} × {selectedEmployeeIds.length} employees)
+                  </span>
+                )}
               </span>
             ) : null}
           </div>
@@ -817,18 +977,22 @@ export default function AllocateModal({
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="rounded-xl px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200/70 transition"
+              className="rounded-xl px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200/70 transition cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={handleAllocate}
-              disabled={loading || !selectedManagerId || !selectedEmployeeId || finalAllocCount === 0}
+              disabled={loading || !selectedManagerId || selectedEmployeeIds.length === 0 || finalAllocCount === 0}
               className="flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2 text-xs font-bold text-white shadow-md shadow-indigo-600/20 hover:bg-indigo-700 active:scale-95 disabled:opacity-50 transition cursor-pointer"
             >
               <UserCheck size={16} />
-              {loading ? "Allocating Data..." : `Confirm & Allocate (${finalAllocCount})`}
+              {loading
+                ? "Allocating Data..."
+                : selectedEmployeeIds.length > 1
+                ? `Confirm & Allocate (${finalAllocCount} leads to ${selectedEmployeeIds.length} employees)`
+                : `Confirm & Allocate (${finalAllocCount})`}
             </button>
           </div>
         </div>
