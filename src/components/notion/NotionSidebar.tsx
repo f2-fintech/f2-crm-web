@@ -5,11 +5,13 @@ import { NotionPageItem } from "@/hooks/useNotionPages";
 
 export const notionColors = {
   bgLight: "#ffffff",
-  sidebarBg: "#f7f7f5",
-  sidebarHover: "rgba(55, 53, 47, 0.08)",
-  textMain: "#37352f",
-  textMuted: "rgba(55, 53, 47, 0.6)",
-  borderLight: "rgba(55, 53, 47, 0.16)",
+  sidebarBg: "#f8fafc",
+  sidebarHover: "rgba(241, 245, 249, 0.9)",
+  sidebarActive: "rgba(99, 102, 241, 0.08)",
+  textMain: "#0f172a",
+  textMuted: "#64748b",
+  borderLight: "#e2e8f0",
+  accent: "#4f46e5",
 };
 
 interface NotionSidebarProps {
@@ -45,37 +47,42 @@ export default function NotionSidebar({
             onClick={() => onSelectPage(node)}
             sx={{
               alignItems: "center",
-              py: 0.5,
+              py: 0.6,
               pl: 1 + depth * 1.5,
               pr: 1,
+              mx: 0.75,
+              my: 0.2,
+              borderRadius: "6px",
               cursor: "pointer",
-              bgcolor: isSelected ? notionColors.sidebarHover : "transparent",
-              color: notionColors.textMain,
+              bgcolor: isSelected ? notionColors.sidebarActive : "transparent",
+              color: isSelected ? notionColors.accent : notionColors.textMain,
+              borderLeft: isSelected ? `3px solid ${notionColors.accent}` : "3px solid transparent",
+              transition: "all 120ms ease",
               "&:hover": {
-                bgcolor: notionColors.sidebarHover,
+                bgcolor: isSelected ? notionColors.sidebarActive : notionColors.sidebarHover,
               },
             }}
           >
             <IconButton
               size="small"
               onClick={(e) => onToggleExpand(nodeKey, e)}
-              sx={{ p: 0.2, color: notionColors.textMuted, visibility: hasChildren ? 'visible' : 'hidden' }}
+              sx={{ p: 0.2, color: isSelected ? notionColors.accent : notionColors.textMuted, visibility: hasChildren ? 'visible' : 'hidden' }}
             >
-              {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+              {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
             </IconButton>
 
             {node.pageType === "SHEET" ? (
-              <TableIcon size={16} style={{ color: notionColors.textMuted, marginRight: 4 }} />
+              <TableIcon size={15} style={{ color: isSelected ? notionColors.accent : notionColors.textMuted, marginRight: 6, flexShrink: 0 }} />
             ) : (
-              <FileText size={16} style={{ color: notionColors.textMuted, marginRight: 4 }} />
+              <FileText size={15} style={{ color: isSelected ? notionColors.accent : notionColors.textMuted, marginRight: 6, flexShrink: 0 }} />
             )}
 
-            <Typography variant="body2" sx={{ fontSize: "14px", fontWeight: 500, flexGrow: 1 }} noWrap>
+            <Typography variant="body2" sx={{ fontSize: "13.5px", fontWeight: isSelected ? 600 : 500, flexGrow: 1 }} noWrap>
               {node.title}
             </Typography>
 
             <IconButton size="small" onClick={(e) => { e.stopPropagation(); onCreateSubpage(); }} sx={{ p: 0.2, color: notionColors.textMuted, opacity: 0, '.MuiStack-root:hover &': { opacity: 1 } }}>
-              <Plus size={16} />
+              <Plus size={14} />
             </IconButton>
           </Stack>
 
@@ -92,7 +99,7 @@ export default function NotionSidebar({
   return (
     <Box
       sx={{
-        width: 260,
+        width: 270,
         bgcolor: notionColors.sidebarBg,
         borderRight: `1px solid ${notionColors.borderLight}`,
         display: "flex",
@@ -100,23 +107,28 @@ export default function NotionSidebar({
         flexShrink: 0,
       }}
     >
-      <Stack direction="row" spacing={1} sx={{ alignItems: "center", p: 2, cursor: "pointer", "&:hover": { bgcolor: notionColors.sidebarHover } }}>
-        <Box sx={{ width: 24, height: 24, borderRadius: 1, bgcolor: "#eb5757", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: "bold" }}>
+      <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", p: 2, borderBottom: `1px solid ${notionColors.borderLight}`, cursor: "pointer", "&:hover": { bgcolor: notionColors.sidebarHover } }}>
+        <Box sx={{ width: 28, height: 28, borderRadius: 1.5, bgcolor: notionColors.accent, color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: "bold" }}>
           V
         </Box>
-        <Typography sx={{ fontWeight: 600, fontSize: "14px", color: notionColors.textMain }}>
-          VINEET TEAM
-        </Typography>
+        <Box sx={{ display: "flex", flexDirection: "column" }}>
+          <Typography sx={{ fontWeight: 600, fontSize: "13.5px", color: notionColors.textMain, lineHeight: 1.2 }}>
+            VINEET TEAM
+          </Typography>
+          <Typography sx={{ fontSize: "11px", color: notionColors.textMuted }}>
+            Workspace
+          </Typography>
+        </Box>
       </Stack>
 
-      <Box sx={{ flexGrow: 1, overflowY: "auto", py: 1 }}>
-        <Typography variant="caption" sx={{ color: notionColors.textMuted, fontWeight: 600, px: 2, mb: 0.5, display: "block" }}>
+      <Box sx={{ flexGrow: 1, overflowY: "auto", py: 1.5 }}>
+        <Typography variant="caption" sx={{ color: notionColors.textMuted, fontWeight: 700, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.05em", px: 2, mb: 1, display: "block" }}>
           Shared Workspaces
         </Typography>
         {renderTreeNodes(treeData.shared || [])}
         
-        <Box sx={{ mt: 2 }}>
-          <Typography variant="caption" sx={{ color: notionColors.textMuted, fontWeight: 600, px: 2, mb: 0.5, display: "block" }}>
+        <Box sx={{ mt: 2.5 }}>
+          <Typography variant="caption" sx={{ color: notionColors.textMuted, fontWeight: 700, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.05em", px: 2, mb: 1, display: "block" }}>
             Private Pages
           </Typography>
           {renderTreeNodes(treeData.private || [])}

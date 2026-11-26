@@ -36,7 +36,7 @@ const navItems: NavItem[] = [
     path: "/",
   },
   {
-    icon: <PhoneCall size={20} className="text-emerald-500" />,
+    icon: <PhoneCall size={18} />,
     name: "Dialer Call Logs",
     path: "/dialer",
   },
@@ -46,7 +46,7 @@ const navItems: NavItem[] = [
     path: "/teams",
   },
   {
-    icon: <Calculator size={20} className="text-green-500" />,
+    icon: <Calculator size={18} />,
     name: "EMI Calculator",
     path: "/emi-calculator",
   },
@@ -79,12 +79,12 @@ const navItems: NavItem[] = [
     path: "/my-requests",
   },
   {
-    icon: <Sparkles size={20} className="text-brand-400" />,
+    icon: <Sparkles size={18} />,
     name: "AI Copilot",
     path: "/ai-assistant",
   },
   {
-    icon: <Stethoscope size={20} className="text-teal-600 dark:text-teal-400" />,
+    icon: <Stethoscope size={18} />,
     name: "Doctor Network",
     path: "/doctors",
   },
@@ -97,17 +97,17 @@ const navItems: NavItem[] = [
 
 const othersItems: NavItem[] = [
   {
-    icon: <Sparkles size={20} className="text-amber-500" />,
+    icon: <Sparkles size={18} />,
     name: "Lead Scoring",
     path: "/lead-scoring",
   },
   {
-    icon: <FolderGit2 size={20} className="text-blue-500" />,
+    icon: <FolderGit2 size={18} />,
     name: "Drive Allocation",
     path: "/drive-allocation",
   },
   {
-    icon: <Search size={20} className="text-cyan-500" />,
+    icon: <Search size={18} />,
     name: "MIS Search Book",
     path: "/mis-search",
   },
@@ -172,108 +172,120 @@ const AppSidebar: React.FC = () => {
           const groupOpen =
             openSubmenu?.type === menuType && openSubmenu?.index === index;
 
-        return (
-          <li key={nav.name} className="relative">
-            {nav.subItems ? (
-              <button
-                id={`sidebar-item-${nav.name.toLowerCase().replace(/\s+/g, '-')}`}
-                onClick={() => handleSubmenuToggle(index, menuType)}
-                className={`group relative flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${groupOpen
-                  ? "bg-white/5 text-white ring-1 ring-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
-                  : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
-                  } ${!showLabels ? "lg:justify-center" : "justify-start"}`}
-              >
-                <span
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center transition-colors duration-200 ${groupOpen
-                    ? "text-indigo-400"
-                    : "text-slate-500 group-hover:text-slate-300"
-                    }`}
-                >
-                  {nav.icon}
-                </span>
-                {showLabels && <span className="truncate">{nav.name}</span>}
-                {showLabels && (
-                  <ChevronDownIcon
-                    className={`ml-auto h-4 w-4 shrink-0 transition-transform duration-200 ${groupOpen ? "rotate-180 text-indigo-400" : "text-slate-500"
-                      }`}
-                  />
-                )}
-              </button>
-            ) : (
-              nav.path && (
-                <Link
+          return (
+            <li key={nav.name} className="relative">
+              {nav.subItems ? (
+                <button
                   id={`sidebar-item-${nav.name.toLowerCase().replace(/\s+/g, '-')}`}
-                  href={nav.path}
-                  onClick={handleLinkClick}
-                  className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${isActive(nav.path)
-                    ? "bg-gradient-to-r from-indigo-500/10 to-transparent text-indigo-200 ring-1 ring-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
-                    : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
-                    } ${!showLabels ? "lg:justify-center" : "justify-start"}`}
+                  onClick={() => handleSubmenuToggle(index, menuType)}
+                  className={`group relative flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-[13.5px] font-medium transition-all duration-150 ${
+                    groupOpen
+                      ? "bg-slate-800/60 text-white ring-1 ring-slate-700/60 shadow-sm"
+                      : "text-slate-400 hover:bg-slate-800/40 hover:text-slate-200"
+                  } ${!showLabels ? "lg:justify-center" : "justify-start"}`}
                 >
-                  {isActive(nav.path) && (
-                    <span className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]" />
-                  )}
                   <span
-                    className={`flex h-5 w-5 shrink-0 items-center justify-center transition-colors duration-200 ${isActive(nav.path)
-                      ? "text-indigo-400"
-                      : "text-slate-500 group-hover:text-slate-300"
-                      }`}
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center transition-colors duration-150 ${
+                      groupOpen
+                        ? "text-indigo-400"
+                        : "text-slate-400 group-hover:text-slate-200"
+                    }`}
                   >
                     {nav.icon}
                   </span>
                   {showLabels && <span className="truncate">{nav.name}</span>}
-                </Link>
-              )
-            )}
+                  {showLabels && (
+                    <ChevronDownIcon
+                      className={`ml-auto h-4 w-4 shrink-0 transition-transform duration-200 ${
+                        groupOpen ? "rotate-180 text-indigo-400" : "text-slate-500 group-hover:text-slate-400"
+                      }`}
+                    />
+                  )}
+                </button>
+              ) : (
+                nav.path && (
+                  <Link
+                    id={`sidebar-item-${nav.name.toLowerCase().replace(/\s+/g, '-')}`}
+                    href={nav.path}
+                    onClick={handleLinkClick}
+                    className={`group relative flex items-center gap-3 rounded-lg px-3 py-2 text-[13.5px] font-medium transition-all duration-150 ${
+                      isActive(nav.path)
+                        ? "bg-indigo-600/15 text-white ring-1 ring-indigo-500/25 shadow-sm"
+                        : "text-slate-400 hover:bg-slate-800/40 hover:text-slate-200"
+                    } ${!showLabels ? "lg:justify-center" : "justify-start"}`}
+                  >
+                    {isActive(nav.path) && (
+                      <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.6)]" />
+                    )}
+                    <span
+                      className={`flex h-5 w-5 shrink-0 items-center justify-center transition-colors duration-150 ${
+                        isActive(nav.path)
+                          ? "text-indigo-400"
+                          : "text-slate-400 group-hover:text-slate-200"
+                      }`}
+                    >
+                      {nav.icon}
+                    </span>
+                    {showLabels && <span className="truncate">{nav.name}</span>}
+                  </Link>
+                )
+              )}
 
-            {nav.subItems && showLabels && (
-              <div
-                ref={(el) => {
-                  subMenuRefs.current[`${menuType}-${index}`] = el;
-                }}
-                className="overflow-hidden transition-all duration-300"
-                style={{
-                  height: groupOpen
-                    ? `${subMenuHeight[`${menuType}-${index}`]}px`
-                    : "0px",
-                }}
-              >
-                <ul className="mb-1 ml-4 mt-1 space-y-0.5 border-l border-white/10 pl-4">
-                  {nav.subItems.map((subItem) => (
-                    <li key={subItem.name}>
-                      <Link
-                        id={`sidebar-subitem-${subItem.name.toLowerCase().replace(/\s+/g, '-')}`}
-                        href={subItem.path}
-                        onClick={handleLinkClick}
-                        className={`group flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm transition-all duration-200 ${isActive(subItem.path)
-                          ? "bg-white/5 font-medium text-indigo-300 ring-1 ring-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
-                          : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+              {nav.subItems && showLabels && (
+                <div
+                  ref={(el) => {
+                    subMenuRefs.current[`${menuType}-${index}`] = el;
+                  }}
+                  className="overflow-hidden transition-all duration-200"
+                  style={{
+                    height: groupOpen
+                      ? `${subMenuHeight[`${menuType}-${index}`]}px`
+                      : "0px",
+                  }}
+                >
+                  <ul className="mb-1 ml-4 mt-1 space-y-0.5 border-l border-slate-800 pl-3">
+                    {nav.subItems.map((subItem) => (
+                      <li key={subItem.name}>
+                        <Link
+                          id={`sidebar-subitem-${subItem.name.toLowerCase().replace(/\s+/g, '-')}`}
+                          href={subItem.path}
+                          onClick={handleLinkClick}
+                          className={`group flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] transition-all duration-150 ${
+                            isActive(subItem.path)
+                              ? "bg-indigo-600/10 font-semibold text-indigo-300 ring-1 ring-indigo-500/20"
+                              : "text-slate-400 hover:bg-slate-800/40 hover:text-slate-200"
                           }`}
-                      >
-                        <span className={`h-1.5 w-1.5 rounded-full transition-colors duration-200 ${isActive(subItem.path) ? "bg-indigo-400 shadow-[0_0_6px_rgba(99,102,241,0.6)]" : "bg-slate-600 group-hover:bg-slate-400"}`} />
-                        <span className="truncate">{subItem.name}</span>
-                        <span className="ml-auto flex items-center gap-1">
-                          {subItem.new && (
-                            <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-indigo-300">
-                              new
-                            </span>
-                          )}
-                          {subItem.pro && (
-                            <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-indigo-300">
-                              pro
-                            </span>
-                          )}
-                        </span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+                        >
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full transition-colors duration-150 ${
+                              isActive(subItem.path)
+                                ? "bg-indigo-400 shadow-[0_0_6px_rgba(99,102,241,0.7)]"
+                                : "bg-slate-600 group-hover:bg-slate-400"
+                            }`}
+                          />
+                          <span className="truncate">{subItem.name}</span>
+                          <span className="ml-auto flex items-center gap-1">
+                            {subItem.new && (
+                              <span className="rounded bg-indigo-500/15 border border-indigo-500/30 px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider text-indigo-300">
+                                new
+                              </span>
+                            )}
+                            {subItem.pro && (
+                              <span className="rounded bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider text-amber-300">
+                                pro
+                              </span>
+                            )}
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     );
   };
 
@@ -377,24 +389,29 @@ const AppSidebar: React.FC = () => {
   return (
     <aside
       id="sidebar-menu"
-      className={`fixed left-0 top-0 z-50 mt-16 flex h-[calc(100vh-64px)] flex-col border-r border-white/10 bg-gradient-to-b from-[#0f172a] to-[#020617] px-4 text-slate-300 shadow-2xl transition-all duration-300 ease-in-out lg:mt-0 lg:h-screen
+      className={`fixed left-0 top-0 z-50 mt-16 flex h-[calc(100vh-64px)] flex-col border-r border-slate-800/80 bg-[#0b0f19] px-3 text-slate-300 shadow-xl transition-all duration-300 ease-in-out lg:mt-0 lg:h-screen
         ${isExpanded || isMobileOpen ? "w-[290px]" : "w-[90px]"}
         ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}
         lg:translate-x-0`}
     >
-      {/* ── Logo Section ── */}
-      <div className={`flex shrink-0 items-center justify-between pt-7 pb-6 transition-all duration-300 ${!showLabels ? "lg:justify-center px-0" : "px-2"}`}>
+      {/* ── Brand Header ── */}
+      <div className={`flex shrink-0 items-center justify-between pt-5 pb-5 border-b border-slate-800/60 mb-2 transition-all duration-300 ${!showLabels ? "lg:justify-center px-0" : "px-2"}`}>
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 font-extrabold text-white shadow-[0_4px_14px_rgba(99,102,241,0.4)] ring-1 ring-white/10">
-            F2
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-500 font-extrabold text-white shadow-md shadow-indigo-500/25 ring-1 ring-white/20">
+            <span className="text-sm font-black tracking-wider">F2</span>
           </div>
           {showLabels && (
             <div className="flex flex-col overflow-hidden whitespace-nowrap transition-opacity duration-300">
-              <span className="text-[17.5px] font-extrabold tracking-wide text-white leading-tight">
-                F2 CRM
-              </span>
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-400 mt-0.5">
-                Fintech
+              <div className="flex items-center gap-2">
+                <span className="text-[15px] font-bold tracking-tight text-white leading-none">
+                  F2 CRM
+                </span>
+                <span className="rounded-full bg-indigo-500/15 px-2 py-0.5 text-[9px] font-bold tracking-wider text-indigo-400 border border-indigo-500/25">
+                  ENTERPRISE
+                </span>
+              </div>
+              <span className="text-[11px] font-medium text-slate-400 mt-1">
+                Workspace Hub
               </span>
             </div>
           )}
@@ -404,7 +421,7 @@ const AppSidebar: React.FC = () => {
         {isMobileOpen && (
           <button
             onClick={toggleMobileSidebar}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/5 hover:text-white lg:hidden"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white lg:hidden"
             aria-label="Close sidebar"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -416,17 +433,17 @@ const AppSidebar: React.FC = () => {
       </div>
 
       <div className="no-scrollbar flex flex-col overflow-y-auto duration-300 ease-linear">
-        <nav className="mb-6">
-          <div className="flex flex-col gap-5">
+        <nav className="mb-4">
+          <div className="flex flex-col gap-4">
             {!isLoading && (
               <>
                 {filteredNavItems.length > 0 && (
                   <div>
                     <h2
-                      className={`mb-3 flex text-[11px] font-medium uppercase leading-[20px] tracking-wider text-slate-500 ${!showLabels ? "lg:justify-center" : "justify-start"
+                      className={`mb-2 flex text-[10px] font-bold uppercase tracking-wider text-slate-400 ${!showLabels ? "lg:justify-center" : "justify-start px-2"
                         }`}
                     >
-                      {showLabels ? "Menu" : <HorizontaLDots />}
+                      {showLabels ? "Core CRM" : <HorizontaLDots />}
                     </h2>
                     {renderMenuItems(filteredNavItems, "main")}
                   </div>
@@ -435,10 +452,10 @@ const AppSidebar: React.FC = () => {
                 {filteredOthersItems.length > 0 && (
                   <div>
                     <h2
-                      className={`mb-3 flex text-[11px] font-medium uppercase leading-[20px] tracking-wider text-slate-500 ${!showLabels ? "lg:justify-center" : "justify-start"
+                      className={`mb-2 flex text-[10px] font-bold uppercase tracking-wider text-slate-400 ${!showLabels ? "lg:justify-center" : "justify-start px-2"
                         }`}
                     >
-                      {showLabels ? "Others" : <HorizontaLDots />}
+                      {showLabels ? "Operations & Admin" : <HorizontaLDots />}
                     </h2>
                     {renderMenuItems(filteredOthersItems, "others")}
                   </div>
