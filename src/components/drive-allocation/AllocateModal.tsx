@@ -285,11 +285,21 @@ export default function AllocateModal({
         setPreviewSelectedCount(selectedRecordIds.length);
         setPreviewRecordIds(selectedRecordIds);
       } else if (fileId) {
-        // Auto-fetch balanced preview
+        // Auto-fetch balanced preview for initial batch
         loadBalancedPreview(count);
       }
     }
   }, [open, fileName, fileId, selectedCount, selectedRecordIds, fileHeaders, loadBalancedPreview]);
+
+  // Dynamically sync preview volume whenever employee selection or batchCount changes
+  useEffect(() => {
+    if (!open || !fileId || (selectedRecordIds && selectedRecordIds.length > 0)) return;
+    const targetCount = batchCount * Math.max(1, selectedEmployeeIds.length);
+    const timer = setTimeout(() => {
+      loadBalancedPreview(targetCount);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [open, fileId, batchCount, selectedEmployeeIds.length, selectedRecordIds, loadBalancedPreview]);
 
   // When Manager changes, dynamically filter employees reporting to that manager
   // And include the selected Manager in the list so data can be allocated directly to them
@@ -397,9 +407,7 @@ export default function AllocateModal({
       targetSheetName: sheetMode === "new" ? targetSheetName.trim() : undefined,
       targetPageId: selectedEmployeeIds.length === 1 && sheetMode === "existing" ? selectedPageId : undefined,
       recordIds:
-        previewRecordIds.length > 0
-          ? previewRecordIds
-          : selectedRecordIds && selectedRecordIds.length > 0
+        selectedRecordIds && selectedRecordIds.length > 0
           ? selectedRecordIds
           : undefined,
       count: batchCount,
@@ -417,9 +425,7 @@ export default function AllocateModal({
   const calculatedTotal = batchCount * employeeMultiplier;
 
   const finalAllocCount =
-    previewRecordIds.length > 0
-      ? previewRecordIds.length
-      : selectedRecordIds && selectedRecordIds.length > 0
+    selectedRecordIds && selectedRecordIds.length > 0
       ? selectedRecordIds.length
       : calculatedTotal;
 

@@ -75,19 +75,19 @@ import {
 
 const c = {
   bg: "#ffffff",
-  sidebarBg: "#fbfbfa",
-  hover: "rgba(55, 53, 47, 0.055)",
-  active: "rgba(35, 131, 226, 0.09)",
-  textMain: "#37352f",
-  textMuted: "rgba(55, 53, 47, 0.55)",
-  textFaint: "rgba(55, 53, 47, 0.36)",
-  border: "rgba(55, 53, 47, 0.1)",
-  borderStrong: "rgba(55, 53, 47, 0.16)",
-  accent: "#2383e2",
-  accentSoft: "rgba(35, 131, 226, 0.1)",
-  accentHover: "#1b6bbd",
-  danger: "#d5493f",
-  dangerSoft: "rgba(213, 73, 63, 0.08)",
+  sidebarBg: "#f8fafc",
+  hover: "rgba(241, 245, 249, 0.9)",
+  active: "rgba(79, 70, 229, 0.08)",
+  textMain: "#0f172a",
+  textMuted: "#64748b",
+  textFaint: "#94a3b8",
+  border: "#e2e8f0",
+  borderStrong: "#cbd5e1",
+  accent: "#4f46e5",
+  accentSoft: "rgba(79, 70, 229, 0.08)",
+  accentHover: "#4338ca",
+  danger: "#ef4444",
+  dangerSoft: "rgba(239, 68, 68, 0.08)",
 };
 
 const FONT_SANS =
@@ -805,15 +805,18 @@ export default function NotionPagesClientPage() {
               onClick={() => handleSelectPage(node)}
               sx={{
                 alignItems: "center",
-                gap: 0.25,
-                height: 28,
+                gap: 0.5,
+                height: 32,
                 pl: 0.75 + depth * 1.25,
                 pr: 0.75,
                 mx: 0.75,
+                my: 0.25,
                 borderRadius: "6px",
                 cursor: "pointer",
                 bgcolor: isSelected ? c.active : "transparent",
                 color: isSelected ? c.accent : c.textMain,
+                borderLeft: isSelected ? `3px solid ${c.accent}` : "3px solid transparent",
+                transition: "all 120ms ease",
                 "&:hover": { bgcolor: isSelected ? c.active : c.hover },
                 "&:focus-visible": {
                   outline: `2px solid ${c.accent}`,
@@ -906,13 +909,14 @@ export default function NotionPagesClientPage() {
   const sectionLabel = (text: string) => (
     <Typography
       sx={{
-        color: c.textFaint,
-        fontWeight: 600,
-        fontSize: "11.5px",
+        color: c.textMuted,
+        fontWeight: 700,
+        fontSize: "11px",
+        textTransform: "uppercase",
+        letterSpacing: "0.05em",
         px: 2,
-        mb: 0.5,
+        mb: 0.75,
         display: "block",
-        letterSpacing: "0.01em",
       }}
     >
       {text}
@@ -939,7 +943,7 @@ export default function NotionPagesClientPage() {
         id="notion-sidebar"
         component="nav"
         sx={{
-          width: { xs: "100%", md: 264 },
+          width: { xs: "100%", md: 268 },
           flexShrink: 0,
           bgcolor: c.sidebarBg,
           borderRight: { md: `1px solid ${c.border}` },
@@ -951,22 +955,23 @@ export default function NotionPagesClientPage() {
           direction="row"
           sx={{
             alignItems: "center",
-            gap: 1.2,
-            height: 44,
-            px: 1.25,
+            gap: 1.25,
+            height: 48,
+            px: 1.5,
             mx: 0.75,
-            mt: 1,
+            mt: 0.75,
             borderRadius: "8px",
+            borderBottom: `1px solid ${c.border}`,
             cursor: "pointer",
             "&:hover": { bgcolor: c.hover },
           }}
         >
           <Box
             sx={{
-              width: 24,
-              height: 24,
+              width: 26,
+              height: 26,
               borderRadius: "6px",
-              bgcolor: avatarColor,
+              bgcolor: c.accent,
               color: "#fff",
               display: "grid",
               placeItems: "center",
@@ -977,12 +982,17 @@ export default function NotionPagesClientPage() {
           >
             {initials}
           </Box>
-          <Typography
-            noWrap
-            sx={{ fontWeight: 600, fontSize: "14px", letterSpacing: "-0.1px" }}
-          >
-            {workspaceName}
-          </Typography>
+          <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+            <Typography
+              noWrap
+              sx={{ fontWeight: 600, fontSize: "13.5px", letterSpacing: "-0.1px", color: c.textMain, lineHeight: 1.2 }}
+            >
+              {workspaceName}
+            </Typography>
+            <Typography sx={{ fontSize: "11px", color: c.textMuted }}>
+              CRM Workspace
+            </Typography>
+          </Box>
         </Stack>
 
         <Stack
@@ -990,23 +1000,26 @@ export default function NotionPagesClientPage() {
           sx={{
             alignItems: "center",
             gap: 1,
-            height: 30,
+            height: 32,
             px: 1.25,
-            mx: 0.75,
-            mt: 1,
+            mx: 1,
+            mt: 1.25,
             mb: 1.5,
             borderRadius: "6px",
+            border: `1px solid ${c.border}`,
+            bgcolor: "#ffffff",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
             color: c.textMuted,
-            "&:hover": { bgcolor: c.hover },
-            "&:focus-within": { bgcolor: c.hover },
+            "&:hover": { borderColor: c.borderStrong },
+            "&:focus-within": { borderColor: c.accent, boxShadow: "0 0 0 2px rgba(79, 70, 229, 0.12)" },
           }}
         >
           <Search size={14} />
           <InputBase
-            placeholder="Find a page"
+            placeholder="Search pages & sheets..."
             value={sidebarQuery}
             onChange={(e) => setSidebarQuery(e.target.value)}
-            sx={{ fontSize: "13.5px", color: c.textMain, flexGrow: 1 }}
+            sx={{ fontSize: "12.5px", color: c.textMain, flexGrow: 1 }}
           />
           {sidebarQuery && (
             <IconButton
