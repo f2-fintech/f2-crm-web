@@ -137,7 +137,7 @@ export default function NotionAdminDashboard() {
     try {
       setLoading(true);
       setError(null);
-      const res = await api.get("/notion-pages/admin/remarks", { timeout: 30000 });
+      const res = await api.get("/notion-pages/admin/remarks", { timeout: 60000 });
       const raw = res.data;
       const list = Array.isArray(raw) ? raw : (raw?.data || []);
       setPages(list);
