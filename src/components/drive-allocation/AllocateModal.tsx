@@ -436,33 +436,27 @@ export default function AllocateModal({
       <div className="relative w-full max-w-5xl max-h-[92vh] rounded-3xl border border-slate-200 bg-white shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         
         {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-slate-50/80 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-md shadow-indigo-600/25">
-              <UserCheck size={22} />
+        <div className="flex items-center justify-between border-b border-slate-100 px-4 sm:px-6 py-3.5 sm:py-4 bg-slate-50/80 shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="flex h-9 w-9 sm:h-11 sm:w-11 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-md shadow-indigo-600/25 shrink-0">
+              <UserCheck size={20} />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-base sm:text-lg font-bold text-slate-900">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm sm:text-lg font-bold text-slate-900 truncate">
                   Data Allocation
                 </h3>
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200/80 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 text-[10px] sm:text-[11px] font-bold text-emerald-700 shrink-0">
                   <Sparkles size={11} /> Equal State Mix
                 </span>
               </div>
-              <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
+              <p className="text-[11px] sm:text-xs text-slate-500 flex items-center gap-1.5 mt-0.5 truncate">
                 <span>Source:</span>
-                <span className="font-semibold text-slate-800">📄 {fileName}</span>
-                {folderPath && (
-                  <>
-                    <span className="text-slate-300">•</span>
-                    <span className="text-slate-500">📁 {folderPath}</span>
-                  </>
-                )}
+                <span className="font-semibold text-slate-800 truncate">📄 {fileName}</span>
                 {previewTotalMatching > 0 && (
                   <>
-                    <span className="text-slate-300">•</span>
-                    <span className="text-indigo-600 font-bold">{previewTotalMatching.toLocaleString()} available</span>
+                    <span className="text-slate-300 hidden sm:inline">•</span>
+                    <span className="text-indigo-600 font-bold hidden sm:inline">{previewTotalMatching.toLocaleString()} available</span>
                   </>
                 )}
               </p>
@@ -472,7 +466,7 @@ export default function AllocateModal({
           <button
             onClick={onClose}
             disabled={loading}
-            className="rounded-full p-2 text-slate-400 hover:bg-slate-200/80 hover:text-slate-700 transition"
+            className="rounded-full p-1.5 sm:p-2 text-slate-400 hover:bg-slate-200/80 hover:text-slate-700 transition shrink-0"
           >
             <X size={18} />
           </button>
@@ -547,7 +541,7 @@ export default function AllocateModal({
               </div>
 
               {/* How Many Rows Input & Preview Button */}
-              <div className="sm:col-span-7 flex items-end gap-2">
+              <div className="sm:col-span-7 flex flex-col sm:flex-row items-stretch sm:items-end gap-2">
                 <div className="flex-1">
                   <label className="text-xs font-semibold text-slate-700 block mb-1">
                     Rows per employee <span className="text-rose-500">*</span>

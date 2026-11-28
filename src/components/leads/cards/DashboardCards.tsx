@@ -112,7 +112,7 @@ export default function DashboardCards({ stats, onCardClick, activeStatus, varia
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 pb-4 pt-1 px-1">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 pb-2 pt-1">
       {statConfigs.map((item, idx) => {
         const isActive = activeStatus === item.filter || (!activeStatus && item.filter === "ALL");
         const isDimmed = activeStatus && !isActive && activeStatus !== "ALL";
@@ -125,28 +125,28 @@ export default function DashboardCards({ stats, onCardClick, activeStatus, varia
                 onCardClick(isActive && item.filter !== "ALL" ? "ALL" : item.filter);
               }
             }}
-            className={`group relative overflow-hidden rounded-2xl bg-white p-6 transition-all 
-              ${item.filter ? 'cursor-pointer hover:-translate-y-1 hover:shadow-lg' : ''}
-              ${isActive ? `border-2 border-current ${item.color} shadow-md` : 'border border-gray-100 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)]'}
+            className={`group relative overflow-hidden rounded-3xl bg-white p-6 transition-all duration-300
+              ${item.filter ? 'cursor-pointer hover:-translate-y-1.5 hover:shadow-xl' : ''}
+              ${isActive ? `border-2 border-indigo-500 shadow-lg shadow-indigo-100 ring-2 ring-indigo-500/20` : 'border border-slate-200/80 shadow-xs hover:border-indigo-300'}
               ${isDimmed ? 'opacity-60 grayscale-[0.2]' : 'opacity-100'}
             `}
           >
             <div className="flex items-center justify-between mb-4">
-              <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${item.bg}`}>
-                <item.Icon className={`h-6 w-6 ${isActive ? '' : item.color}`} />
+              <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${item.bg} shadow-sm group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300`}>
+                <item.Icon className={`h-6 w-6 ${isActive ? 'text-indigo-600' : item.color}`} />
               </div>
-              <div className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold ${item.bg} ${isActive ? '' : item.color}`}>
+              <div className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold ${item.bg} ${isActive ? 'text-indigo-700 font-extrabold' : item.color} border border-black/5`}>
                 <TrendingUpIcon sx={{ fontSize: 14 }} />
-                {item.trend}
+                <span>{item.trend}</span>
               </div>
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-500 mb-1">{item.label}</p>
-              <h3 className="text-3xl font-extrabold text-gray-900 tracking-tight">{item.value}</h3>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">{item.label}</p>
+              <h3 className="text-3xl font-black text-slate-900 tracking-tight group-hover:text-indigo-600 transition-colors">{item.value}</h3>
             </div>
-            <div className={`absolute bottom-0 left-0 h-1 w-full transition-opacity 
+            <div className={`absolute bottom-0 left-0 h-1.5 w-full transition-all duration-500 
               ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} 
-              ${item.bg.replace('bg-', 'bg-gradient-to-r from-').replace('-50', '-500')} to-transparent`} 
+              ${item.bg.replace('bg-', 'bg-gradient-to-r from-').replace('-50', '-500')} to-transparent rounded-b-3xl`} 
             />
           </div>
         );

@@ -23,15 +23,15 @@ export default function AdminLayout({
     : "lg:ml-[90px]";
 
   return (
-    <div className="min-h-screen xl:flex">
+    <div className="min-h-screen">
       {/* <GuideTour /> */}
       <AppSidebar />
       <Backdrop />
       <div
-  className={`flex-1 min-w-0 transition-all duration-300 ease-in-out ${mainContentMargin}`}
->
+        className={`flex flex-col min-h-screen min-w-0 overflow-x-clip transition-all duration-300 ease-in-out ${mainContentMargin}`}
+      >
         <AppHeader />
-        <div className="p-2.5 sm:p-4 pb-16 mx-auto max-w-(--breakpoint-2xl) md:p-6 md:pb-16">
+        <div className="flex-1 p-2.5 sm:p-4 pb-16 mx-auto w-full max-w-(--breakpoint-2xl) md:p-6 md:pb-16">
           <RoleGuard>
             {children}
           </RoleGuard>

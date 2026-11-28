@@ -1,9 +1,5 @@
-import GridShape from "@/components/common/GridShape";
 import ThemeTogglerTwo from "@/components/common/ThemeTogglerTwo";
-
 import { ThemeProvider } from "@/context/ThemeContext";
-// import Image from "next/image";
-// import Link from "next/link";
 import React from "react";
 
 export default function AuthLayout({
@@ -12,65 +8,40 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="relative p-6 bg-white z-1 dark:bg-gray-900 sm:p-0">
+    <div className="relative h-screen max-h-screen w-full overflow-hidden bg-gradient-to-br from-[#f1f3fd] via-[#e8ebfb] to-[#f4f0ff] dark:from-[#070b14] dark:via-[#0a0f1d] dark:to-[#080c18] flex items-center justify-center p-3 sm:p-6 lg:p-8 select-none">
       <ThemeProvider>
-        <div className="relative flex lg:flex-row w-full h-screen justify-center flex-col  dark:bg-gray-900 sm:p-0">
+        {/* ── Soft Ambient Pastel Decorative Curves in Corners (Matching Reference) ── */}
+        <div className="pointer-events-none absolute -left-24 -top-24 h-96 w-96 rounded-full bg-indigo-300/30 blur-3xl dark:bg-indigo-600/10" />
+        <div className="pointer-events-none absolute -bottom-28 -right-28 h-96 w-96 rounded-full bg-purple-300/30 blur-3xl dark:bg-purple-600/10" />
+        <div className="pointer-events-none absolute top-1/4 -right-16 h-72 w-72 rounded-full bg-violet-200/40 blur-2xl dark:bg-violet-600/10" />
+
+        {/* Outer curved line shapes */}
+        <svg
+          className="pointer-events-none absolute inset-0 h-full w-full opacity-40 dark:opacity-10"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M -100 200 C 300 100, 400 600, 800 400 S 1400 800, 1800 600"
+            fill="none"
+            stroke="rgba(129, 140, 248, 0.25)"
+            strokeWidth="60"
+          />
+          <path
+            d="M 200 -100 C 400 300, 200 700, 600 900 S 1200 600, 1600 1000"
+            fill="none"
+            stroke="rgba(192, 132, 252, 0.2)"
+            strokeWidth="45"
+          />
+        </svg>
+
+        {/* ── Main Centered Interactive Card ── */}
+        <div className="relative z-10 w-full flex items-center justify-center">
           {children}
-          <div className="lg:w-1/2 w-full h-full bg-brand-950 dark:bg-white/5 lg:grid items-center hidden">
-            <div className="relative items-center justify-center  flex z-1">
-              {/* <!-- ===== Common Grid Shape Start ===== --> */}
-              <GridShape />
-              <div className="flex flex-col items-center max-w-xs">
-              {/* <Link href="/" className="block mb-4">
-                <Image
-                  width={231}
-                  height={48}
-                  src="/images/logo/auth-logo.svg"
-                  alt="F2 CRM"
-                />
-              </Link> */}
+        </div>
 
-              <h2 className="mb-4 text-3xl font-bold text-white text-center">
-                Welcome to F2 CRM
-              </h2>
-
-              <p className="mb-8 text-center text-gray-300 leading-7">
-                Manage your leads, customers, loan applications and follow-ups
-                from one secure platform.
-              </p>
-
-              <div className="space-y-4 text-left">
-                <div className="flex items-center gap-3">
-                  <span className="text-green-400">✔</span>
-                  <span className="text-white">Lead Management</span>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <span className="text-green-400">✔</span>
-                  <span className="text-white">Customer Management</span>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <span className="text-green-400">✔</span>
-                  <span className="text-white">Loan Applications</span>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <span className="text-green-400">✔</span>
-                  <span className="text-white">Follow-up Tracking</span>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <span className="text-green-400">✔</span>
-                  <span className="text-white">Reports & Analytics</span>
-                </div>
-              </div>
-              </div>
-            </div>
-          </div>
-          <div className="fixed bottom-6 right-6 z-50 hidden sm:block">
-            <ThemeTogglerTwo />
-          </div>
+        {/* Theme Toggler (Bottom-Right) */}
+        <div className="fixed bottom-4 right-4 z-50">
+          <ThemeTogglerTwo />
         </div>
       </ThemeProvider>
     </div>

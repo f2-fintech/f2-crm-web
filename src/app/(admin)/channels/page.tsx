@@ -14,6 +14,8 @@ import {
   FileText,
   Image as ImageIcon,
   MessageSquare,
+  ArrowLeft,
+  Menu,
 } from "lucide-react";
 import api from "@/lib/axios";
 import { useAuth } from "@/hooks/useAuth";
@@ -82,6 +84,7 @@ export default function ChannelsPage() {
   } | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
 
   const { user } = useAuth();
   const currentUserId = user?.id || (user as any)?._id;
@@ -93,8 +96,12 @@ export default function ChannelsPage() {
     try {
       const { data } = await api.get(`/chat/channel/${channelId}`);
       setMessages(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("Failed to fetch channel messages", err);
+    } catch (err: any) {
+      if (err?.response?.status === 404) {
+        setMessages([]);
+      } else {
+        console.warn("Failed to fetch channel messages", err?.message || err);
+      }
     }
   };
 
@@ -226,18 +233,30 @@ export default function ChannelsPage() {
       )}
 
       {/* Channels Sidebar */}
-      <div className="flex w-72 flex-col border-r border-gray-200 bg-gray-50/70 p-4 dark:border-gray-800 dark:bg-gray-900/60">
-        <div className="mb-4">
+      <div
+        className={`fixed inset-y-0 left-0 z-40 w-72 flex-col border-r border-gray-200 bg-gray-50/95 p-4 backdrop-blur-md transition-transform duration-200 ease-in-out md:static md:flex md:w-72 md:translate-x-0 dark:border-gray-800 dark:bg-gray-900/95 ${
+          showMobileSidebar ? "flex translate-x-0 shadow-2xl" : "hidden -translate-x-full md:flex"
+        }`}
+      >
+        <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Users className="text-indigo-600 dark:text-indigo-400" size={22} />
             <h2 className="text-lg font-bold text-gray-900 dark:text-white">
               Team Channels
             </h2>
           </div>
-          <p className="mt-1 text-xs text-gray-500">
-            Open workspaces for department broadcasts & group discussions
-          </p>
+          <button
+            type="button"
+            onClick={() => setShowMobileSidebar(false)}
+            className="rounded-lg p-1 text-gray-400 hover:bg-gray-200 md:hidden"
+            title="Close channels"
+          >
+            <X size={20} />
+          </button>
         </div>
+        <p className="mb-3 text-xs text-gray-500">
+          Open workspaces for department broadcasts & group discussions
+        </p>
 
         <div className="flex-1 space-y-1">
           {CHANNELS.map((ch) => {
@@ -247,7 +266,10 @@ export default function ChannelsPage() {
             return (
               <button
                 key={ch.id}
-                onClick={() => setActiveChannel(ch)}
+                onClick={() => {
+                  setActiveChannel(ch);
+                  setShowMobileSidebar(false);
+                }}
                 className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all ${
                   isSelected
                     ? "bg-indigo-600 text-white shadow-sm"
@@ -285,19 +307,37 @@ export default function ChannelsPage() {
         </div>
       </div>
 
+      {/* Mobile backdrop for channel sidebar */}
+      {showMobileSidebar && (
+        <div
+          className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs md:hidden"
+          onClick={() => setShowMobileSidebar(false)}
+        />
+      )}
+
       {/* Main Channel Area */}
-      <div className="flex flex-1 flex-col bg-white dark:bg-gray-900">
+      <div className="flex flex-1 flex-col bg-white dark:bg-gray-900 min-w-0">
         {/* Channel Header */}
-        <div className="shrink-0 flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-800">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400">
-              <activeChannel.icon size={20} />
+        <div className="shrink-0 flex items-center justify-between border-b border-gray-200 px-3 py-3 sm:px-6 sm:py-4 dark:border-gray-800">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            {/* Mobile channels toggle button */}
+            <button
+              type="button"
+              onClick={() => setShowMobileSidebar(true)}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-100 md:hidden dark:border-gray-700 dark:text-gray-300"
+              title="View all channels"
+            >
+              <Menu size={18} />
+            </button>
+
+            <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400">
+              <activeChannel.icon size={19} />
             </div>
-            <div>
-              <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <div className="min-w-0">
+              <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2 text-sm sm:text-base truncate">
                 #{activeChannel.name}
               </h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-[11px] sm:text-xs text-gray-500 dark:text-gray-400 truncate max-w-[200px] sm:max-w-md">
                 {activeChannel.description}
               </p>
             </div>
