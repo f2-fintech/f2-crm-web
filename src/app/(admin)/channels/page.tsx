@@ -96,12 +96,8 @@ export default function ChannelsPage() {
     try {
       const { data } = await api.get(`/chat/channel/${channelId}`);
       setMessages(Array.isArray(data) ? data : []);
-    } catch (err: any) {
-      if (err?.response?.status === 404) {
-        setMessages([]);
-      } else {
-        console.warn("Failed to fetch channel messages", err?.message || err);
-      }
+    } catch (err) {
+      console.error("Failed to fetch channel messages", err);
     }
   };
 

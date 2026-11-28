@@ -13,7 +13,6 @@ import {
   GridIcon,
   HorizontaLDots,
   ListIcon,
-  PageIcon,
   PieChartIcon,
   PlugInIcon,
   TableIcon,
@@ -128,11 +127,6 @@ const othersItems: NavItem[] = [
     name: "Integrations",
     path: "/integrations",
   },
-  {
-    icon: <PageIcon />,
-    name: "Settings",
-    path: "/settings",
-  },
 ];
 
 const AppSidebar: React.FC = () => {
@@ -207,6 +201,7 @@ const AppSidebar: React.FC = () => {
                   <Link
                     id={`sidebar-item-${nav.name.toLowerCase().replace(/\s+/g, '-')}`}
                     href={nav.path}
+                    prefetch={false}
                     onClick={handleLinkClick}
                     className={`group relative flex items-center gap-3 rounded-lg px-3 py-2 text-[13.5px] font-medium transition-all duration-150 ${
                       isActive(nav.path)
@@ -249,6 +244,7 @@ const AppSidebar: React.FC = () => {
                         <Link
                           id={`sidebar-subitem-${subItem.name.toLowerCase().replace(/\s+/g, '-')}`}
                           href={subItem.path}
+                          prefetch={false}
                           onClick={handleLinkClick}
                           className={`group flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] transition-all duration-150 ${
                             isActive(subItem.path)

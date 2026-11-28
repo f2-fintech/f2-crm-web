@@ -9,8 +9,15 @@ export interface DashboardData {
   pipelineData?: any;
 }
 
+const defaultDashboard: DashboardData = {
+  roleType: 'ADMIN',
+  stats: { teamSize: 0, activeMembers: 0, teamPages: 0, totalLeads: 0 },
+  recentActivity: [],
+  monthlyLeads: { data: [] }
+};
+
 export default function useDashboard() {
-  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [dashboard, setDashboard] = useState<DashboardData>(defaultDashboard);
   const [pipeline, setPipeline] = useState<any>(null);
   const [movement, setMovement] = useState<any>(null);
   const [stageAging, setStageAging] = useState<any>(null);
