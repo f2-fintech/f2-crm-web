@@ -13,7 +13,9 @@ export default function RoleGuard({ children }: RoleGuardProps) {
   const { role, isLoading, user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const [authorized, setAuthorized] = useState(false);
+  const [authorized, setAuthorized] = useState(() => {
+    return Boolean(user && hasPermission(pathname, role));
+  });
 
   useEffect(() => {
     if (isLoading) return;

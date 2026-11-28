@@ -135,13 +135,13 @@ export default function DriveAllocationPage() {
         setHistoryStats(historyData.stats || {});
       }
 
-      if (filesData.length > 0 && !selectedFile) {
-        setSelectedFile(filesData[0]);
+      if (filesData.length > 0) {
+        setSelectedFile((prev) => prev || filesData[0]);
       }
     } catch (err: any) {
       showAlert("error", err.response?.data?.message || "Failed to load Drive info");
     }
-  }, [selectedFile]);
+  }, []);
 
   useEffect(() => {
     loadInitialData();

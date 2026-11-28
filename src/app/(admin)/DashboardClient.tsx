@@ -117,21 +117,7 @@ export default function DashboardClient() {
     });
   }, [user?._id, user?.firstName, effectiveRole, notionStats?.members?.length]);
 
-  if (loading || !mounted) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="relative flex flex-col items-center gap-4">
-          <div className="relative flex h-16 w-16 items-center justify-center">
-            <div className="absolute inset-0 animate-ping rounded-full bg-indigo-500/20" />
-            <div className="h-12 w-12 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent shadow-md" />
-          </div>
-          <p className="text-xs font-bold uppercase tracking-wider text-indigo-600 animate-pulse">Loading Workspace...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
+  if (error && !dashboard) {
     return (
       <div className="mx-auto max-w-2xl mt-12 rounded-2xl border border-red-200 bg-red-50 p-8 text-center shadow-sm">
         <AlertCircle className="mx-auto h-12 w-12 text-red-500 mb-4" />
@@ -147,9 +133,12 @@ export default function DashboardClient() {
     );
   }
 
-  if (!dashboard) return null;
-
-  const { stats, recentActivity, monthlyLeads, roleType } = dashboard;
+  const { stats, recentActivity, monthlyLeads, roleType } = dashboard || {
+    stats: {},
+    recentActivity: [],
+    monthlyLeads: { data: [] },
+    roleType: effectiveRole || "ADMIN",
+  };
 
   // Chart Options & Series - Rukada style smooth dual wave
   const leadCategories = monthlyLeads?.data?.length

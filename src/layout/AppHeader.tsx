@@ -4,6 +4,8 @@ import TranslateDropdown from "@/components/header/TranslateDropdown";
 import NotificationDropdown from "@/components/header/NotificationDropdown";
 import UserDropdown from "@/components/header/UserDropdown";
 import { useSidebar } from "@/context/SidebarContext";
+import { useAuth } from "@/hooks/useAuth";
+import { ROLES } from "@/config/roles";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import React, { useState, useEffect, useRef } from "react";
@@ -55,11 +57,26 @@ function IconButton({
   title,
   onClick,
   children,
+  href,
 }: {
   title: string;
   onClick?: () => void;
   children: React.ReactNode;
+  href?: string;
 }) {
+  if (href) {
+    return (
+      <Link
+        href={href}
+        prefetch={false}
+        title={title}
+        aria-label={title}
+        className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
+      >
+        {children}
+      </Link>
+    );
+  }
   return (
     <button
       type="button"
@@ -75,6 +92,8 @@ function IconButton({
 
 const AppHeader: React.FC = () => {
   const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
+  const { role } = useAuth();
+  const isAdmin = role === ROLES.SUPER_ADMIN || role === ROLES.ADMIN;
   const pathname = usePathname();
   const pageTitle = getPageTitle(pathname);
 
@@ -166,7 +185,7 @@ const AppHeader: React.FC = () => {
           <NotificationDropdown />
 
           <div className="hidden lg:block shrink-0">
-            <Link href="/calendar">
+            <Link href="/calendar" prefetch={false}>
               <IconButton title="Calendar">
                 <Calendar className="h-[17px] w-[17px]" />
               </IconButton>
@@ -190,11 +209,13 @@ const AppHeader: React.FC = () => {
             </button>
           </div>
 
-          <div className="hidden lg:block shrink-0">
-            <IconButton title="Settings">
-              <Settings className="h-[17px] w-[17px]" />
-            </IconButton>
-          </div>
+          {isAdmin && (
+            <div className="hidden sm:block shrink-0">
+              <IconButton title="Settings" href="/settings">
+                <Settings className="h-[17px] w-[17px]" />
+              </IconButton>
+            </div>
+          )}
 
           <UserDropdown />
 
