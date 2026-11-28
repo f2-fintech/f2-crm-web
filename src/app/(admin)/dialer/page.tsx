@@ -39,6 +39,9 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 
 export default function DialerPage() {
+  const { user, role, isSuperAdmin, isAdmin } = useAuth();
+  const isAllowedAdmin = isAdmin || isSuperAdmin;
+
   const [logs, setLogs] = useState<CallLogItem[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [stats, setStats] = useState({
@@ -147,8 +150,10 @@ export default function DialerPage() {
   }, [fromDate, toDate, searchPhone, selectedAgent, limit]);
 
   useEffect(() => {
-    fetchCallLogs();
-  }, [fetchCallLogs]);
+    if (isAdmin || isSuperAdmin) {
+      fetchCallLogs();
+    }
+  }, [fetchCallLogs, isAdmin, isSuperAdmin]);
 
   // Unique agents combining all team members + agents in logs
   const uniqueAgents = useMemo(() => {
@@ -341,45 +346,40 @@ export default function DialerPage() {
     document.body.removeChild(link);
   };
 
-  const { user, role, isManager, isSuperAdmin, isAdmin } = useAuth();
-  const isTeamLeader = role === "TEAM_LEADER";
+  if (!isAllowedAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6">
+        <div className="h-16 w-16 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mb-4">
+          <PhoneCall size={32} />
+        </div>
+        <h2 className="text-xl font-bold text-slate-800">Access Restricted</h2>
+        <p className="text-sm text-slate-500 mt-1 max-w-md">
+          Dialer Call Logs are strictly restricted to Administrators only.
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-5 p-4 sm:p-6 max-w-[1700px] mx-auto">
+    <div className="space-y-6 p-4 sm:p-7 max-w-[1720px] mx-auto min-h-screen">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-gray-100 shadow-xs">
+      <div className="bg-white/90 backdrop-blur-md p-5 sm:p-6 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2.5">
-            <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100">
-              <PhoneCall size={22} />
+          <div className="flex items-center gap-3">
+            <div className="p-3 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-md shadow-indigo-100 flex items-center justify-center">
+              <PhoneCall size={22} className="stroke-[2.2]" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold text-gray-900 tracking-tight">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
                   Dialer Call Logs
                 </h1>
-                {isManager && (
-                  <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-bold">
-                    My Team View
-                  </span>
-                )}
-                {isTeamLeader && (
-                  <span className="px-2.5 py-0.5 rounded-full bg-purple-50 border border-purple-200 text-purple-700 text-[10px] font-bold">
-                    Direct Reports View
-                  </span>
-                )}
-                {(isAdmin || isSuperAdmin) && (
-                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold">
-                    All Company View
-                  </span>
-                )}
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200/70 text-emerald-700 text-[11px] font-bold tracking-wide">
+                  Admin Master View
+                </span>
               </div>
-              <p className="text-xs text-gray-400 mt-0.5">
-                {isManager
-                  ? "Showing real-time dialer logs for all agents in your team"
-                  : isTeamLeader
-                  ? "Showing real-time dialer logs for your direct reports"
-                  : "Live call monitoring and CDR audit from local dialer"}
+              <p className="text-xs text-slate-500 font-medium mt-1">
+                Live call telemetry, recording audit and CDR monitoring from dialer
               </p>
             </div>
           </div>
@@ -390,16 +390,16 @@ export default function DialerPage() {
           <button
             onClick={fetchCallLogs}
             disabled={loading}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold shadow-2xs transition active:scale-95 disabled:opacity-60 cursor-pointer"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition active:scale-95 disabled:opacity-60 cursor-pointer"
           >
-            <RotateCcw size={14} className={loading ? "animate-spin" : ""} />
+            <RotateCcw size={14} className={loading ? "animate-spin text-indigo-600" : "text-slate-500"} />
             <span>{loading ? "Syncing..." : "Refresh Logs"}</span>
           </button>
 
           <button
             onClick={handleExportCSV}
             disabled={filteredLogs.length === 0}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-2xs transition active:scale-95 disabled:opacity-50 cursor-pointer"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs shadow-indigo-100 transition active:scale-95 disabled:opacity-50 cursor-pointer"
           >
             <Download size={14} />
             <span>Export CSV</span>
@@ -428,58 +428,58 @@ export default function DialerPage() {
       )}
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs flex items-center gap-3.5">
-          <div className="p-3 rounded-xl bg-blue-50 text-blue-600">
-            <PhoneCall size={20} />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-5">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4 transition hover:border-blue-200 hover:shadow-sm">
+          <div className="p-3.5 rounded-xl bg-blue-50 text-blue-600 border border-blue-100/60 shrink-0">
+            <PhoneCall size={22} className="stroke-[2.2]" />
           </div>
           <div>
-            <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
               Total Calls
             </span>
-            <p className="text-xl font-extrabold text-gray-900 mt-0.5">
+            <p className="text-2xl font-extrabold text-slate-900 mt-0.5 tracking-tight">
               {stats.totalCalls.toLocaleString()}
             </p>
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs flex items-center gap-3.5">
-          <div className="p-3 rounded-xl bg-emerald-50 text-emerald-600">
-            <CheckCircle2 size={20} />
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4 transition hover:border-emerald-200 hover:shadow-sm">
+          <div className="p-3.5 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100/60 shrink-0">
+            <CheckCircle2 size={22} className="stroke-[2.2]" />
           </div>
           <div>
-            <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
               Connected / Answered
             </span>
-            <p className="text-xl font-extrabold text-emerald-600 mt-0.5">
+            <p className="text-2xl font-extrabold text-emerald-600 mt-0.5 tracking-tight">
               {stats.answeredCalls.toLocaleString()}
             </p>
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs flex items-center gap-3.5">
-          <div className="p-3 rounded-xl bg-rose-50 text-rose-600">
-            <PhoneMissed size={20} />
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4 transition hover:border-rose-200 hover:shadow-sm">
+          <div className="p-3.5 rounded-xl bg-rose-50 text-rose-600 border border-rose-100/60 shrink-0">
+            <PhoneMissed size={22} className="stroke-[2.2]" />
           </div>
           <div>
-            <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
               Unanswered / Missed
             </span>
-            <p className="text-xl font-extrabold text-rose-600 mt-0.5">
+            <p className="text-2xl font-extrabold text-rose-600 mt-0.5 tracking-tight">
               {stats.unansweredCalls.toLocaleString()}
             </p>
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs flex items-center gap-3.5">
-          <div className="p-3 rounded-xl bg-purple-50 text-purple-600">
-            <Users size={20} />
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4 transition hover:border-purple-200 hover:shadow-sm">
+          <div className="p-3.5 rounded-xl bg-purple-50 text-purple-600 border border-purple-100/60 shrink-0">
+            <Users size={22} className="stroke-[2.2]" />
           </div>
           <div>
-            <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
               {teamMembers.length > 0 ? "Team Size" : "Active Agents"}
             </span>
-            <p className="text-xl font-extrabold text-purple-600 mt-0.5">
+            <p className="text-2xl font-extrabold text-purple-600 mt-0.5 tracking-tight">
               {teamMembers.length > 0 ? teamMembers.length : uniqueAgents.length}
             </p>
           </div>
@@ -488,17 +488,17 @@ export default function DialerPage() {
 
       {/* Team Roster Bar for Manager & TL */}
       {teamMembers.length > 0 && (
-        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs space-y-2.5">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600">
+              <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100">
                 <Users size={16} />
               </div>
-              <span className="font-bold text-gray-900 text-xs">
-                My Team Roster ({teamMembers.length} Members)
+              <span className="font-bold text-slate-800 text-xs">
+                Team Roster Filter ({teamMembers.length} Members)
               </span>
             </div>
-            <span className="text-[11px] text-gray-400">
+            <span className="text-[11px] text-slate-400 font-medium">
               Click any agent pill to filter their calls
             </span>
           </div>
@@ -506,10 +506,10 @@ export default function DialerPage() {
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setSelectedAgent("")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
                 !selectedAgent
-                  ? "bg-indigo-600 text-white shadow-2xs"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  ? "bg-indigo-600 text-white shadow-xs shadow-indigo-100"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200/70"
               }`}
             >
               All Team ({logs.length} calls)
@@ -527,12 +527,12 @@ export default function DialerPage() {
                   onClick={() =>
                     setSelectedAgent(isSelected ? "" : (ag.code || ag.name))
                   }
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+                  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer ${
                     isSelected
-                      ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs"
+                      ? "bg-indigo-600 text-white border-indigo-600 shadow-xs shadow-indigo-100"
                       : ag.callCount > 0
-                      ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
-                      : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
+                      ? "bg-emerald-50/70 text-emerald-800 border-emerald-200/80 hover:bg-emerald-100/70"
+                      : "bg-slate-50 text-slate-600 border-slate-200/80 hover:bg-slate-100"
                   }`}
                 >
                   <span>{ag.name}</span>
@@ -546,8 +546,8 @@ export default function DialerPage() {
                       isSelected
                         ? "bg-white/20 text-white"
                         : ag.callCount > 0
-                        ? "bg-emerald-200/70 text-emerald-900"
-                        : "bg-gray-200 text-gray-600"
+                        ? "bg-emerald-200/60 text-emerald-900"
+                        : "bg-slate-200/80 text-slate-600"
                     }`}
                   >
                     {ag.callCount} calls
@@ -560,53 +560,53 @@ export default function DialerPage() {
       )}
 
       {/* Filter Toolbar */}
-      <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs space-y-3">
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
         <div className="flex flex-wrap items-center gap-3">
           {/* Date Range: From */}
-          <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 shadow-2xs">
-            <Calendar size={13} className="text-gray-400" />
-            <span className="text-[11px] font-bold text-gray-500">From:</span>
+          <div className="flex items-center gap-2 bg-slate-50/80 border border-slate-200 rounded-xl px-3.5 py-2 shadow-2xs hover:border-slate-300 transition">
+            <Calendar size={14} className="text-slate-400" />
+            <span className="text-[11px] font-bold text-slate-500">From:</span>
             <input
               type="date"
               value={fromDate}
               onChange={(e) => setFromDate(e.target.value)}
-              className="text-xs font-semibold text-gray-800 bg-transparent focus:outline-none"
+              className="text-xs font-semibold text-slate-800 bg-transparent focus:outline-none cursor-pointer"
             />
           </div>
 
           {/* Date Range: To */}
-          <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 shadow-2xs">
-            <Calendar size={13} className="text-gray-400" />
-            <span className="text-[11px] font-bold text-gray-500">To:</span>
+          <div className="flex items-center gap-2 bg-slate-50/80 border border-slate-200 rounded-xl px-3.5 py-2 shadow-2xs hover:border-slate-300 transition">
+            <Calendar size={14} className="text-slate-400" />
+            <span className="text-[11px] font-bold text-slate-500">To:</span>
             <input
               type="date"
               value={toDate}
               onChange={(e) => setToDate(e.target.value)}
-              className="text-xs font-semibold text-gray-800 bg-transparent focus:outline-none"
+              className="text-xs font-semibold text-slate-800 bg-transparent focus:outline-none cursor-pointer"
             />
           </div>
 
           {/* Phone Number Search */}
-          <div className="relative min-w-[200px] flex-1 max-w-xs">
+          <div className="relative min-w-[210px] flex-1 max-w-sm">
             <Search
               size={14}
-              className="absolute left-3 top-2.5 text-gray-400"
+              className="absolute left-3.5 top-3 text-slate-400"
             />
             <input
               type="text"
-              placeholder="Search phone number..."
+              placeholder="Search dialed phone..."
               value={searchPhone}
               onChange={(e) => setSearchPhone(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && fetchCallLogs()}
-              className="w-full rounded-xl border border-gray-200 bg-gray-50/50 pl-9 pr-3 py-1.5 text-xs font-medium text-gray-800 focus:bg-white focus:border-indigo-500 focus:outline-none transition shadow-2xs"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-9 pr-3.5 py-2 text-xs font-medium text-slate-800 focus:bg-white focus:border-indigo-500 focus:outline-none transition shadow-2xs"
             />
           </div>
 
-          {/* Agent Filter (showing all agents with Code and Name) */}
+          {/* Agent Filter */}
           <select
             value={selectedAgent}
             onChange={(e) => setSelectedAgent(e.target.value)}
-            className="rounded-xl border border-gray-200 bg-gray-50/50 hover:bg-white px-3 py-2 text-xs font-semibold text-gray-700 focus:border-indigo-500 focus:outline-none transition shadow-2xs min-w-[200px]"
+            className="rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 focus:border-indigo-500 focus:outline-none transition shadow-2xs min-w-[210px] cursor-pointer"
           >
             <option value="">All Agents ({uniqueAgents.length})</option>
             {uniqueAgents.map((ag) => (
@@ -621,7 +621,7 @@ export default function DialerPage() {
             <select
               value={selectedCallType}
               onChange={(e) => setSelectedCallType(e.target.value)}
-              className="rounded-xl border border-gray-200 bg-gray-50/50 hover:bg-white px-3 py-2 text-xs font-semibold text-gray-700 focus:border-indigo-500 focus:outline-none transition shadow-2xs min-w-[150px]"
+              className="rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 focus:border-indigo-500 focus:outline-none transition shadow-2xs min-w-[160px] cursor-pointer"
             >
               <option value="">All Call Types ({uniqueCallTypes.length})</option>
               {uniqueCallTypes.map((t) => (
@@ -636,7 +636,7 @@ export default function DialerPage() {
           <select
             value={limit}
             onChange={(e) => setLimit(Number(e.target.value))}
-            className="rounded-xl border border-gray-200 bg-gray-50/50 hover:bg-white px-3 py-2 text-xs font-semibold text-gray-700 focus:border-indigo-500 focus:outline-none transition shadow-2xs"
+            className="rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 focus:border-indigo-500 focus:outline-none transition shadow-2xs cursor-pointer"
           >
             <option value={250}>Limit 250</option>
             <option value={500}>Limit 500</option>
@@ -649,7 +649,7 @@ export default function DialerPage() {
           {/* Apply Filter Button */}
           <button
             onClick={fetchCallLogs}
-            className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-2xs transition active:scale-95 cursor-pointer ml-auto"
+            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs shadow-indigo-100 transition active:scale-95 cursor-pointer ml-auto"
           >
             Apply
           </button>
@@ -657,54 +657,56 @@ export default function DialerPage() {
       </div>
 
       {/* Main Table Matching Dialer Portal Columns */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
         <div className="overflow-x-auto max-w-full">
-          <table className="w-full text-left text-xs text-gray-700 whitespace-nowrap">
-            <thead className="bg-[#0b2545] text-white text-[11px] font-bold uppercase tracking-wider border-b border-gray-200 shadow-sm">
+          <table className="w-full text-left text-xs text-slate-700 whitespace-nowrap">
+            <thead className="bg-[#0b1b36] text-slate-200 text-[11px] font-bold uppercase tracking-wider border-b border-slate-800">
               <tr>
-                <th className="p-3.5 w-12 text-gray-300">SrNo</th>
-                <th className="p-3.5 text-center">Action</th>
-                <th className="p-3.5">Log ID</th>
-                <th className="p-3.5">Dialed Number</th>
-                <th className="p-3.5">Call Type</th>
-                <th className="p-3.5 text-center">Status</th>
-                <th className="p-3.5 text-center">Attempts</th>
-                <th className="p-3.5">Campaign</th>
-                <th className="p-3.5">DID No</th>
-                <th className="p-3.5">Agent (Code & Name)</th>
-                <th className="p-3.5">CRM Durn</th>
-                <th className="p-3.5">Call Durn</th>
-                <th className="p-3.5">Wrapup Durn</th>
-                <th className="p-3.5">Start Time</th>
-                <th className="p-3.5">End Time</th>
-                <th className="p-3.5">Disposition</th>
-                <th className="p-3.5">Sub Disposition</th>
-                <th className="p-3.5">Customer Name</th>
-                <th className="p-3.5">Location</th>
-                <th className="p-3.5">Remark</th>
+                <th className="py-4 px-4 w-12 text-slate-400">SrNo</th>
+                <th className="py-4 px-3.5 text-center">Action</th>
+                <th className="py-4 px-3.5">Log ID</th>
+                <th className="py-4 px-3.5">Dialed Number</th>
+                <th className="py-4 px-3.5">Call Type</th>
+                <th className="py-4 px-3.5 text-center">Status</th>
+                <th className="py-4 px-3.5 text-center">Attempts</th>
+                <th className="py-4 px-3.5">Campaign</th>
+                <th className="py-4 px-3.5">DID No</th>
+                <th className="py-4 px-3.5">Agent (Code & Name)</th>
+                <th className="py-4 px-3.5">CRM Durn</th>
+                <th className="py-4 px-3.5">Call Durn</th>
+                <th className="py-4 px-3.5">Wrapup Durn</th>
+                <th className="py-4 px-3.5">Start Time</th>
+                <th className="py-4 px-3.5">End Time</th>
+                <th className="py-4 px-3.5">Disposition</th>
+                <th className="py-4 px-3.5">Sub Disposition</th>
+                <th className="py-4 px-3.5">Customer Name</th>
+                <th className="py-4 px-3.5">Location</th>
+                <th className="py-4 px-3.5">Remark</th>
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-gray-100 font-medium">
+            <tbody className="divide-y divide-slate-100 font-medium">
               {loading ? (
                 <tr>
-                  <td colSpan={20} className="p-12 text-center text-gray-400">
-                    <div className="inline-flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-                      <span>Fetching live call logs from F2 dialer...</span>
+                  <td colSpan={20} className="p-16 text-center text-slate-400">
+                    <div className="inline-flex items-center gap-2.5">
+                      <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                      <span className="font-medium text-slate-600">Fetching live telecom CDR logs from dialer...</span>
                     </div>
                   </td>
                 </tr>
               ) : filteredLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={20} className="p-12 text-center text-gray-400">
+                  <td colSpan={20} className="p-16 text-center text-slate-400">
                     <div className="max-w-xs mx-auto">
-                      <PhoneMissed size={32} className="mx-auto text-gray-300 mb-2" />
-                      <p className="font-semibold text-gray-700 text-sm">
+                      <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto mb-3 text-slate-300">
+                        <PhoneMissed size={24} />
+                      </div>
+                      <p className="font-bold text-slate-800 text-sm">
                         No call logs found
                       </p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        Try changing the date filter or searching for another phone number.
+                      <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                        Try expanding the date range or clearing the filter criteria.
                       </p>
                     </div>
                   </td>
@@ -726,25 +728,25 @@ export default function DialerPage() {
                       key={log.log_id || `log-${index}`}
                       className={`transition ${
                         isThisActiveAudio
-                          ? "bg-indigo-50/70 border-l-4 border-l-indigo-600"
-                          : "hover:bg-slate-50/70"
+                          ? "bg-indigo-50/80 border-l-4 border-l-indigo-600"
+                          : "hover:bg-slate-50/80"
                       }`}
                     >
                       {/* SrNo */}
-                      <td className="p-3.5 text-gray-400 font-mono text-[11px]">
+                      <td className="py-3 px-4 text-slate-400 font-mono text-[11px]">
                         {(validPage - 1) * pageSize + index + 1}
                       </td>
 
                       {/* Action (Audio Player) */}
-                      <td className="p-3.5 text-center">
+                      <td className="py-3 px-3.5 text-center">
                         {hasRecording ? (
                           <button
                             type="button"
                             onClick={() => handlePlayAudio(log)}
-                            className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-xl border transition active:scale-95 cursor-pointer shadow-2xs ${
+                            className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-lg border transition active:scale-95 cursor-pointer shadow-2xs ${
                               isThisActiveAudio
-                                ? "bg-indigo-600 text-white border-indigo-600 shadow-indigo-200"
-                                : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200"
+                                ? "bg-indigo-600 text-white border-indigo-600 shadow-xs shadow-indigo-200"
+                                : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100/80 border-emerald-200/80"
                             }`}
                             title="Play Recording"
                           >
@@ -768,25 +770,25 @@ export default function DialerPage() {
                             )}
                           </button>
                         ) : (
-                          <span className="text-gray-300 text-xs">--</span>
+                          <span className="text-slate-300 text-xs">--</span>
                         )}
                       </td>
 
                       {/* Log ID */}
-                      <td className="p-3.5 font-mono text-xs font-bold text-gray-700">
+                      <td className="py-3 px-3.5 font-mono text-xs font-semibold text-slate-700">
                         {log.log_id}
                       </td>
 
                       {/* Dialed Number */}
-                      <td className="p-3.5">
-                        <div className="inline-flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-lg">
-                          <span className="font-mono font-bold text-gray-800 text-xs">
+                      <td className="py-3 px-3.5">
+                        <div className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200/90 px-2.5 py-0.5 rounded-lg">
+                          <span className="font-mono font-bold text-slate-800 text-xs">
                             {phone}
                           </span>
                           {phone !== "--" && (
                             <button
                               onClick={() => handleCopyPhone(phone)}
-                              className="text-gray-400 hover:text-indigo-600 transition cursor-pointer"
+                              className="text-slate-400 hover:text-indigo-600 transition cursor-pointer"
                               title="Copy Phone"
                             >
                               {copiedPhone === phone ? (
@@ -800,14 +802,14 @@ export default function DialerPage() {
                       </td>
 
                       {/* Call Type */}
-                      <td className="p-3.5">
+                      <td className="py-3 px-3.5">
                         <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold ${
                             log.CallType === "System Dispose"
                               ? "bg-slate-100 text-slate-700"
                               : log.CallType === "Manual" || log.CallType === "Outbound"
-                              ? "bg-blue-100 text-blue-800"
-                              : "bg-purple-100 text-purple-800"
+                              ? "bg-blue-50 text-blue-700 border border-blue-100"
+                              : "bg-purple-50 text-purple-700 border border-purple-100"
                           }`}
                         >
                           {log.CallType || "--"}
@@ -815,12 +817,12 @@ export default function DialerPage() {
                       </td>
 
                       {/* Status */}
-                      <td className="p-3.5 text-center">
+                      <td className="py-3 px-3.5 text-center">
                         <span
                           className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
                             log.Status === "A"
-                              ? "bg-emerald-100 text-emerald-800"
-                              : "bg-slate-100 text-slate-700"
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
+                              : "bg-slate-100 text-slate-600"
                           }`}
                         >
                           {log.Status || "--"}
@@ -828,88 +830,88 @@ export default function DialerPage() {
                       </td>
 
                       {/* Attempts */}
-                      <td className="p-3.5 text-center font-mono font-semibold text-gray-700">
+                      <td className="py-3 px-3.5 text-center font-mono font-semibold text-slate-700">
                         {log.NoOfAttempts || "1"}
                       </td>
 
                       {/* Campaign */}
-                      <td className="p-3.5">
-                        <span className="inline-block px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-100 text-indigo-700 font-semibold text-[11px]">
+                      <td className="py-3 px-3.5">
+                        <span className="inline-block px-2 py-0.5 rounded-md bg-indigo-50/80 border border-indigo-100 text-indigo-700 font-semibold text-[11px]">
                           {log.campaign_name || "--"}
                         </span>
                       </td>
 
                       {/* DID No */}
-                      <td className="p-3.5 font-mono text-gray-600 font-medium">
+                      <td className="py-3 px-3.5 font-mono text-slate-600 font-medium">
                         {log.DID_No || "--"}
                       </td>
 
                       {/* Agent (Code & Name) */}
-                      <td className="p-3.5">
+                      <td className="py-3 px-3.5">
                         {agentName || agentCode ? (
                           <div className="flex flex-col">
-                            <span className="font-bold text-gray-900 text-xs">
+                            <span className="font-bold text-slate-900 text-xs">
                               {agentName || `Agent ${agentCode}`}
                             </span>
                             {agentCode && (
-                              <span className="inline-flex items-center gap-1 text-[10px] text-gray-500 font-mono">
-                                Ext: <strong className="text-gray-700">{agentCode}</strong>
+                              <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 font-mono">
+                                Ext: <strong className="text-slate-600">{agentCode}</strong>
                               </span>
                             )}
                           </div>
                         ) : (
-                          <span className="text-gray-300 italic">--</span>
+                          <span className="text-slate-300 italic">--</span>
                         )}
                       </td>
 
                       {/* CRM Durn */}
-                      <td className="p-3.5 font-mono text-xs font-semibold text-gray-800">
+                      <td className="py-3 px-3.5 font-mono text-xs font-semibold text-slate-700">
                         {log.crm_duration || "--"}
                       </td>
 
                       {/* Call Durn */}
-                      <td className="p-3.5 font-mono text-xs font-bold text-indigo-700">
+                      <td className="py-3 px-3.5 font-mono text-xs font-bold text-indigo-700">
                         {log.call_duration || "--"}
                       </td>
 
                       {/* Wrapup Durn */}
-                      <td className="p-3.5 font-mono text-xs text-gray-500">
+                      <td className="py-3 px-3.5 font-mono text-xs text-slate-500">
                         {log.Wrapup_Durn || "--"}
                       </td>
 
                       {/* Start Time */}
-                      <td className="p-3.5 text-gray-700 font-medium text-[11px]">
+                      <td className="py-3 px-3.5 text-slate-700 font-medium text-[11px]">
                         {log.start_time || "--"}
                       </td>
 
                       {/* End Time */}
-                      <td className="p-3.5 text-gray-700 font-medium text-[11px]">
+                      <td className="py-3 px-3.5 text-slate-700 font-medium text-[11px]">
                         {log.end_time || "--"}
                       </td>
 
                       {/* Disposition */}
-                      <td className="p-3.5">
+                      <td className="py-3 px-3.5">
                         {log.disposition ? (
-                          <span className="inline-block px-2 py-0.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          <span className="inline-block px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/70">
                             {log.disposition}
                           </span>
                         ) : (
-                          <span className="text-gray-300">--</span>
+                          <span className="text-slate-300">--</span>
                         )}
                       </td>
 
                       {/* Sub Disposition */}
-                      <td className="p-3.5 text-gray-600 text-xs">
+                      <td className="py-3 px-3.5 text-slate-600 text-xs">
                         {log.sub_disposition || "--"}
                       </td>
 
                       {/* Customer Name */}
-                      <td className="p-3.5 font-bold text-gray-900">
+                      <td className="py-3 px-3.5 font-bold text-slate-900">
                         {log.Customer_Name || "--"}
                       </td>
 
                       {/* Location */}
-                      <td className="p-3.5 text-gray-600">
+                      <td className="py-3 px-3.5 text-slate-600">
                         {log.Location ? (
                           <div className="flex items-center gap-1 text-xs">
                             <MapPin size={11} className="text-indigo-400 shrink-0" />
@@ -921,7 +923,7 @@ export default function DialerPage() {
                       </td>
 
                       {/* Remark */}
-                      <td className="p-3.5 text-gray-500 text-xs max-w-[200px] truncate" title={log.Remark || ""}>
+                      <td className="py-3 px-3.5 text-slate-500 text-xs max-w-[200px] truncate" title={log.Remark || ""}>
                         {log.Remark || "--"}
                       </td>
                     </tr>
@@ -933,34 +935,34 @@ export default function DialerPage() {
         </div>
 
         {/* Footer with Pagination Controls */}
-        <div className="bg-slate-50/70 p-3.5 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-600 font-medium">
+        <div className="bg-slate-50/90 p-4 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600 font-medium">
           <div className="flex flex-wrap items-center gap-3">
             <span>
               Showing{" "}
-              <strong className="text-gray-900 font-bold">
+              <strong className="text-slate-900 font-bold">
                 {filteredLogs.length === 0 ? 0 : (validPage - 1) * pageSize + 1}
               </strong>{" "}
               to{" "}
-              <strong className="text-gray-900 font-bold">
+              <strong className="text-slate-900 font-bold">
                 {Math.min(validPage * pageSize, filteredLogs.length)}
               </strong>{" "}
               of{" "}
-              <strong className="text-gray-900 font-bold">
+              <strong className="text-slate-900 font-bold">
                 {filteredLogs.length}
               </strong>{" "}
               call logs
             </span>
 
             {/* Rows per page selector */}
-            <div className="flex items-center gap-1.5 pl-3 border-l border-gray-200">
-              <span className="text-gray-400 text-[11px]">Rows per page:</span>
+            <div className="flex items-center gap-1.5 pl-3 border-l border-slate-200">
+              <span className="text-slate-400 text-[11px]">Rows per page:</span>
               <select
                 value={pageSize}
                 onChange={(e) => {
                   setPageSize(Number(e.target.value));
                   setCurrentPage(1);
                 }}
-                className="bg-white border border-gray-200 rounded-lg px-2 py-1 text-xs font-semibold text-gray-700 focus:outline-none focus:border-indigo-500 shadow-2xs cursor-pointer"
+                className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-700 focus:outline-none focus:border-indigo-500 shadow-2xs cursor-pointer"
               >
                 <option value={10}>10</option>
                 <option value={20}>20</option>
@@ -978,7 +980,7 @@ export default function DialerPage() {
                 onClick={() => setCurrentPage(1)}
                 disabled={validPage <= 1 || loading}
                 title="First Page"
-                className="p-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"
+                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"
               >
                 <ChevronsLeft size={15} />
               </button>
@@ -986,7 +988,7 @@ export default function DialerPage() {
                 type="button"
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={validPage <= 1 || loading}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 font-semibold hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-semibold hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"
               >
                 <ChevronLeft size={14} />
                 <span>Prev</span>
@@ -1009,7 +1011,7 @@ export default function DialerPage() {
                   }, [])
                   .map((item, idx) =>
                     typeof item === "string" ? (
-                      <span key={`dots-${idx}`} className="px-1.5 text-gray-400 font-bold">
+                      <span key={`dots-${idx}`} className="px-1.5 text-slate-400 font-bold">
                         ...
                       </span>
                     ) : (
@@ -1017,10 +1019,10 @@ export default function DialerPage() {
                         key={item}
                         type="button"
                         onClick={() => setCurrentPage(item)}
-                        className={`min-w-[28px] h-7 px-2 rounded-lg text-xs font-bold transition cursor-pointer ${
+                        className={`min-w-[30px] h-7 px-2 rounded-lg text-xs font-bold transition cursor-pointer ${
                           item === validPage
-                            ? "bg-indigo-600 text-white shadow-xs"
-                            : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
+                            ? "bg-indigo-600 text-white shadow-xs shadow-indigo-100"
+                            : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
                         }`}
                       >
                         {item}
@@ -1033,7 +1035,7 @@ export default function DialerPage() {
                 type="button"
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 disabled={validPage >= totalPages || loading}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 font-semibold hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-semibold hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"
               >
                 <span>Next</span>
                 <ChevronRight size={14} />
@@ -1043,7 +1045,7 @@ export default function DialerPage() {
                 onClick={() => setCurrentPage(totalPages)}
                 disabled={validPage >= totalPages || loading}
                 title="Last Page"
-                className="p-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"
+                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"
               >
                 <ChevronsRight size={15} />
               </button>

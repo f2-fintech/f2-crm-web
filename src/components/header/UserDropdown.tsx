@@ -93,10 +93,10 @@ export default function UserDropdown() {
         className="flex items-center text-gray-700 dark:text-gray-400 dropdown-toggle"
       >
         {user?.profileImage && user.profileImage !== "#" && user.profileImage !== "/images/user/owner.jpg" ? (
-          <span className="mr-3 overflow-hidden rounded-full h-11 w-11 shrink-0">
+          <span className="mr-1.5 sm:mr-2 overflow-hidden rounded-full h-8.5 w-8.5 sm:h-9 sm:w-9 shrink-0">
             <Image
-              width={44}
-              height={44}
+              width={36}
+              height={36}
               src={user.profileImage}
               alt="User"
               className="rounded-full object-cover"
@@ -104,12 +104,12 @@ export default function UserDropdown() {
             />
           </span>
         ) : (
-          <div className="mr-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-500 text-sm font-bold text-white shadow-xs">
+          <div className="mr-1.5 sm:mr-2 flex h-8.5 w-8.5 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs sm:text-sm font-bold text-white shadow-xs">
             {user ? getInitials(user.firstName, user.lastName) : "U"}
           </div>
         )}
 
-        <span className="hidden sm:block mr-1 font-medium text-theme-sm">
+        <span className="hidden sm:block mr-1 font-medium text-theme-sm max-w-[85px] md:max-w-[100px] xl:max-w-[110px] truncate">
           {user
             ? `${user.firstName} ${user.lastName}`
             : "Guest"}

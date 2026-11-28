@@ -21,11 +21,12 @@ export interface NotionPageItem {
 export default function useNotionPages() {
   const [loading, setLoading] = useState(false);
   const [treeData, setTreeData] = useState<{
+    teamName?: string;
     shared: NotionPageItem[];
     private: NotionPageItem[];
     workspace: NotionPageItem[];
     tree: NotionPageItem[];
-  }>({ shared: [], private: [], workspace: [], tree: [] });
+  }>({ teamName: "", shared: [], private: [], workspace: [], tree: [] });
 
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [activePage, setActivePage] = useState<any>(null);
@@ -47,6 +48,7 @@ export default function useNotionPages() {
       const data = unpackData(response);
       if (data && typeof data === "object") {
         setTreeData({
+          teamName: data.teamName || "",
           shared: data.shared || [],
           private: data.private || [],
           workspace: data.workspace || [],

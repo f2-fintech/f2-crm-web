@@ -101,17 +101,17 @@ const AppHeader: React.FC = () => {
   }, []);
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full items-center border-b border-gray-200 bg-white px-3 lg:px-6">
-      <div className="flex w-full items-center justify-between gap-3">
+    <header className="sticky top-0 z-30 flex h-16 w-full max-w-full items-center border-b border-gray-200 bg-white px-2.5 sm:px-4 lg:px-5">
+      <div className="flex w-full items-center justify-between gap-1.5 sm:gap-2.5 min-w-0">
         {/* Left: sidebar toggle + page title */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
           <button
-            className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition-colors hover:bg-gray-50 lg:h-11 lg:w-11"
+            className="flex h-9 w-9 lg:h-10 lg:w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition-colors hover:bg-gray-50"
             onClick={handleToggle}
             aria-label="Toggle Sidebar"
           >
             {isMobileOpen ? (
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path
                   fillRule="evenodd"
                   clipRule="evenodd"
@@ -131,23 +131,23 @@ const AppHeader: React.FC = () => {
             )}
           </button>
 
-          <h1 className="hidden text-xl font-semibold text-gray-800 sm:block whitespace-nowrap shrink-0">
+          <h1 className="hidden text-base sm:text-lg font-semibold text-gray-800 sm:block whitespace-nowrap shrink-0 max-w-[140px] md:max-w-[180px] lg:max-w-none truncate">
             {pageTitle}
           </h1>
         </div>
 
         {/* Right: search + quick create + utility icons + avatar + apps */}
-        <div className="flex items-center justify-end gap-1.5 sm:gap-3 w-auto">
+        <div className="flex items-center justify-end gap-1 sm:gap-1.5 lg:gap-2 shrink-0">
           <div className="relative hidden md:block">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
             <input
               id="global-search"
               ref={inputRef}
               type="text"
               placeholder="Search records"
-              className="h-10 w-64 rounded-lg border-none bg-gray-100 pl-9 pr-12 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 xl:w-80"
+              className="h-8.5 w-24 sm:w-28 md:w-32 lg:w-36 xl:w-44 rounded-lg border-none bg-gray-100 pl-8 pr-7 text-xs text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
             />
-            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded-md border border-gray-200 bg-white px-1.5 py-0.5 text-[10px] text-gray-400">
+            <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md border border-gray-200 bg-white px-1 py-0.5 text-[9px] text-gray-400">
               ⌘K
             </span>
           </div>
@@ -156,53 +156,53 @@ const AppHeader: React.FC = () => {
             id="quick-create-btn"
             title="Quick create"
             aria-label="Quick create"
-            className="flex h-9 w-9 items-center justify-center rounded-lg border-2 border-indigo-500 text-indigo-500 transition-colors hover:bg-indigo-50"
+            className="flex h-8.5 w-8.5 items-center justify-center rounded-lg border-2 border-indigo-500 text-indigo-500 transition-colors hover:bg-indigo-50 shrink-0"
           >
-            <Plus className="h-4 w-4" strokeWidth={2.5} />
+            <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
           </button>
 
           <TranslateDropdown />
 
           <NotificationDropdown />
 
-          <div className="hidden sm:block">
+          <div className="hidden lg:block shrink-0">
             <Link href="/calendar">
               <IconButton title="Calendar">
-                <Calendar className="h-[18px] w-[18px]" />
+                <Calendar className="h-[17px] w-[17px]" />
               </IconButton>
             </Link>
           </div>
 
-          <div className="hidden sm:block">
+          <div className="hidden 2xl:block shrink-0">
             <IconButton title="Assistant">
-              <Bot className="h-[18px] w-[18px]" />
+              <Bot className="h-[17px] w-[17px]" />
             </IconButton>
           </div>
 
-          <div className="hidden sm:flex">
+          <div className="hidden md:flex shrink-0">
             <button
               id="start-tour-btn"
               title="Help / Guide"
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
+              className="flex h-8.5 w-8.5 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
               onClick={() => window.dispatchEvent(new Event('start-guide-tour'))}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
             </button>
           </div>
 
-          <div className="hidden sm:block">
+          <div className="hidden lg:block shrink-0">
             <IconButton title="Settings">
-              <Settings className="h-[18px] w-[18px]" />
+              <Settings className="h-[17px] w-[17px]" />
             </IconButton>
           </div>
 
           <UserDropdown />
 
-          <div className="hidden h-6 w-px bg-gray-200 sm:block" />
+          <div className="hidden h-5 w-px bg-gray-200 sm:block shrink-0 mx-0.5" />
 
-          <div className="hidden sm:block">
+          <div className="shrink-0">
             <IconButton title="Apps">
-              <Grid3x3 className="h-[18px] w-[18px]" />
+              <Grid3x3 className="h-[17px] w-[17px]" />
             </IconButton>
           </div>
         </div>

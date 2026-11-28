@@ -53,6 +53,13 @@ import {
   X,
   Download,
   RotateCcw,
+  Sparkles,
+  Layers,
+  CheckCircle2,
+  Calendar,
+  ExternalLink,
+  SlidersHorizontal,
+  FileSpreadsheet,
 } from "lucide-react";
 import useNotionPages, { NotionPageItem } from "@/hooks/useNotionPages";
 import { useAuth } from "@/hooks/useAuth";
@@ -75,8 +82,9 @@ import {
 
 const c = {
   bg: "#ffffff",
+  surface: "#fafbfd",
   sidebarBg: "#f8fafc",
-  hover: "rgba(241, 245, 249, 0.9)",
+  hover: "rgba(241, 245, 249, 0.85)",
   active: "rgba(79, 70, 229, 0.08)",
   textMain: "#0f172a",
   textMuted: "#64748b",
@@ -84,10 +92,15 @@ const c = {
   border: "#e2e8f0",
   borderStrong: "#cbd5e1",
   accent: "#4f46e5",
+  accentLight: "#6366f1",
   accentSoft: "rgba(79, 70, 229, 0.08)",
   accentHover: "#4338ca",
   danger: "#ef4444",
   dangerSoft: "rgba(239, 68, 68, 0.08)",
+  success: "#10b981",
+  successSoft: "rgba(16, 185, 129, 0.08)",
+  cardBorder: "rgba(226, 232, 240, 0.8)",
+  subtleGlow: "0 4px 20px -2px rgba(79, 70, 229, 0.08)",
 };
 
 const FONT_SANS =
@@ -148,7 +161,7 @@ export default function NotionPagesClientPage() {
     fetchTree();
   }, [fetchTree]);
 
-  const { user, role } = useAuth();
+  const { user, role, isTeamLeader, isManager } = useAuth();
   const currentUser = user;
 
   const isAdmin = useMemo(() => {
@@ -287,9 +300,15 @@ export default function NotionPagesClientPage() {
       if (queryPageId) {
         setSelectedPageId(queryPageId);
         setLoadingPage(true);
-        fetchPageDetails(queryPageId).then((page: any) => {
-          if (page?.title) setSelectedPageTitle(page.title);
-        }).finally(() => setLoadingPage(false));
+        fetchPageDetails(queryPageId)
+          .then((page: any) => {
+            if (page?.title) setSelectedPageTitle(page.title);
+          })
+          .catch((err) => {
+            console.warn("Requested pageId could not be loaded or was deleted:", err);
+            setSelectedPageId(null);
+          })
+          .finally(() => setLoadingPage(false));
       }
     }
   }, [treeData, selectedPageId, fetchPageDetails]);
@@ -755,11 +774,17 @@ export default function NotionPagesClientPage() {
       });
   }, [rowsData, searchQuery, pageColumns, selectedCategory]);
 
-  const workspaceName = currentUser?.firstName
-    ? `${currentUser.firstName}’s Team`
-    : "Workspace";
-  const initials = currentUser?.firstName?.charAt(0)?.toUpperCase() || "W";
-  const avatarColor = hashColor(currentUser?.firstName || "workspace");
+  const workspaceName =
+    treeData?.teamName ||
+    currentUser?.teamName ||
+    currentUser?.team?.name ||
+    (isAdmin
+      ? "CRM Workspace"
+      : isTeamLeader || isManager
+      ? `${currentUser?.firstName || "My"}’s Team`
+      : "CRM Workspace");
+  const initials = workspaceName.charAt(0).toUpperCase() || "W";
+  const avatarColor = hashColor(workspaceName || "workspace");
 
   const paginatedRows = useMemo(() => {
     if (!Array.isArray(filteredRows)) return [];
@@ -805,19 +830,22 @@ export default function NotionPagesClientPage() {
               onClick={() => handleSelectPage(node)}
               sx={{
                 alignItems: "center",
-                gap: 0.5,
-                height: 32,
+                gap: 0.75,
+                height: 34,
                 pl: 0.75 + depth * 1.25,
                 pr: 0.75,
                 mx: 0.75,
-                my: 0.25,
-                borderRadius: "6px",
+                my: 0.3,
+                borderRadius: "8px",
                 cursor: "pointer",
-                bgcolor: isSelected ? c.active : "transparent",
+                bgcolor: isSelected ? "rgba(79, 70, 229, 0.09)" : "transparent",
                 color: isSelected ? c.accent : c.textMain,
-                borderLeft: isSelected ? `3px solid ${c.accent}` : "3px solid transparent",
-                transition: "all 120ms ease",
-                "&:hover": { bgcolor: isSelected ? c.active : c.hover },
+                border: isSelected ? "1px solid rgba(79, 70, 229, 0.2)" : "1px solid transparent",
+                transition: "all 140ms ease",
+                "&:hover": {
+                  bgcolor: isSelected ? "rgba(79, 70, 229, 0.12)" : "rgba(241, 245, 249, 0.9)",
+                  transform: "translateX(2px)",
+                },
                 "&:focus-visible": {
                   outline: `2px solid ${c.accent}`,
                   outlineOffset: 1,
@@ -836,42 +864,43 @@ export default function NotionPagesClientPage() {
                   setExpandedNodes((p) => ({ ...p, [nodeKey]: !isExpanded }));
                 }}
                 sx={{
-                  p: 0.2,
-                  color: c.textFaint,
+                  p: 0.3,
+                  color: isSelected ? c.accent : c.textFaint,
                   visibility: hasChildren ? "visible" : "hidden",
-                  "&:hover": { bgcolor: c.hover },
+                  "&:hover": { bgcolor: "rgba(0,0,0,0.04)" },
                 }}
               >
                 {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
               </IconButton>
 
-              {node.pageType === "SHEET" ? (
-                <TableIcon
-                  size={15}
-                  style={{
-                    color: isSelected ? c.accent : c.textMuted,
-                    marginRight: 6,
-                    flexShrink: 0,
-                  }}
-                />
-              ) : (
-                <FileText
-                  size={15}
-                  style={{
-                    color: isSelected ? c.accent : c.textMuted,
-                    marginRight: 6,
-                    flexShrink: 0,
-                  }}
-                />
-              )}
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 22,
+                  height: 22,
+                  borderRadius: "5px",
+                  bgcolor: isSelected ? "rgba(79, 70, 229, 0.15)" : "transparent",
+                  color: isSelected ? c.accent : c.textMuted,
+                  flexShrink: 0,
+                }}
+              >
+                {node.pageType === "SHEET" ? (
+                  <TableIcon size={14} />
+                ) : (
+                  <FileText size={14} />
+                )}
+              </Box>
 
               <Typography
                 noWrap
                 sx={{
-                  fontSize: "13.5px",
-                  fontWeight: isSelected ? 600 : 450,
+                  fontSize: "13px",
+                  fontWeight: isSelected ? 650 : 450,
                   flexGrow: 1,
-                  letterSpacing: "-0.08px",
+                  letterSpacing: "-0.05px",
+                  color: isSelected ? "#3730a3" : c.textMain,
                 }}
               >
                 {node.title}
@@ -887,11 +916,13 @@ export default function NotionPagesClientPage() {
                       openCreateDialog(nodeKey);
                     }}
                     sx={{
-                      p: 0.2,
+                      p: 0.3,
                       color: c.textMuted,
                       opacity: 0,
+                      borderRadius: "4px",
                       ".tree-row:hover &": { opacity: 1 },
                       "&:focus-visible": { opacity: 1 },
+                      "&:hover": { bgcolor: "rgba(0,0,0,0.06)", color: c.accent },
                     }}
                   >
                     <Plus size={14} />
@@ -949,50 +980,76 @@ export default function NotionPagesClientPage() {
           borderRight: { md: `1px solid ${c.border}` },
           display: isSidebarOpen ? "flex" : "none",
           flexDirection: "column",
+          position: { xs: "fixed", md: "static" },
+          inset: { xs: 0, md: "auto" },
+          zIndex: { xs: 50, md: 1 },
+          boxShadow: { xs: "0 20px 25px -5px rgba(0, 0, 0, 0.2)", md: "none" },
         }}
       >
         <Stack
           direction="row"
           sx={{
             alignItems: "center",
-            gap: 1.25,
-            height: 48,
-            px: 1.5,
-            mx: 0.75,
-            mt: 0.75,
-            borderRadius: "8px",
-            borderBottom: `1px solid ${c.border}`,
+            justifyContent: "space-between",
+            p: 1.25,
+            mx: 1,
+            mt: 1,
+            mb: 0.5,
+            borderRadius: "10px",
+            bgcolor: "#ffffff",
+            border: `1px solid ${c.border}`,
+            boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
             cursor: "pointer",
-            "&:hover": { bgcolor: c.hover },
+            transition: "all 0.18s ease",
+            "&:hover": {
+              borderColor: c.borderStrong,
+              boxShadow: "0 2px 6px rgba(0,0,0,0.05)",
+            },
           }}
         >
-          <Box
-            sx={{
-              width: 26,
-              height: 26,
-              borderRadius: "6px",
-              bgcolor: c.accent,
-              color: "#fff",
-              display: "grid",
-              placeItems: "center",
-              fontSize: 12.5,
-              fontWeight: 700,
-              flexShrink: 0,
-            }}
-          >
-            {initials}
-          </Box>
-          <Box sx={{ minWidth: 0, flexGrow: 1 }}>
-            <Typography
-              noWrap
-              sx={{ fontWeight: 600, fontSize: "13.5px", letterSpacing: "-0.1px", color: c.textMain, lineHeight: 1.2 }}
+          <Stack direction="row" sx={{ alignItems: "center", gap: 1.25, minWidth: 0, flexGrow: 1 }}>
+            <Box
+              sx={{
+                width: 30,
+                height: 30,
+                borderRadius: "8px",
+                background: "linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)",
+                color: "#fff",
+                display: "grid",
+                placeItems: "center",
+                fontSize: 13,
+                fontWeight: 700,
+                flexShrink: 0,
+                boxShadow: "0 2px 5px rgba(79, 70, 229, 0.3)",
+              }}
             >
-              {workspaceName}
-            </Typography>
-            <Typography sx={{ fontSize: "11px", color: c.textMuted }}>
-              CRM Workspace
-            </Typography>
-          </Box>
+              {initials}
+            </Box>
+            <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+              <Typography
+                noWrap
+                sx={{ fontWeight: 600, fontSize: "13px", letterSpacing: "-0.1px", color: c.textMain, lineHeight: 1.2 }}
+              >
+                {workspaceName}
+              </Typography>
+              <Stack direction="row" sx={{ alignItems: "center", gap: 0.5, mt: 0.2 }}>
+                <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: c.success }} />
+                <Typography sx={{ fontSize: "11px", color: c.textMuted, fontWeight: 500 }}>
+                  Enterprise Workspace
+                </Typography>
+              </Stack>
+            </Box>
+          </Stack>
+          <IconButton
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsSidebarOpen(false);
+            }}
+            sx={{ display: { xs: "inline-flex", md: "none" }, color: c.textMuted }}
+          >
+            <X size={18} />
+          </IconButton>
         </Stack>
 
         <Stack
@@ -1000,26 +1057,27 @@ export default function NotionPagesClientPage() {
           sx={{
             alignItems: "center",
             gap: 1,
-            height: 32,
+            height: 34,
             px: 1.25,
             mx: 1,
-            mt: 1.25,
-            mb: 1.5,
-            borderRadius: "6px",
+            mt: 0.75,
+            mb: 1.25,
+            borderRadius: "8px",
             border: `1px solid ${c.border}`,
             bgcolor: "#ffffff",
             boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
             color: c.textMuted,
+            transition: "all 0.15s ease",
             "&:hover": { borderColor: c.borderStrong },
-            "&:focus-within": { borderColor: c.accent, boxShadow: "0 0 0 2px rgba(79, 70, 229, 0.12)" },
+            "&:focus-within": { borderColor: c.accent, boxShadow: "0 0 0 3px rgba(79, 70, 229, 0.12)" },
           }}
         >
-          <Search size={14} />
+          <Search size={14} color={c.textFaint} />
           <InputBase
-            placeholder="Search pages & sheets..."
+            placeholder="Search sheets, pages..."
             value={sidebarQuery}
             onChange={(e) => setSidebarQuery(e.target.value)}
-            sx={{ fontSize: "12.5px", color: c.textMain, flexGrow: 1 }}
+            sx={{ fontSize: "12px", color: c.textMain, flexGrow: 1 }}
           />
           {sidebarQuery && (
             <IconButton
@@ -1063,46 +1121,48 @@ export default function NotionPagesClientPage() {
         </Box>
 
         <Divider sx={{ borderColor: c.border }} />
-        <Button
-          id="notion-add-page-btn"
-          fullWidth
-          startIcon={<Plus size={15} />}
-          onClick={() => openCreateDialog(undefined)}
-          sx={{
-            justifyContent: "flex-start",
-            textTransform: "none",
-            color: c.textMuted,
-            fontSize: "13.5px",
-            fontWeight: 500,
-            py: 1.25,
-            px: 2,
-            borderRadius: 0,
-            "&:hover": { bgcolor: c.hover, color: c.textMain },
-          }}
-        >
-          New page
-        </Button>
-        {user?.role && ["SUPER_ADMIN", "ADMIN"].includes(user.role) && (
+        <Box sx={{ p: 1, display: "flex", flexDirection: "column", gap: 0.5 }}>
           <Button
+            id="notion-add-page-btn"
             fullWidth
-            startIcon={<Trash2 size={15} />}
-            onClick={() => setTrashOpen(true)}
+            startIcon={<Plus size={15} />}
+            onClick={() => openCreateDialog(undefined)}
             sx={{
               justifyContent: "flex-start",
               textTransform: "none",
-              color: c.textMuted,
-              fontSize: "13.5px",
-              fontWeight: 500,
-              py: 1.25,
-              px: 2,
-              borderRadius: 0,
-              borderTop: `1px solid ${c.border}`,
-              "&:hover": { bgcolor: c.hover, color: c.textMain },
+              color: c.accent,
+              fontSize: "13px",
+              fontWeight: 600,
+              py: 0.8,
+              px: 1.5,
+              borderRadius: "8px",
+              bgcolor: "rgba(79, 70, 229, 0.05)",
+              "&:hover": { bgcolor: "rgba(79, 70, 229, 0.12)", color: c.accentHover },
             }}
           >
-            Trash
+            New page
           </Button>
-        )}
+          {user?.role && ["SUPER_ADMIN", "ADMIN"].includes(user.role) && (
+            <Button
+              fullWidth
+              startIcon={<Trash2 size={15} />}
+              onClick={() => setTrashOpen(true)}
+              sx={{
+                justifyContent: "flex-start",
+                textTransform: "none",
+                color: c.textMuted,
+                fontSize: "13px",
+                fontWeight: 500,
+                py: 0.8,
+                px: 1.5,
+                borderRadius: "8px",
+                "&:hover": { bgcolor: c.hover, color: c.danger },
+              }}
+            >
+              Trash
+            </Button>
+          )}
+        </Box>
       </Box>
 
       {/* ========================= Main column ========================= */}
@@ -1117,13 +1177,14 @@ export default function NotionPagesClientPage() {
           sx={{
             justifyContent: "space-between",
             alignItems: "center",
-            height: 45,
+            height: 52,
             px: { xs: 2, md: 3 },
             position: "sticky",
             top: 0,
-            zIndex: 3,
-            bgcolor: c.bg,
-            borderBottom: `1px solid ${scrolled ? c.border : "transparent"}`,
+            zIndex: 10,
+            bgcolor: "rgba(255, 255, 255, 0.85)",
+            backdropFilter: "blur(12px)",
+            borderBottom: `1px solid ${c.border}`,
           }}
         >
           <Stack
@@ -1132,7 +1193,13 @@ export default function NotionPagesClientPage() {
           >
             {!isSidebarOpen && (
               <IconButton
-                sx={{ mr: 1, p: 0.5 }}
+                sx={{
+                  mr: 1,
+                  p: 0.6,
+                  borderRadius: "8px",
+                  bgcolor: "rgba(241, 245, 249, 0.8)",
+                  "&:hover": { bgcolor: c.hover, color: c.accent },
+                }}
                 onClick={() => setIsSidebarOpen(true)}
               >
                 <ChevronRight size={18} />
@@ -1156,12 +1223,14 @@ export default function NotionPagesClientPage() {
                       }}
                       sx={{
                         color: c.textMain,
-                        fontSize: "13px",
-                        fontWeight: 500,
-                        minWidth: 60,
-                        px: 0.5,
-                        borderRadius: "4px",
-                        "&:hover, &.Mui-focused": { bgcolor: c.hover },
+                        fontSize: "13.5px",
+                        fontWeight: 600,
+                        minWidth: 80,
+                        px: 1,
+                        py: 0.25,
+                        borderRadius: "6px",
+                        bgcolor: "rgba(241, 245, 249, 0.6)",
+                        "&:hover, &.Mui-focused": { bgcolor: "#ffffff", boxShadow: "0 0 0 1.5px #cbd5e1" },
                       }}
                     />
                   ) : (
@@ -1183,10 +1252,11 @@ export default function NotionPagesClientPage() {
                       }}
                       sx={{
                         fontSize: "13px",
-                        fontWeight: idx === breadcrumbs.length - 1 ? 500 : 400,
+                        fontWeight: idx === breadcrumbs.length - 1 ? 600 : 450,
                         color: idx === breadcrumbs.length - 1 ? c.textMain : c.textMuted,
-                        px: 0.5,
-                        borderRadius: "4px",
+                        px: 0.75,
+                        py: 0.3,
+                        borderRadius: "5px",
                         cursor: idx === breadcrumbs.length - 1 ? "default" : "pointer",
                         "&:hover": idx === breadcrumbs.length - 1 ? {} : { bgcolor: c.hover, color: c.textMain },
                         maxWidth: "150px",
@@ -1211,7 +1281,7 @@ export default function NotionPagesClientPage() {
                   {workspaceName}
                 </Typography>
                 <Typography sx={{ color: c.textFaint, fontSize: "13px" }}>/</Typography>
-                <Typography noWrap sx={{ color: c.textMain, fontSize: "13px", fontWeight: 500 }}>
+                <Typography noWrap sx={{ color: c.textMain, fontSize: "13px", fontWeight: 600 }}>
                   {selectedPageTitle}
                 </Typography>
               </>
@@ -1223,7 +1293,7 @@ export default function NotionPagesClientPage() {
                   px: 0.5,
                   borderRadius: "4px",
                   color: c.textMain,
-                  fontWeight: 500
+                  fontWeight: 600,
                 }}
               >
                 {workspaceName}
@@ -1231,19 +1301,23 @@ export default function NotionPagesClientPage() {
             )}
           </Stack>
 
-          <Stack direction="row" sx={{ alignItems: "center", gap: 0.25 }}>
+          <Stack direction="row" sx={{ alignItems: "center", gap: 0.75 }}>
             <Button
               startIcon={<Share2 size={14} />}
               onClick={handleShareClick}
               sx={{
                 color: c.textMuted,
                 textTransform: "none",
-                fontSize: "13px",
-                fontWeight: 500,
+                fontSize: "12.5px",
+                fontWeight: 600,
                 minWidth: 0,
-                px: 1.25,
-                borderRadius: "6px",
-                "&:hover": { bgcolor: c.hover, color: c.textMain },
+                px: 1.5,
+                py: 0.5,
+                borderRadius: "7px",
+                border: `1px solid ${c.border}`,
+                bgcolor: "#ffffff",
+                boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+                "&:hover": { bgcolor: c.hover, color: c.textMain, borderColor: c.borderStrong },
               }}
             >
               Share
@@ -1254,7 +1328,14 @@ export default function NotionPagesClientPage() {
                   size="small"
                   aria-label="Activity log"
                   onClick={() => setActivityLogOpen(true)}
-                  sx={{ color: c.textMuted, borderRadius: "6px", "&:hover": { bgcolor: c.hover, color: c.accent } }}
+                  sx={{
+                    color: c.textMuted,
+                    borderRadius: "7px",
+                    border: `1px solid ${c.border}`,
+                    bgcolor: "#ffffff",
+                    p: 0.6,
+                    "&:hover": { bgcolor: c.hover, color: c.accent, borderColor: c.borderStrong },
+                  }}
                 >
                   <Activity size={16} />
                 </IconButton>
@@ -1264,9 +1345,16 @@ export default function NotionPagesClientPage() {
               size="small"
               aria-label="More actions"
               onClick={(e) => setPageMenuAnchor(e.currentTarget)}
-              sx={{ color: c.textMuted, borderRadius: "6px", "&:hover": { bgcolor: c.hover } }}
+              sx={{
+                color: c.textMuted,
+                borderRadius: "7px",
+                border: `1px solid ${c.border}`,
+                bgcolor: "#ffffff",
+                p: 0.6,
+                "&:hover": { bgcolor: c.hover, color: c.textMain, borderColor: c.borderStrong },
+              }}
             >
-              <MoreHorizontal size={18} />
+              <MoreHorizontal size={17} />
             </IconButton>
           </Stack>
         </Stack>
@@ -1349,8 +1437,8 @@ export default function NotionPagesClientPage() {
         {/* Page body */}
         <Box
           sx={{
-            px: { xs: 3, md: 8, lg: 12 },
-            pt: 5,
+            px: { xs: 1.5, sm: 3, md: 8, lg: 12 },
+            pt: { xs: 2.5, md: 5 },
             pb: 10,
             width: "100%",
             maxWidth: 1180,
@@ -1358,40 +1446,69 @@ export default function NotionPagesClientPage() {
           }}
         >
           {loadingPage || deleting ? (
-            <Stack sx={{ alignItems: "center", justifyContent: "center", height: "40vh" }}>
-              <CircularProgress size={32} sx={{ color: c.textMuted }} />
+            <Stack sx={{ alignItems: "center", justifyContent: "center", height: "45vh" }}>
+              <CircularProgress size={32} sx={{ color: c.accent }} />
             </Stack>
           ) : !selectedPageId ? (
-            <Stack sx={{ alignItems: "center", justifyContent: "center", height: "40vh" }}>
-              <FileText size={48} color={c.borderStrong} />
-              <Typography sx={{ mt: 2, color: c.textMuted, fontWeight: 500 }}>No page selected</Typography>
-            </Stack>
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                minHeight: "55vh",
+                textAlign: "center",
+                px: 2,
+              }}
+            >
+              <Box
+                sx={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: "16px",
+                  background: "linear-gradient(135deg, rgba(79, 70, 229, 0.1) 0%, rgba(99, 102, 241, 0.15) 100%)",
+                  display: "grid",
+                  placeItems: "center",
+                  color: c.accent,
+                  mb: 2,
+                  boxShadow: "0 4px 14px rgba(79, 70, 229, 0.12)",
+                }}
+              >
+                <FileSpreadsheet size={32} />
+              </Box>
+              <Typography sx={{ fontSize: "20px", fontWeight: 700, color: c.textMain, mb: 0.75, letterSpacing: "-0.3px" }}>
+                Select a page or lead sheet
+              </Typography>
+              <Typography sx={{ fontSize: "14px", color: c.textMuted, maxWidth: 460, mb: 3.5, lineHeight: 1.5 }}>
+                Choose an existing sheet from the left navigation tree, or create a brand new workspace page to manage calling leads.
+              </Typography>
+
+              <Stack direction="row" spacing={1.5}>
+                <Button
+                  variant="contained"
+                  disableElevation
+                  startIcon={<Plus size={16} />}
+                  onClick={() => openCreateDialog(undefined)}
+                  sx={primaryBtn}
+                >
+                  Create New Page
+                </Button>
+                {!isSidebarOpen && (
+                  <Button
+                    variant="outlined"
+                    startIcon={<ChevronRight size={16} />}
+                    onClick={() => setIsSidebarOpen(true)}
+                    sx={outlineBtn}
+                  >
+                    Open Workspace Tree
+                  </Button>
+                )}
+              </Stack>
+            </Box>
           ) : (
             <>
               {/* Title block */}
               <Box className="title-block" sx={{ mb: 3 }}>
-                {editable && (
-                  <Button
-                    size="small"
-                    startIcon={<Smile size={14} />}
-                    sx={{
-                      ml: -1,
-                      mb: 0.5,
-                      color: c.textFaint,
-                      textTransform: "none",
-                      fontSize: "12.5px",
-                      fontWeight: 500,
-                      borderRadius: "6px",
-                      opacity: 0,
-                      ".title-block:hover &": { opacity: 1 },
-                      "&:focus-visible": { opacity: 1 },
-                      "&:hover": { bgcolor: c.hover, color: c.textMuted },
-                    }}
-                  >
-                    Add icon
-                  </Button>
-                )}
-
                 <InputBase
                   value={selectedPageTitle}
                   onChange={(e) => setSelectedPageTitle(e.target.value)}
@@ -1404,36 +1521,83 @@ export default function NotionPagesClientPage() {
                   readOnly={!editable}
                   sx={{
                     width: "100%",
-                    fontFamily: FONT_SERIF,
-                    fontWeight: 700,
-                    fontSize: { xs: "30px", md: "40px" },
-                    lineHeight: 1.15,
+                    fontFamily: FONT_SANS,
+                    fontWeight: 750,
+                    fontSize: { xs: "28px", md: "34px" },
+                    lineHeight: 1.2,
                     letterSpacing: "-0.6px",
                     color: c.textMain,
                     "& input": { p: 0 },
-                    "& input::placeholder": { color: "rgba(55,53,47,0.16)", opacity: 1 },
+                    "& input::placeholder": { color: "rgba(55,53,47,0.2)", opacity: 1 },
                   }}
                 />
 
-                {/* Page meta */}
+                {/* Page meta badges */}
                 <Stack
                   direction="row"
-                  sx={{ alignItems: "center", gap: 2, mt: 1.5, color: c.textMuted }}
+                  sx={{ alignItems: "center", gap: 1.25, mt: 1.5, flexWrap: "wrap" }}
                 >
-                  <Stack direction="row" sx={{ alignItems: "center", gap: 0.75 }}>
-                    <TableIcon size={14} />
-                    <Typography sx={{ fontSize: "13px" }}>
+                  <Box
+                    sx={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 0.6,
+                      px: 1.2,
+                      py: 0.4,
+                      borderRadius: "6px",
+                      bgcolor: "rgba(79, 70, 229, 0.08)",
+                      color: c.accent,
+                      fontSize: "12px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    <TableIcon size={13} />
+                    <span>
                       {rowsData.length
                         ? `${rowsData.length} ${rowsData.length === 1 ? "lead" : "leads"}`
                         : "No leads"}
-                    </Typography>
-                  </Stack>
+                    </span>
+                  </Box>
+
                   {pageColumns.length > 0 && (
-                    <Typography sx={{ fontSize: "13px" }}>
-                      {pageColumns.length}{" "}
-                      {pageColumns.length === 1 ? "column" : "columns"}
-                    </Typography>
+                    <Box
+                      sx={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 0.6,
+                        px: 1.2,
+                        py: 0.4,
+                        borderRadius: "6px",
+                        bgcolor: "rgba(241, 245, 249, 0.8)",
+                        color: c.textMuted,
+                        fontSize: "12px",
+                        fontWeight: 500,
+                        border: `1px solid ${c.border}`,
+                      }}
+                    >
+                      <Layers size={13} />
+                      <span>{pageColumns.length} columns</span>
+                    </Box>
                   )}
+
+                  <Box
+                    sx={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 0.6,
+                      px: 1.2,
+                      py: 0.4,
+                      borderRadius: "6px",
+                      bgcolor: editable ? "rgba(16, 185, 129, 0.08)" : "rgba(241, 245, 249, 0.8)",
+                      color: editable ? "#059669" : c.textMuted,
+                      fontSize: "12px",
+                      fontWeight: 500,
+                      border: `1px solid ${editable ? "rgba(16, 185, 129, 0.2)" : c.border}`,
+                    }}
+                  >
+                    <CheckCircle2 size={13} />
+                    <span>{editable ? "Full Access" : "Read Only"}</span>
+                  </Box>
                 </Stack>
 
                 {/* Actions */}
@@ -2191,21 +2355,24 @@ const textFieldSx = {
 } as const;
 
 const headCell = {
-  color: c.textMuted,
-  fontWeight: 600,
-  fontSize: "12.5px",
-  py: 1.15,
-  bgcolor: c.sidebarBg,
-  borderBottom: `1px solid ${c.border}`,
+  color: "#475569",
+  fontWeight: 650,
+  fontSize: "12px",
+  letterSpacing: "0.02em",
+  py: 1.1,
+  px: 1.5,
+  bgcolor: "#f8fafc",
+  borderBottom: "1px solid #e2e8f0",
   whiteSpace: "nowrap",
 } as const;
 
 const bodyCell = {
-  color: c.textMain,
-  fontSize: "13.5px",
-  py: 0.9,
-  borderBottom: `1px solid ${c.border}`,
-  maxWidth: 260,
+  color: "#1e293b",
+  fontSize: "13px",
+  py: 0.8,
+  px: 1.5,
+  borderBottom: "1px solid #f1f5f9",
+  maxWidth: 280,
   overflow: "hidden",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
